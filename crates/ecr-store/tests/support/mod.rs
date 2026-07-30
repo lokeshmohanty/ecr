@@ -26,10 +26,12 @@ impl Fixture {
             std::fs::create_dir_all(root.join("main/Archive").join(leaf)).expect("maildir");
         }
 
-        for entry in std::fs::read_dir(fixtures_dir().join("cur")).expect("fixtures") {
-            let entry = entry.expect("fixture entry");
-            let name = entry.file_name().to_string_lossy().replace(".eml", ":2,");
-            std::fs::copy(entry.path(), inbox.join("cur").join(name)).expect("copy fixture");
+        for source in [fixtures_dir().join("cur"), mime_fixtures_dir()] {
+            for entry in std::fs::read_dir(&source).expect("fixtures") {
+                let entry = entry.expect("fixture entry");
+                let name = entry.file_name().to_string_lossy().replace(".eml", ":2,");
+                std::fs::copy(entry.path(), inbox.join("cur").join(name)).expect("copy fixture");
+            }
         }
 
         let config_dir = home.path().join(".config/notmuch/default");
@@ -99,6 +101,13 @@ fn fixtures_dir() -> PathBuf {
         .join("../../fixtures/maildir")
         .canonicalize()
         .expect("fixtures/maildir must exist")
+}
+
+fn mime_fixtures_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/mime")
+        .canonicalize()
+        .expect("fixtures/mime must exist")
 }
 
 #[macro_export]

@@ -1,0 +1,46 @@
+From: Newsletter <news@example.com>
+To: test@example.com
+Subject: =?utf-8?B?SGVsbG8g4piB?=
+Message-Id: <mime1@example.com>
+Date: Wed, 01 Apr 2026 09:00:00 +0000
+MIME-Version: 1.0
+Content-Type: multipart/related; boundary="OUTER"
+
+--OUTER
+Content-Type: multipart/alternative; boundary="INNER"
+
+--INNER
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Plain text fallback with an =E2=98=81 cloud.
+
+--INNER
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+<html><body><p>Rich <b>HTML</b> body =E2=98=81</p>
+<img src=3D"cid:logo@example.com" alt=3D"logo">
+<img src=3D"https://tracker.example.com/pixel.gif" width=3D"1">
+<script>alert('xss')</script>
+<a href=3D"https://example.com/" onclick=3D"steal()">link</a>
+</body></html>
+
+--INNER--
+
+--OUTER
+Content-Type: image/png
+Content-Transfer-Encoding: base64
+Content-ID: <logo@example.com>
+Content-Disposition: inline; filename="logo.png"
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==
+
+--OUTER
+Content-Type: application/pdf
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="report.pdf"
+
+JVBERi0xLjQKMSAwIG9iajw8L1R5cGUvQ2F0YWxvZz4+ZW5kb2JqCnRyYWlsZXI8PC9Sb290IDEgMCBSPj4KJSVFT0YK
+
+--OUTER--

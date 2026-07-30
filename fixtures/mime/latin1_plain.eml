@@ -1,0 +1,10 @@
+From: José <jose@example.com>
+To: test@example.com
+Subject: =?iso-8859-1?Q?Caf=E9_r=E9union?=
+Message-Id: <mime2@example.com>
+Date: Wed, 01 Apr 2026 10:00:00 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset=iso-8859-1
+Content-Transfer-Encoding: 8bit
+
+Café au lait coûte 3 euros.

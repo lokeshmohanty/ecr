@@ -13,20 +13,26 @@ async fn revision_reports_a_real_database_uuid_and_lastmod() {
     assert!(revision.lastmod > 0, "lastmod was {}", revision.lastmod);
 }
 
+const FIXTURE_MESSAGES: usize = 8;
+const FIXTURE_THREADS: usize = 6;
+
 #[tokio::test]
 async fn counts_every_indexed_fixture_message() {
     let fixture = fixture_or_skip!();
     let store = fixture.store();
 
-    assert_eq!(store.count(&Query::new("*")).await.expect("count"), 5);
+    assert_eq!(
+        store.count(&Query::new("*")).await.expect("count"),
+        FIXTURE_MESSAGES
+    );
     assert_eq!(
         store.count(&Query::new("tag:inbox")).await.expect("count"),
-        5
+        FIXTURE_MESSAGES
     );
 }
 
 #[tokio::test]
-async fn search_groups_the_fixtures_into_three_threads() {
+async fn search_groups_the_fixtures_into_threads() {
     let fixture = fixture_or_skip!();
     let store = fixture.store();
 
@@ -35,7 +41,7 @@ async fn search_groups_the_fixtures_into_three_threads() {
         .await
         .expect("search");
 
-    assert_eq!(threads.len(), 3, "got {threads:#?}");
+    assert_eq!(threads.len(), FIXTURE_THREADS, "got {threads:#?}");
     assert!(threads.iter().all(|t| t.tags.contains("inbox")));
     assert!(threads.iter().all(|t| t.is_unread()));
 }
@@ -130,7 +136,7 @@ async fn limit_and_offset_page_through_results() {
         .expect("page 2");
 
     assert_eq!(first.len(), 2);
-    assert_eq!(second.len(), 1);
+    assert_eq!(second.len(), 2);
     assert!(first.iter().all(|f| second.iter().all(|s| s.id != f.id)));
 }
 
@@ -217,7 +223,7 @@ async fn a_malformed_tag_is_rejected_before_reaching_notmuch() {
     assert!(result.is_err(), "expected rejection, got {result:?}");
     assert_eq!(
         store.count(&Query::new("tag:inbox")).await.expect("count"),
-        5,
+        FIXTURE_MESSAGES,
         "the injected line must not have stripped inbox from everything"
     );
 }

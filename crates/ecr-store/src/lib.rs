@@ -1,6 +1,7 @@
 pub mod discovery;
 pub mod doctor;
 pub mod error;
+pub mod mime;
 pub mod notmuch;
 pub mod oauth;
 pub mod parse;

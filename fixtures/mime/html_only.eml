@@ -1,0 +1,9 @@
+From: a@example.com
+To: test@example.com
+Subject: HTML only
+Message-Id: <mime3@example.com>
+Date: Wed, 01 Apr 2026 11:00:00 +0000
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+
+<html><body><h1>Heading</h1><p>Paragraph one.</p><p>Paragraph two.</p></body></html>

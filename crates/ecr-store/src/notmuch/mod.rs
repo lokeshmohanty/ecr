@@ -8,7 +8,8 @@ pub use query::{and, escape_query_value};
 use crate::error::{Error, Result};
 use crate::paths::MailPaths;
 use ecr_core::message::{
-    Address, Message, MessageId, Query, TagOp, Thread, ThreadId, ThreadSummary,
+    Address, Body, BodyFormat, Message, MessageId, Part, PartId, Query, TagOp, Thread, ThreadId,
+    ThreadSummary,
 };
 use ecr_core::revision::Revision;
 use std::path::PathBuf;
@@ -159,6 +160,42 @@ impl Notmuch {
             .map(|l| PathBuf::from(l.trim()))
             .find(|p| p.is_file())
             .ok_or_else(|| Error::MessageNotFound { id: id.to_string() })
+    }
+
+    pub async fn parsed(&self, id: &MessageId) -> Result<crate::mime::ParsedMessage> {
+        let path = self.message_file(id).await?;
+        let raw = tokio::fs::read(&path).await?;
+        crate::mime::parse(id.as_str(), &raw)
+    }
+
+    pub async fn message_with_parts(&self, id: &MessageId) -> Result<Message> {
+        let mut message = self.message(id).await?;
+        message.parts = self.parsed(id).await?.parts();
+        Ok(message)
+    }
+
+    pub async fn body(
+        &self,
+        id: &MessageId,
+        format: BodyFormat,
+        allow_remote_resources: bool,
+    ) -> Result<Body> {
+        let parsed = self.parsed(id).await?;
+        let ctx = crate::mime::SanitizeContext::new(
+            format!("/api/v1/messages/{id}/parts/"),
+            allow_remote_resources,
+        );
+        Ok(parsed.body(format, &ctx))
+    }
+
+    pub async fn part(&self, id: &MessageId, part: &PartId) -> Result<Part> {
+        self.parsed(id)
+            .await?
+            .part(part)
+            .ok_or_else(|| Error::PartNotFound {
+                id: id.to_string(),
+                part: part.0,
+            })
     }
 
     pub async fn tag(&self, ops: &[TagOp]) -> Result<Revision> {
