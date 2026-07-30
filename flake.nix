@@ -82,6 +82,7 @@
 
               # Tooling
               sqlite # inspecting the ecr-store cache
+              just # task runner; see the Justfile
               hurl # API-level tests against ecr-server
               jq
             ])

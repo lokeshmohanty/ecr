@@ -20,12 +20,14 @@ Android ─┘   bearer token                       │             maildir
 ## Quick start
 
 ```bash
-direnv allow                                  # or: nix develop
-cargo run -p ecr-server -- doctor             # must be healthy first
-cargo run -p ecr-server -- token new laptop   # prints the token once
-cargo run -p ecr-server -- serve --bind 127.0.0.1:8080
+direnv allow          # or: nix develop
+just                  # list every recipe
 
-cd web && pnpm install && pnpm dev            # http://localhost:1420
+just doctor           # must be healthy first
+just token laptop     # prints the token once, with a pairing QR
+just serve            # ECR_BIND=<tailnet-addr>:8080 just serve
+
+just install && just dev   # web client on http://localhost:1420
 ```
 
 `doctor` is the gate. It resolves every config file, reports which one it chose

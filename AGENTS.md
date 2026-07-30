@@ -22,14 +22,14 @@ Provides Rust, `notmuch`/`isync`/`msmtp`, Node/pnpm, `hurl`, `sqlite`, WebKitGTK
 
 ## Commands
 
-```bash
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
-cargo fmt --all
-cargo run -p ecr-server -- doctor        # verify the mail setup first
+Use `just`; run it bare to list every recipe.
 
-cd web && pnpm test && pnpm exec tsc --noEmit
-./scripts/verify-web.sh                  # real browser, real server
+```bash
+just doctor       # verify the mail setup first — nothing works if this fails
+just test         # Rust
+just test-web     # web unit tests + tsc
+just verify       # real browser against a real server
+just check        # fmt, lint, both suites, and verify — run before claiming done
 ```
 
 ## Code style

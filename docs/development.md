@@ -11,18 +11,32 @@ pnpm, `hurl`, `sqlite`, and the WebKitGTK closure Tauri needs.
 
 ## Commands
 
+`just` wraps everything. `just` on its own lists the recipes.
+
 ```bash
-cargo test --workspace          # 210 tests
+just install        # web dependencies
+just doctor         # verify the mail setup — do this first
+just test           # 210 Rust tests
+just test-web       # 66 web tests + tsc
+just verify         # 22 checks in a real browser
+just check          # fmt, lint, both test suites, and verify
+
+just serve          # run the server
+just dev            # web client with hot reload
+just token phone    # issue a device token, with a pairing QR
+just verify-live    # read-only smoke test against your real mail
+```
+
+`ECR_BIND` overrides the address `just serve` and `just health` use.
+
+The underlying commands are ordinary and can still be run directly:
+
+```bash
+cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all
-
-cd web
-pnpm install
-pnpm test                       # 66 tests
-pnpm exec tsc --noEmit
-pnpm build
-
-./scripts/verify-web.sh         # 22 checks in a real browser
+pnpm --dir web test
+./scripts/verify-web.sh
 ```
 
 ## Tests
