@@ -37,6 +37,9 @@ pub enum Error {
     #[error("invalid tag {tag:?}: {reason}")]
     InvalidTag { tag: String, reason: &'static str },
 
+    #[error("no msmtp account named {account}")]
+    UnknownSendAccount { account: String },
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }

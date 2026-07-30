@@ -35,7 +35,7 @@ impl Notmuch {
     }
 
     fn command(&self) -> Command {
-        let mut command = Command::new(crate::tools::NOTMUCH);
+        let mut command = Command::new(&self.paths.binaries.notmuch);
         if let Some(config) = &self.paths.notmuch.path {
             command.arg(format!("--config={}", config.display()));
             command.env("NOTMUCH_CONFIG", config);

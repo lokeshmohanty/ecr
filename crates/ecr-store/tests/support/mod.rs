@@ -1,10 +1,12 @@
+#![allow(dead_code)]
+
 use ecr_store::paths::{Env, MailPaths};
 use ecr_store::settings::ServerSettings;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 pub struct Fixture {
-    _home: tempfile::TempDir,
+    home: tempfile::TempDir,
     pub paths: Arc<MailPaths>,
 }
 
@@ -66,17 +68,62 @@ impl Fixture {
 
         index(&config_dir.join("config"));
 
-        let paths = MailPaths::with(&Env::rooted_at(home.path()), &ServerSettings::default())
-            .expect("discover paths");
+        let bin = home.path().join("bin");
+        std::fs::create_dir_all(&bin).expect("bin dir");
+
+        let settings = ServerSettings {
+            mbsync_bin: Some(bin.join("mbsync")),
+            msmtp_bin: Some(bin.join("msmtp")),
+            ..Default::default()
+        };
+        let paths =
+            MailPaths::with(&Env::rooted_at(home.path()), &settings).expect("discover paths");
 
         Some(Self {
-            _home: home,
+            home,
             paths: Arc::new(paths),
         })
     }
 
     pub fn store(&self) -> ecr_store::Notmuch {
         ecr_store::Notmuch::new(Arc::clone(&self.paths))
+    }
+
+    pub fn notmuch_store(&self) -> ecr_store::NotmuchStore {
+        ecr_store::NotmuchStore::new(Arc::clone(&self.paths))
+    }
+
+    pub fn inbox(&self) -> PathBuf {
+        self.home.path().join("Mail/main/Inbox")
+    }
+
+    pub fn capture_path(&self) -> PathBuf {
+        self.home.path().join("captured")
+    }
+
+    pub fn stub_mbsync(&self, body: &str) {
+        self.write_stub(&self.paths.binaries.mbsync, body);
+    }
+
+    pub fn stub_msmtp(&self, body: &str) -> PathBuf {
+        self.write_stub(&self.paths.binaries.msmtp, body);
+        self.capture_path()
+    }
+
+    fn write_stub(&self, path: &Path, body: &str) {
+        let script = format!(
+            "#!/bin/sh\nECR_TEST_INBOX='{}'\nECR_TEST_CAPTURE='{}'\n{body}",
+            self.inbox().display(),
+            self.capture_path().display(),
+        );
+        std::fs::write(path, script).expect("write stub");
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
+                .expect("chmod stub");
+        }
     }
 }
 

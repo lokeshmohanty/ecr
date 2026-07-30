@@ -1,8 +1,11 @@
 pub mod discovery;
 pub mod doctor;
 pub mod error;
+pub mod mbsync;
 pub mod mime;
+pub mod msmtp;
 pub mod notmuch;
+pub mod notmuch_store;
 pub mod oauth;
 pub mod parse;
 pub mod paths;
@@ -12,6 +15,7 @@ pub mod tools;
 
 pub use error::{Error, Result};
 pub use notmuch::Notmuch;
+pub use notmuch_store::NotmuchStore;
 pub use paths::MailPaths;
 pub use settings::ServerSettings;
 pub use store::{BodyOptions, MailStore, ProgressSink};

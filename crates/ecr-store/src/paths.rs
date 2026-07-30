@@ -145,6 +145,7 @@ pub struct MailPaths {
     pub msmtp_config: MsmtpConfig,
     pub maildir_root: PathBuf,
     pub database_path: PathBuf,
+    pub binaries: crate::settings::Binaries,
 }
 
 impl MailPaths {
@@ -197,6 +198,7 @@ impl MailPaths {
             msmtp_config,
             maildir_root,
             database_path,
+            binaries: crate::settings::Binaries::from_settings(settings),
         })
     }
 

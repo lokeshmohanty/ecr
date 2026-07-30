@@ -8,6 +8,37 @@ pub struct ServerSettings {
     pub mbsync_config: Option<PathBuf>,
     pub msmtp_config: Option<PathBuf>,
     pub maildir_root: Option<PathBuf>,
+    pub notmuch_bin: Option<PathBuf>,
+    pub mbsync_bin: Option<PathBuf>,
+    pub msmtp_bin: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Binaries {
+    pub notmuch: PathBuf,
+    pub mbsync: PathBuf,
+    pub msmtp: PathBuf,
+}
+
+impl Default for Binaries {
+    fn default() -> Self {
+        Self {
+            notmuch: PathBuf::from(crate::tools::NOTMUCH),
+            mbsync: PathBuf::from(crate::tools::MBSYNC),
+            msmtp: PathBuf::from(crate::tools::MSMTP),
+        }
+    }
+}
+
+impl Binaries {
+    pub fn from_settings(settings: &ServerSettings) -> Self {
+        let defaults = Self::default();
+        Self {
+            notmuch: settings.notmuch_bin.clone().unwrap_or(defaults.notmuch),
+            mbsync: settings.mbsync_bin.clone().unwrap_or(defaults.mbsync),
+            msmtp: settings.msmtp_bin.clone().unwrap_or(defaults.msmtp),
+        }
+    }
 }
 
 impl ServerSettings {

@@ -9,18 +9,17 @@ pub async fn run() -> Doctor {
 }
 
 pub async fn run_with(env: &Env, settings: &ServerSettings) -> Doctor {
-    let tools = tools::inspect_all().await;
-    let mut checks: Vec<Check> = tools.iter().map(tool_check).collect();
-
-    let paths = match MailPaths::with(env, settings) {
-        Ok(paths) => paths,
+    match MailPaths::with(env, settings) {
+        Ok(paths) => run_with_paths(&paths).await,
         Err(err) => {
+            let tools = tools::inspect_all().await;
+            let mut checks: Vec<Check> = tools.iter().map(tool_check).collect();
             checks.push(
                 Check::fail("mail configuration", err.to_string()).with_hint(
                     "set notmuch_config in ~/.config/ecr/server.toml, or run `notmuch setup`",
                 ),
             );
-            return Doctor {
+            Doctor {
                 tools,
                 configs: vec![
                     ResolvedConfig::missing(ConfigKind::Notmuch),
@@ -32,9 +31,14 @@ pub async fn run_with(env: &Env, settings: &ServerSettings) -> Doctor {
                 post_new_hook: None,
                 accounts: Vec::new(),
                 checks,
-            };
+            }
         }
-    };
+    }
+}
+
+pub async fn run_with_paths(paths: &MailPaths) -> Doctor {
+    let tools = tools::inspect_all().await;
+    let mut checks: Vec<Check> = tools.iter().map(tool_check).collect();
 
     let configs = vec![
         paths.notmuch.clone(),
@@ -72,7 +76,7 @@ pub async fn run_with(env: &Env, settings: &ServerSettings) -> Doctor {
             .with_hint("tag routing after `notmuch new` will not happen"),
     });
 
-    let accounts = discovery::accounts(&paths);
+    let accounts = discovery::accounts(paths);
     checks.push(if accounts.is_empty() {
         Check::fail(
             "accounts",
@@ -95,7 +99,7 @@ pub async fn run_with(env: &Env, settings: &ServerSettings) -> Doctor {
 
     let oauth_profiles: Vec<(String, String)> = accounts
         .iter()
-        .filter_map(|a| discovery::oauth_profile(&paths, a).map(|p| (a.id.to_string(), p)))
+        .filter_map(|a| discovery::oauth_profile(paths, a).map(|p| (a.id.to_string(), p)))
         .collect();
 
     if !oauth_profiles.is_empty() {
@@ -136,8 +140,8 @@ pub async fn run_with(env: &Env, settings: &ServerSettings) -> Doctor {
     Doctor {
         tools,
         configs,
-        maildir_root: Some(paths.maildir_root),
-        database_path: Some(paths.database_path),
+        maildir_root: Some(paths.maildir_root.clone()),
+        database_path: Some(paths.database_path.clone()),
         post_new_hook,
         accounts,
         checks,
