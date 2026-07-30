@@ -28,6 +28,12 @@ enum Command {
 
         #[arg(long, help = "do not watch the maildir for delivered mail")]
         no_watch: bool,
+
+        #[arg(
+            long,
+            help = "restrict browser origins; repeatable. Default allows any, because auth is a bearer token and no cookies are used"
+        )]
+        allowed_origin: Vec<String>,
     },
     Doctor {
         #[arg(long)]
@@ -70,7 +76,8 @@ async fn main() -> anyhow::Result<()> {
             bind,
             read_only,
             no_watch,
-        } => serve(bind, read_only, no_watch, &token_path).await,
+            allowed_origin,
+        } => serve(bind, read_only, no_watch, allowed_origin, &token_path).await,
         Command::Doctor { json } => doctor(json).await,
         Command::Token { command } => token(command, &token_path),
     }
@@ -80,6 +87,7 @@ async fn serve(
     bind: SocketAddr,
     read_only: bool,
     no_watch: bool,
+    allowed_origins: Vec<String>,
     token_path: &std::path::Path,
 ) -> anyhow::Result<()> {
     let store = Arc::new(NotmuchStore::open()?);
@@ -121,7 +129,8 @@ async fn serve(
         "ecr-server listening"
     );
 
-    axum::serve(listener, app::router(state))
+    let cors = (!allowed_origins.is_empty()).then_some(allowed_origins);
+    axum::serve(listener, app::router_with_cors(state, cors))
         .with_graceful_shutdown(shutdown())
         .await?;
 

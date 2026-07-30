@@ -39,6 +39,14 @@ export function App() {
   function onKeyDown(event: KeyboardEvent) {
     if (draft()) return;
 
+    // The keymap treats Escape in idle normal mode as none of its business, so
+    // any transient overlay has to claim it before the keymap is consulted.
+    if (event.key === "Escape" && showHelp()) {
+      event.preventDefault();
+      setShowHelp(false);
+      return;
+    }
+
     const outcome = keymap.handle(
       { key: event.key, ctrl: event.ctrlKey, alt: event.altKey, meta: event.metaKey },
       store.mode(),

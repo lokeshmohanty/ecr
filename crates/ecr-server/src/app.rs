@@ -12,6 +12,16 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
 pub fn router(state: AppState) -> Router {
+    router_with_cors(state, None)
+}
+
+/// `allowed_origins` restricts the browser origins that may call the API.
+/// The default is deliberately permissive: this API authenticates with a
+/// bearer token and never uses cookies, so the Origin header is not a
+/// security boundary — a hardcoded list would only break real deployments
+/// (a tailnet hostname, a phone, a different port) while stopping nothing,
+/// since a non-browser client ignores CORS entirely.
+pub fn router_with_cors(state: AppState, allowed_origins: Option<Vec<String>>) -> Router {
     let public = Router::new().route("/api/v1/health", get(routes::health));
 
     let protected = Router::new()
@@ -30,32 +40,32 @@ pub fn router(state: AppState) -> Router {
 
     public
         .merge(protected)
-        .layer(cors())
+        .layer(cors(allowed_origins))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
 
-fn cors() -> CorsLayer {
-    let origins: Vec<HeaderValue> = [
-        "tauri://localhost",
-        "http://tauri.localhost",
-        "https://tauri.localhost",
-        "http://localhost:1420",
-        "http://localhost:5173",
-    ]
-    .iter()
-    .filter_map(|o| o.parse().ok())
-    .collect();
-
-    CorsLayer::new()
-        .allow_origin(origins)
+fn cors(allowed_origins: Option<Vec<String>>) -> CorsLayer {
+    let layer = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
         .allow_headers([
             header::AUTHORIZATION,
             header::CONTENT_TYPE,
             header::IF_NONE_MATCH,
         ])
-        .expose_headers([header::ETAG])
+        .expose_headers([header::ETAG]);
+
+    let parsed: Vec<HeaderValue> = allowed_origins
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|o| o.parse().ok())
+        .collect();
+
+    if parsed.is_empty() {
+        layer.allow_origin(tower_http::cors::Any)
+    } else {
+        layer.allow_origin(parsed)
+    }
 }
 
 async fn require_token(

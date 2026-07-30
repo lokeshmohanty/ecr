@@ -1,28 +1,51 @@
-import { For, Show, createEffect, createMemo } from "solid-js";
-import { createVirtualizer } from "@tanstack/solid-virtual";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import type { ThreadSummary } from "../api/types";
 import type { AppStore } from "../state/store";
 import { MARK_TAGS } from "../state/store";
+import { windowRange } from "./window";
 
 const ROW_HEIGHT = 58;
 
 export function ThreadList(props: { store: AppStore }) {
-  let scroller: HTMLDivElement | undefined;
+  const [scroller, setScroller] = createSignal<HTMLDivElement | null>(null);
+  const [scrollTop, setScrollTop] = createSignal(0);
+  const [viewport, setViewport] = createSignal(0);
 
   const items = createMemo(() => props.store.items());
 
-  const virtualizer = createVirtualizer({
-    get count() {
-      return items().length;
-    },
-    getScrollElement: () => scroller ?? null,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 12,
+  const attach = (element: HTMLDivElement) => {
+    setScroller(element);
+    setViewport(element.clientHeight);
+
+    const observer = new ResizeObserver(() => setViewport(element.clientHeight));
+    observer.observe(element);
+    onCleanup(() => observer.disconnect());
+  };
+
+  const range = createMemo(() =>
+    windowRange(items().length, scrollTop(), viewport(), ROW_HEIGHT),
+  );
+
+  const visible = createMemo(() => {
+    const { start, end } = range();
+    return items()
+      .slice(start, end)
+      .map((thread, offset) => ({ thread, index: start + offset }));
   });
 
   createEffect(() => {
     const index = props.store.selected();
-    if (items().length > 0) virtualizer.scrollToIndex(index, { align: "auto" });
+    const element = scroller();
+    if (!element || items().length === 0) return;
+
+    const top = index * ROW_HEIGHT;
+    const bottom = top + ROW_HEIGHT;
+
+    if (top < element.scrollTop) {
+      element.scrollTop = top;
+    } else if (bottom > element.scrollTop + element.clientHeight) {
+      element.scrollTop = bottom - element.clientHeight;
+    }
   });
 
   return (
@@ -35,42 +58,38 @@ export function ThreadList(props: { store: AppStore }) {
         </span>
       </header>
 
-      <Show
-        when={items().length > 0}
-        fallback={
-          <div class="flex flex-1 items-center justify-center text-text-dim">
-            {props.store.threads.loading ? "loading…" : "no matching threads"}
-          </div>
-        }
+      <div
+        ref={attach}
+        class="scroll-y flex-1"
+        onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
       >
-        <div ref={scroller} class="scroll-y flex-1">
-          <div style={{ height: `${virtualizer.getTotalSize()}px`, position: "relative" }}>
-            <For each={virtualizer.getVirtualItems()}>
-              {(virtual) => {
-                const thread = () => items()[virtual.index]!;
-                return (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      height: `${virtual.size}px`,
-                      transform: `translateY(${virtual.start}px)`,
-                    }}
-                  >
-                    <Row
-                      thread={thread()}
-                      index={virtual.index}
-                      store={props.store}
-                    />
-                  </div>
-                );
+        <Show
+          when={items().length > 0}
+          fallback={
+            <div class="flex h-full items-center justify-center text-text-dim">
+              {props.store.threads.loading ? "loading…" : "no matching threads"}
+            </div>
+          }
+        >
+          <div style={{ height: `${range().total}px`, position: "relative" }}>
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                transform: `translateY(${range().offset}px)`,
               }}
-            </For>
+            >
+              <For each={visible()}>
+                {(entry) => (
+                  <Row thread={entry.thread} index={entry.index} store={props.store} />
+                )}
+              </For>
+            </div>
           </div>
-        </div>
-      </Show>
+        </Show>
+      </div>
     </section>
   );
 }
@@ -89,6 +108,7 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
   return (
     <div
       class="row-grid touch-target cursor-pointer border-b border-border/60 px-3 py-2"
+      style={{ height: `${ROW_HEIGHT}px` }}
       classList={{
         "bg-bg-selected": selected(),
         "hover:bg-bg-hover": !selected(),

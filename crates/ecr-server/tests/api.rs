@@ -366,3 +366,47 @@ async fn sending_delivers_the_message_to_msmtp() {
     assert!(sent.contains("someone@example.com"), "{sent}");
     assert!(sent.contains("--account main"), "{sent}");
 }
+
+#[tokio::test]
+async fn cross_origin_requests_are_allowed_by_default() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let response = reqwest::Client::new()
+        .get(server.url("/api/v1/health"))
+        .header("origin", "http://some-other-host:4199")
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.headers().get("access-control-allow-origin").map(|v| v.to_str().unwrap()),
+        Some("*"),
+        "a hardcoded origin list breaks every real deployment; auth is the bearer token"
+    );
+}
+
+#[tokio::test]
+async fn a_preflight_permits_the_authorization_header() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let response = reqwest::Client::new()
+        .request(reqwest::Method::OPTIONS, server.url("/api/v1/threads"))
+        .header("origin", "http://some-other-host:4199")
+        .header("access-control-request-method", "GET")
+        .header("access-control-request-headers", "authorization")
+        .send()
+        .await
+        .unwrap();
+
+    let allowed = response
+        .headers()
+        .get("access-control-allow-headers")
+        .map(|v| v.to_str().unwrap().to_lowercase())
+        .unwrap_or_default();
+
+    assert!(allowed.contains("authorization"), "got {allowed:?}");
+}

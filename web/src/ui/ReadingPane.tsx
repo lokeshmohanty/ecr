@@ -1,6 +1,7 @@
 import { For, Show, createResource, createSignal } from "solid-js";
 import type { Message } from "../api/types";
 import type { AppStore } from "../state/store";
+import { absolutizePartUrls } from "./body-urls";
 
 export function ReadingPane(props: { store: AppStore }) {
   const thread = () => props.store.thread();
@@ -116,7 +117,13 @@ function MessageView(props: { message: Message; store: AppStore; expanded: boole
                   </div>
                 </Show>
 
-                <BodyFrame html={loaded().content} />
+                <BodyFrame
+                  html={absolutizePartUrls(
+                    loaded().content,
+                    props.store.api.baseUrl,
+                    props.store.connection().token,
+                  )}
+                />
               </>
             )}
           </Show>
