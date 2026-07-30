@@ -6,7 +6,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEMO="${1:-/tmp/ecr-demo}"
 
+# Only ever remove a directory this script created, so pointing it at a path
+# that holds anything else fails loudly instead of deleting it.
+if [ -e "$DEMO" ] && [ ! -e "$DEMO/.ecr-demo" ]; then
+  echo "refusing to overwrite $DEMO: not a demo directory this script created" >&2
+  exit 1
+fi
 rm -rf "$DEMO"
+mkdir -p "$DEMO"
+touch "$DEMO/.ecr-demo"
 mkdir -p "$DEMO"/Mail/main/{Inbox,Archive,Sent}/{cur,new,tmp}
 mkdir -p "$DEMO"/.config/{notmuch/default/hooks,msmtp}
 

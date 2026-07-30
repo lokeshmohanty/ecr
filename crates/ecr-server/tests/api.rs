@@ -381,7 +381,10 @@ async fn cross_origin_requests_are_allowed_by_default() {
         .unwrap();
 
     assert_eq!(
-        response.headers().get("access-control-allow-origin").map(|v| v.to_str().unwrap()),
+        response
+            .headers()
+            .get("access-control-allow-origin")
+            .map(|v| v.to_str().unwrap()),
         Some("*"),
         "a hardcoded origin list breaks every real deployment; auth is the bearer token"
     );

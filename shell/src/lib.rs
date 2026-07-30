@@ -38,7 +38,10 @@ fn default_server_url() -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![compose_in_editor, default_server_url])
+        .invoke_handler(tauri::generate_handler![
+            compose_in_editor,
+            default_server_url
+        ])
         .run(tauri::generate_context!())
         .expect("error while running ecr");
 }
