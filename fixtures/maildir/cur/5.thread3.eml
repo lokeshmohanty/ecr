@@ -1,0 +1,7 @@
+From: david@example.com
+To: test@example.com
+Subject: Standalone email
+Message-Id: <msg5@example.com>
+Date: Fri, 01 Apr 2026 14:00:00 +0000
+
+A single email with no replies.

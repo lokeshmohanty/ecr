@@ -1,0 +1,25 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Tauri
+/shell/gen/
+/shell/target/
+
+# Nix / direnv
+/.direnv/
+result
+result-*
+
+# Derived notmuch database — tests rebuild it from the .eml fixtures in a tempdir
+fixtures/maildir/.notmuch/
+
+# Local scratch
+/screenshot*.png
+/tmp.json
+*.log

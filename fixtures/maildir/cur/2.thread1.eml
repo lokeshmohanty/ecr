@@ -1,0 +1,9 @@
+From: test@example.com
+To: alice@example.com
+Subject: Re: Thread 1 - Message 1
+Message-Id: <msg2@example.com>
+In-Reply-To: <msg1@example.com>
+References: <msg1@example.com>
+Date: Fri, 01 Apr 2026 11:00:00 +0000
+
+Reply to the first message.
