@@ -1,6 +1,7 @@
 pub mod discovery;
 pub mod doctor;
 pub mod error;
+pub mod oauth;
 pub mod parse;
 pub mod paths;
 pub mod settings;

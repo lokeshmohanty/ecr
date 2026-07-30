@@ -93,6 +93,25 @@ pub async fn run_with(env: &Env, settings: &ServerSettings) -> Doctor {
         )
     });
 
+    let oauth_profiles: Vec<(String, String)> = accounts
+        .iter()
+        .filter_map(|a| discovery::oauth_profile(&paths, a).map(|p| (a.id.to_string(), p)))
+        .collect();
+
+    if !oauth_profiles.is_empty() {
+        let oauthman = tools::inspect(crate::oauth::OAUTHMAN).await;
+        checks.push(match &oauthman.path {
+            Some(path) => Check::ok("oauthman", format!("{}", path.display())),
+            None => Check::fail("oauthman", "not found on PATH")
+                .with_hint("every account authenticates with XOAUTH2; sync and send both need it"),
+        });
+        if oauthman.path.is_some() {
+            for (account, profile) in &oauth_profiles {
+                checks.push(oauth_check(account, profile).await);
+            }
+        }
+    }
+
     for account in &accounts {
         if !account.can_sync() {
             checks.push(
@@ -122,6 +141,24 @@ pub async fn run_with(env: &Env, settings: &ServerSettings) -> Doctor {
         post_new_hook,
         accounts,
         checks,
+    }
+}
+
+async fn oauth_check(account: &str, profile: &str) -> Check {
+    use crate::oauth::TokenState;
+
+    let name = format!("oauth {account}");
+    match crate::oauth::token_state(profile).await {
+        TokenState::Valid { expires_in } => {
+            Check::ok(name, format!("token valid for {expires_in}s"))
+        }
+        TokenState::Refreshable => {
+            Check::ok(name, "token expiring, refresh token present".to_string())
+        }
+        TokenState::Expired => Check::fail(name, "token expired with no refresh token")
+            .with_hint(format!("run `oauthman authorize {profile}`")),
+        TokenState::Unknown(reason) => Check::warn(name, reason)
+            .with_hint(format!("run `oauthman status {profile}` to see why")),
     }
 }
 

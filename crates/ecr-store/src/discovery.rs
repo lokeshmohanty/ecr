@@ -25,11 +25,17 @@ pub fn accounts(paths: &MailPaths) -> Vec<Account> {
 fn build_account(paths: &MailPaths, name: &str, dir: &Path) -> Account {
     let id = AccountId(name.to_string());
     let mbsync_channel = channel_for(paths, dir);
-    let msmtp_account = msmtp_account_for(paths, name);
-    let address = msmtp_account
+
+    let address = mbsync_channel
         .as_deref()
-        .and_then(|a| paths.msmtp_config.accounts.get(a))
-        .and_then(|a| a.from.clone().or_else(|| a.user.clone()));
+        .and_then(|c| paths.mbsync_config.channel_imap_account(c))
+        .and_then(|a| a.user.clone())
+        .or_else(|| {
+            let msmtp = paths.msmtp_config.accounts.get(name)?;
+            msmtp.from.clone().or_else(|| msmtp.user.clone())
+        });
+
+    let msmtp_account = msmtp_account_for(paths, name, address.as_deref());
 
     Account {
         folders: folders(&id, dir),
@@ -40,6 +46,14 @@ fn build_account(paths: &MailPaths, name: &str, dir: &Path) -> Account {
         mbsync_channel,
         msmtp_account,
     }
+}
+
+pub fn oauth_profile(paths: &MailPaths, account: &Account) -> Option<String> {
+    paths
+        .mbsync_config
+        .channel_imap_account(account.mbsync_channel.as_deref()?)?
+        .oauth_profile()
+        .map(str::to_string)
 }
 
 fn channel_for(paths: &MailPaths, account_dir: &Path) -> Option<String> {
@@ -65,11 +79,13 @@ fn same_dir(a: &Path, b: &Path) -> bool {
     normalize(a) == normalize(b)
 }
 
-fn msmtp_account_for(paths: &MailPaths, name: &str) -> Option<String> {
+fn msmtp_account_for(paths: &MailPaths, name: &str, address: Option<&str>) -> Option<String> {
     if paths.msmtp_config.accounts.contains_key(name) {
         return Some(name.to_string());
     }
-    paths.msmtp_config.default_account.clone()
+    address
+        .and_then(|a| paths.msmtp_config.account_for_address(a))
+        .map(str::to_string)
 }
 
 fn folders(account: &AccountId, dir: &Path) -> Vec<Folder> {
@@ -172,7 +188,10 @@ mod tests {
         fs::write(
             cfg_dir.join("isyncrc"),
             format!(
-                "MaildirStore main-local\nPath {}/main/\n\nChannel main\nNear :main-local:\n",
+                "IMAPAccount main\nUser lokesh@example.com\nPassCmd \"oauthman token main\"\n\n\
+                 IMAPStore main-remote\nAccount main\n\n\
+                 MaildirStore main-local\nPath {}/main/\n\n\
+                 Channel main\nFar :main-remote:\nNear :main-local:\n",
                 root.display()
             ),
         )
@@ -255,6 +274,34 @@ mod tests {
 
         assert_eq!(main.msmtp_account.as_deref(), Some("main"));
         assert_eq!(main.address.as_deref(), Some("lokesh@example.com"));
+    }
+
+    #[test]
+    fn an_account_with_no_imap_block_does_not_borrow_another_accounts_identity() {
+        let (_home, paths) = fixture();
+        let accounts = accounts(&paths);
+        let team = accounts
+            .iter()
+            .find(|a| a.id.as_str() == "team")
+            .unwrap();
+
+        assert_eq!(team.address, None);
+        assert_eq!(team.msmtp_account, None);
+        assert!(!team.can_send());
+    }
+
+    #[test]
+    fn exposes_the_oauth_profile_backing_an_account() {
+        let (_home, paths) = fixture();
+        let accounts = accounts(&paths);
+        let main = accounts.iter().find(|a| a.id.as_str() == "main").unwrap();
+        let team = accounts
+            .iter()
+            .find(|a| a.id.as_str() == "team")
+            .unwrap();
+
+        assert_eq!(oauth_profile(&paths, main).as_deref(), Some("main"));
+        assert_eq!(oauth_profile(&paths, team), None);
     }
 
     #[test]
