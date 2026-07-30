@@ -25,6 +25,18 @@ pub enum Error {
     #[error("`{tool}` failed: {stderr}")]
     ToolFailed { tool: &'static str, stderr: String },
 
+    #[error("no message with id {id}")]
+    MessageNotFound { id: String },
+
+    #[error("no part {part} in message {id}")]
+    PartNotFound { id: String, part: u32 },
+
+    #[error("could not parse message {id}: {message}")]
+    MessageParse { id: String, message: String },
+
+    #[error("invalid tag {tag:?}: {reason}")]
+    InvalidTag { tag: String, reason: &'static str },
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }

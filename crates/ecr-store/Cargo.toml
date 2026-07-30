@@ -9,7 +9,10 @@ ecr-core = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 toml = { workspace = true }
+mail-parser = "0.11"
+ammonia = "4"
 tokio = { workspace = true }
 tracing = { workspace = true }
 dirs = { workspace = true }
