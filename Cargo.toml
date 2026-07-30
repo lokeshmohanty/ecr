@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/ecr-core", "crates/ecr-store", "crates/ecr-server"]
+members = ["crates/ecr-core", "crates/ecr-store", "crates/ecr-server", "shell"]
 
 [workspace.package]
 version = "0.1.0"
