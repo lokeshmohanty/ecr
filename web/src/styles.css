@@ -1,0 +1,129 @@
+@import "tailwindcss";
+@import "@fontsource-variable/cascadia-code";
+
+@theme {
+  /* Ported verbatim from the egui client's src/theme.rs */
+  --color-bg-main: #1a1b26;
+  --color-bg-panel: #16161e;
+  --color-bg-hover: #292e42;
+  --color-bg-selected: #33467c;
+  --color-bg-input: #15161e;
+  --color-bg-tag: #1f2335;
+  --color-bg-tag-urgent: #491e2d;
+
+  --color-accent: #7aa2f7;
+  --color-accent-dim: #7dcfff;
+  --color-text-primary: #c0caf5;
+  --color-text-secondary: #9aabeb;
+  --color-text-dim: #565f89;
+  --color-text-quoted: #9ece6a;
+  --color-border: #292e42;
+
+  --color-tag-unread: #9ece6a;
+  --color-tag-urgent: #f7768e;
+  --color-tag-default: #bb9af7;
+  --color-star: #e0af68;
+
+  --font-mono: "Cascadia Code Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --default-mono-font-family: var(--font-mono);
+  --font-sans: var(--font-mono);
+}
+
+:root {
+  --row-height: 2.75rem;
+  --date-column: 7.5rem;
+  color-scheme: dark;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --row-height: 3.25rem;
+    --date-column: 5rem;
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg-main);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/*
+ * The author/date collision in the egui client came from computing widths by
+ * hand. Here the date is a fixed track and the author cell is allowed to
+ * shrink, which is what `min-width: 0` unlocks inside a grid or flex child.
+ */
+.row-grid {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) var(--date-column);
+  column-gap: 0.75rem;
+  align-items: baseline;
+}
+
+.truncate-cell {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scroll-y {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.scroll-y::-webkit-scrollbar {
+  width: 0.5rem;
+}
+
+.scroll-y::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 0.25rem;
+}
+
+.scroll-y::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+kbd {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-accent);
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+input,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  background: var(--color-bg-input);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  outline: none;
+}
+
+input:focus,
+textarea:focus {
+  border-color: var(--color-accent);
+}
+
+@media (max-width: 768px) {
+  .touch-target {
+    min-height: 44px;
+  }
+}
