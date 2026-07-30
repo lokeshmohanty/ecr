@@ -1,27 +1,27 @@
-[package]
-name = "ecr"
+[workspace]
+resolver = "2"
+members = ["crates/ecr-core", "crates/ecr-store", "crates/ecr-server"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
-[[bin]]
-name = "ecr"
-path = "src/main.rs"
+[workspace.dependencies]
+ecr-core = { path = "crates/ecr-core" }
+ecr-store = { path = "crates/ecr-store" }
 
-[dependencies]
-eframe = "0.31"
-egui = "0.31"
+anyhow = "1"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.9"
 tokio = { version = "1", features = ["full"] }
-chrono = "0.4"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-shell-words = "1.1"
-toml = "1.1.1"
-dirs = "6.0.0"
-egui_extras = { version = "0.34.1", features = ["image", "all_loaders"] }
-image = { version = "0.25.10", features = ["png", "jpeg", "gif"] }
-html2text = "0.14"
 tracing = "0.1"
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dirs = "6"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
 
 [profile.dev.package."*"]
 opt-level = 2
