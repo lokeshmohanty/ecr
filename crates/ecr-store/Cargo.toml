@@ -16,6 +16,8 @@ ammonia = "4"
 tokio = { workspace = true }
 tracing = { workspace = true }
 dirs = { workspace = true }
+notify = "8.2.0"
+mail-builder = "0.4.4"
 
 [dev-dependencies]
 tempfile = "3"

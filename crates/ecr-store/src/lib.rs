@@ -1,3 +1,4 @@
+pub mod compose;
 pub mod discovery;
 pub mod doctor;
 pub mod error;

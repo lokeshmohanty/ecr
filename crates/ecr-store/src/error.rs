@@ -40,6 +40,9 @@ pub enum Error {
     #[error("no msmtp account named {account}")]
     UnknownSendAccount { account: String },
 
+    #[error("cannot send this draft: {reason}")]
+    InvalidDraft { reason: String },
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }
