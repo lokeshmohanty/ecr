@@ -53,15 +53,15 @@ error           { detail }
 ```bash
 TOKEN=$(cargo run -q -p ecr-server -- token new laptop)
 
-curl -s localhost:8080/api/v1/health | jq '.checks[] | select(.status != "ok")'
+curl -s localhost:8383/api/v1/health | jq '.checks[] | select(.status != "ok")'
 
 curl -s -H "Authorization: Bearer $TOKEN" \
-  'localhost:8080/api/v1/threads?q=tag:inbox&limit=20' | jq '.total'
+  'localhost:8383/api/v1/threads?q=tag:inbox&limit=20' | jq '.total'
 
 curl -s -H "Authorization: Bearer $TOKEN" -X POST \
   -H 'content-type: application/json' \
   -d '{"ops":[{"id":"x@y.z","add":["flagged"],"remove":["unread"]}]}' \
-  localhost:8080/api/v1/tags
+  localhost:8383/api/v1/tags
 
-curl -N -H "Authorization: Bearer $TOKEN" localhost:8080/api/v1/events
+curl -N -H "Authorization: Bearer $TOKEN" localhost:8383/api/v1/events
 ```

@@ -15,6 +15,21 @@ pub fn router(state: AppState) -> Router {
     router_with_cors(state, None)
 }
 
+/// The API plus the built web client on the same origin, which is what lets a
+/// browser reach `http://host:8383` and just work.
+pub fn router_with_web(
+    state: AppState,
+    allowed_origins: Option<Vec<String>>,
+    web_dir: Option<&std::path::Path>,
+) -> Router {
+    let api = router_with_cors(state, allowed_origins);
+
+    match web_dir {
+        Some(dir) => api.merge(crate::web::router(dir)),
+        None => api.fallback(crate::web::missing),
+    }
+}
+
 /// `allowed_origins` restricts the browser origins that may call the API.
 /// The default is deliberately permissive: this API authenticates with a
 /// bearer token and never uses cookies, so the Origin header is not a

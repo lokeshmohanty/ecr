@@ -66,8 +66,33 @@ export function ThreadList(props: { store: AppStore }) {
         <Show
           when={items().length > 0}
           fallback={
-            <div class="flex h-full items-center justify-center text-text-dim">
-              {props.store.threads.loading ? "loading…" : "no matching threads"}
+            <div class="flex h-full items-center justify-center p-6 text-center">
+              <Show
+                when={!props.store.threads.loading}
+                fallback={<span class="text-text-dim">loading…</span>}
+              >
+                <Show
+                  when={props.store.lastError()}
+                  fallback={<span class="text-text-dim">no matching threads</span>}
+                >
+                  {(error) => (
+                    <div class="max-w-sm">
+                      <p class="mb-2 text-tag-urgent">cannot reach the server</p>
+                      <p class="mb-3 text-xs break-words text-text-dim">{error()}</p>
+                      <p class="mb-3 text-xs text-text-dim">
+                        {props.store.connection().baseUrl || "no server url configured"}
+                      </p>
+                      <button
+                        type="button"
+                        class="touch-target rounded border border-border px-3 py-1.5 text-accent hover:bg-bg-hover"
+                        onClick={() => props.store.bumpRevision()}
+                      >
+                        retry
+                      </button>
+                    </div>
+                  )}
+                </Show>
+              </Show>
             </div>
           }
         >

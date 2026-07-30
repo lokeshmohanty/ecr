@@ -1,7 +1,7 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
 server := "ecr-server"
-bind := env_var_or_default("ECR_BIND", "127.0.0.1:8080")
+bind := env_var_or_default("ECR_BIND", "127.0.0.1:8383")
 
 # List the available recipes.
 default:
@@ -27,13 +27,42 @@ serve *args:
 serve-readonly:
     @just serve --read-only
 
-# Serve the web client with hot reload on http://localhost:1420.
+# Build the client, start the server, and open it in a browser. The one command for daily use.
+run: build-web
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if curl -sf "http://{{bind}}/api/v1/health" >/dev/null 2>&1; then
+        echo "a server is already listening on {{bind}}"
+    else
+        cargo run -q -p {{server}} -- serve --bind {{bind}} &
+        trap 'kill %1 2>/dev/null || true' EXIT
+        for _ in $(seq 1 60); do
+            curl -sf "http://{{bind}}/api/v1/health" >/dev/null && break
+            sleep 0.5
+        done
+    fi
+    (xdg-open "http://{{bind}}" >/dev/null 2>&1 &) || echo "open http://{{bind}}"
+    wait
+
+# Web client with hot reload on http://localhost:1420, against a running server.
 dev:
     pnpm --dir web dev
 
-# Run the desktop shell against the dev server.
-desktop:
-    cargo tauri dev --config shell/tauri.conf.json
+# Run the desktop app. Starts the server first unless one is already listening.
+desktop: build-web
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if curl -sf "http://{{bind}}/api/v1/health" >/dev/null 2>&1; then
+        echo "using the server already on {{bind}}"
+    else
+        cargo run -q -p {{server}} -- serve --bind {{bind}} &
+        trap 'kill %1 2>/dev/null || true' EXIT
+        for _ in $(seq 1 60); do
+            curl -sf "http://{{bind}}/api/v1/health" >/dev/null && break
+            sleep 0.5
+        done
+    fi
+    ECR_SERVER_URL="http://{{bind}}" cargo run -q -p ecr-shell
 
 # Issue a device token. `just token phone` prints it once, with a pairing QR.
 token name:
@@ -58,6 +87,9 @@ build-web:
 
 # Everything CI runs, plus the browser checks.
 check: fmt-check lint test test-web verify
+
+# Everything, including the checks that use your real mail. All read-only bar none.
+check-all: check verify-live verify-live-ui verify-widths verify-desktop
 
 # Rust tests. Integration tests build a throwaway notmuch database from fixtures/.
 test *args:
@@ -87,9 +119,29 @@ fmt-check:
 verify:
     ./scripts/verify-web.sh
 
-# Read-only smoke test against your actual mail. Cannot tag, sync or send.
+# Read-only API smoke test against your actual mail. Cannot tag, sync or send.
 verify-live:
     ./scripts/verify-live.sh
+
+# Drive the client against your actual mail in a browser, read-only.
+verify-live-ui:
+    ./scripts/verify-live-ui.sh
+
+# Launch the desktop app against your actual mail and confirm it talks to the API.
+verify-desktop:
+    ./scripts/verify-desktop.sh
+
+# Check the row layout holds from 320px to 1920px.
+verify-widths:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    port=8395
+    cargo build -q -p {{server}}
+    pnpm --dir web build > /dev/null
+    RUST_LOG=warn ./target/debug/{{server}} serve --bind "127.0.0.1:$port" --read-only --no-watch &
+    trap 'kill %1 2>/dev/null || true' EXIT
+    for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null && break; sleep 0.5; done
+    node web/verify-widths.mjs "http://127.0.0.1:$port"
 
 # Build a throwaway maildir from fixtures/ and print how to serve it.
 demo dir="/tmp/ecr-demo":

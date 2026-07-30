@@ -20,7 +20,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     Serve {
-        #[arg(long, default_value = "127.0.0.1:8080")]
+        #[arg(long, default_value = "127.0.0.1:8383")]
         bind: SocketAddr,
 
         #[arg(long, help = "refuse every write: no tagging, syncing or sending")]
@@ -34,6 +34,12 @@ enum Command {
             help = "restrict browser origins; repeatable. Default allows any, because auth is a bearer token and no cookies are used"
         )]
         allowed_origin: Vec<String>,
+
+        #[arg(
+            long,
+            help = "directory holding the built web client; found automatically if omitted"
+        )]
+        web_dir: Option<PathBuf>,
     },
     Doctor {
         #[arg(long)]
@@ -59,7 +65,7 @@ enum TokenCommand {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -68,6 +74,19 @@ async fn main() -> anyhow::Result<()> {
         .with_writer(std::io::stderr)
         .init();
 
+    if let Err(err) = dispatch().await {
+        // The dev shell sets RUST_BACKTRACE=1, which would otherwise attach a
+        // stack trace to every operational error. What went wrong is the
+        // useful part; the frames are not.
+        eprintln!("\nerror: {err}");
+        for cause in err.chain().skip(1) {
+            eprintln!("  caused by: {cause}");
+        }
+        std::process::exit(1);
+    }
+}
+
+async fn dispatch() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let token_path = cli.tokens.unwrap_or_else(TokenStore::default_path);
 
@@ -77,7 +96,18 @@ async fn main() -> anyhow::Result<()> {
             read_only,
             no_watch,
             allowed_origin,
-        } => serve(bind, read_only, no_watch, allowed_origin, &token_path).await,
+            web_dir,
+        } => {
+            serve(
+                bind,
+                read_only,
+                no_watch,
+                allowed_origin,
+                web_dir,
+                &token_path,
+            )
+            .await
+        }
         Command::Doctor { json } => doctor(json).await,
         Command::Token { command } => token(command, &token_path),
     }
@@ -88,6 +118,7 @@ async fn serve(
     read_only: bool,
     no_watch: bool,
     allowed_origins: Vec<String>,
+    web_dir: Option<PathBuf>,
     token_path: &std::path::Path,
 ) -> anyhow::Result<()> {
     let store = Arc::new(NotmuchStore::open()?);
@@ -119,18 +150,47 @@ async fn serve(
         }
     };
 
-    let listener = tokio::net::TcpListener::bind(bind).await?;
+    // A busy port is an ordinary, user-fixable situation. Reporting it as a
+    // panic with a full backtrace buries the one line that matters.
+    let listener = tokio::net::TcpListener::bind(bind)
+        .await
+        .map_err(|err| match err.kind() {
+            std::io::ErrorKind::AddrInUse => anyhow::anyhow!(
+                "{bind} is already in use.\n\
+                 Something else is listening there. Either stop it, or choose \
+                 another address:\n    \
+                 ecr-server serve --bind 127.0.0.1:8383\n    \
+                 ECR_BIND=127.0.0.1:8383 just serve"
+            ),
+            std::io::ErrorKind::PermissionDenied => {
+                anyhow::anyhow!("not allowed to bind {bind} (ports below 1024 need root)")
+            }
+            std::io::ErrorKind::AddrNotAvailable => anyhow::anyhow!(
+                "{bind} is not an address on this machine; check the interface is up"
+            ),
+            _ => anyhow::anyhow!("could not bind {bind}: {err}"),
+        })?;
+
+    let web = ecr_server::web::locate(web_dir);
     let accounts = report.accounts.len();
 
-    tracing::info!(
-        %bind,
-        accounts,
-        read_only,
-        "ecr-server listening"
-    );
+    eprintln!();
+    eprintln!("  ecr is running");
+    eprintln!("    open      http://{bind}");
+    eprintln!("    accounts  {accounts}");
+    if read_only {
+        eprintln!("    mode      read-only (no tagging, syncing or sending)");
+    }
+    match &web {
+        Some(dir) => eprintln!("    client    {}", dir.display()),
+        None => eprintln!(
+            "    client    not built — run `just build-web`, or `just dev` for hot reload"
+        ),
+    }
+    eprintln!();
 
     let cors = (!allowed_origins.is_empty()).then_some(allowed_origins);
-    axum::serve(listener, app::router_with_cors(state, cors))
+    axum::serve(listener, app::router_with_web(state, cors, web.as_deref()))
         .with_graceful_shutdown(shutdown())
         .await?;
 

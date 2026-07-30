@@ -31,7 +31,7 @@ fn compose_in_editor(initial: String) -> Result<String, String> {
 
 #[tauri::command]
 fn default_server_url() -> String {
-    std::env::var("ECR_SERVER_URL").unwrap_or_else(|_| "http://localhost:8080".to_string())
+    std::env::var("ECR_SERVER_URL").unwrap_or_else(|_| "http://localhost:8383".to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

@@ -34,7 +34,7 @@ The plaintext is shown exactly once. With no tokens the API is unauthenticated.
 ## Running
 
 ```bash
-ecr-server serve --bind 127.0.0.1:8080
+ecr-server serve --bind 127.0.0.1:8383
 ```
 
 | Flag | Effect |
@@ -42,8 +42,23 @@ ecr-server serve --bind 127.0.0.1:8080
 | `--bind` | Address to listen on. Use the tailnet address to reach it from a phone |
 | `--read-only` | Refuse every write: no tagging, syncing or sending. Good for a first run against real mail |
 | `--no-watch` | Do not watch the maildir; new mail then needs an explicit sync |
+| `--web-dir` | Where the built client lives. Found automatically; `ECR_WEB_DIR` also works |
 | `--allowed-origin` | Restrict browser origins. Repeatable. Default allows any — see [architecture.md](architecture.md#auth) |
 | `--tokens` | Alternate token store path |
+
+## The client is served by the server
+
+`ecr-server` serves the built web client at `/` alongside the API. Opening
+`http://127.0.0.1:8383` gives you the whole app: same origin, so CORS never
+applies and the client defaults its API base to wherever it was loaded from.
+
+It looks for `web/dist` relative to the working directory and then beside the
+binary. If it cannot find one it serves a page saying so rather than a 404.
+Build it with `just build-web`.
+
+The desktop shell embeds its own copy of the same client and reads the server
+URL from `ECR_SERVER_URL` (default `http://localhost:8383`). If that server is
+not running the app says so in its own UI, with a retry.
 
 ## Configuration
 
@@ -64,7 +79,7 @@ msmtp_bin   = "/run/current-system/sw/bin/msmtp"
 ## Reaching it from a phone
 
 The server binds to a single address. Bind it to the tailnet address, install
-Tailscale on the phone, and point the client at `http://<tailnet-name>:8080`
+Tailscale on the phone, and point the client at `http://<tailnet-name>:8383`
 with a device token. Do not expose it to the public internet without putting
 TLS and a reverse proxy in front — this is a mail store.
 

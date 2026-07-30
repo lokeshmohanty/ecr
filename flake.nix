@@ -51,8 +51,8 @@
           msmtp
         ];
 
-        # Tauri v2 desktop (WebKitGTK) dependencies. The Android SDK/NDK is
-        # deliberately not here — it is a large, opt-in closure and is not
+        # Tauri v2 desktop (WebKitGTK) build dependencies. The Android SDK/NDK
+        # is deliberately not here — it is a large, opt-in closure and is not
         # needed until the Android shell phase.
         tauriDeps = with pkgs; [
           webkitgtk_4_1
@@ -66,6 +66,34 @@
           glib
           openssl
         ];
+
+        # Linking is not enough: the shell dlopen's a wider set at run time.
+        # Without these the binary starts and then dies on a missing
+        # libdbus-1.so.3 or renders a blank window.
+        tauriRuntime =
+          tauriDeps
+          ++ (with pkgs; [
+            dbus
+            at-spi2-core
+            at-spi2-atk
+            atk
+            libxkbcommon
+            wayland
+            libGL
+            mesa
+            harfbuzz
+            fontconfig
+            freetype
+            libx11
+            libxcursor
+            libxrandr
+            libxi
+            libxcomposite
+            libxdamage
+            libxext
+            libxfixes
+            libxcb
+          ]);
       in
       {
         devShells.default = pkgs.mkShell {
@@ -98,7 +126,7 @@
           WEBKIT_DISABLE_COMPOSITING_MODE = "1";
           GIO_MODULE_DIR = "${pkgs.glib-networking}/lib/gio/modules";
 
-          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath tauriDeps;
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath tauriRuntime;
 
           shellHook = ''
             echo "ecr dev shell"

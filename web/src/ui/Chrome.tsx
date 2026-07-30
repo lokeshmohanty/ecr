@@ -157,7 +157,7 @@ export function ConnectionSetup(props: { store: AppStore }) {
             ref={urlInput}
             class="touch-target mt-1 w-full rounded px-2 py-1.5"
             value={props.store.connection().baseUrl}
-            placeholder="http://your-host:8080"
+            placeholder="http://your-host:8383"
           />
         </label>
 

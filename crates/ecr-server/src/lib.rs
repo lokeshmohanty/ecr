@@ -5,6 +5,7 @@ pub mod events;
 pub mod routes;
 pub mod state;
 pub mod watcher;
+pub mod web;
 
 pub use app::router;
 pub use auth::TokenStore;

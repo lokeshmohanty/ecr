@@ -35,10 +35,18 @@ export function saveConnection(connection: Connection): void {
 }
 
 function defaultBaseUrl(): string {
+  // Served by ecr-server itself, so the API is on this very origin. This is
+  // what makes opening http://host:8383 work with nothing to configure.
   if (typeof location !== "undefined" && location.protocol.startsWith("http")) {
     return location.origin;
   }
-  return "http://localhost:8080";
+  // Under Tauri the origin is tauri://localhost; the real URL comes from the
+  // shell asynchronously, so this is only a placeholder until it answers.
+  return "";
+}
+
+export function hasConnection(connection: Connection): boolean {
+  return connection.baseUrl.trim() !== "";
 }
 
 export class ApiError extends Error {
@@ -161,7 +169,16 @@ export class Api {
   /** EventSource cannot set headers, so the token rides in the query string. */
   events(onEvent: (event: ServerEvent) => void, onError?: () => void): () => void {
     const token = encodeURIComponent(this.connection.token);
-    const source = new EventSource(this.url(`/api/v1/events?access_token=${token}`));
+
+    let source: EventSource;
+    try {
+      source = new EventSource(this.url(`/api/v1/events?access_token=${token}`));
+    } catch {
+      // A relative URL is not constructible under tauri://; report it as a
+      // disconnection rather than letting the constructor throw.
+      onError?.();
+      return () => {};
+    }
 
     const names = [
       "mail:changed",

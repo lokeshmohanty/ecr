@@ -1,6 +1,7 @@
 import { createSignal, createResource, batch } from "solid-js";
 import { createStore } from "solid-js/store";
 import { Api, loadConnection, saveConnection, type Connection } from "../api/client";
+import { shellServerUrl } from "../api/platform";
 import type { Account, ServerEvent, ThreadSummary } from "../api/types";
 import type { Mode } from "../keymap/engine";
 
@@ -65,18 +66,39 @@ export function createAppStore() {
   const [syncing, setSyncing] = createSignal(false);
   const [marks, setMarks] = createStore<MarkQueue>({});
   const [connected, setConnected] = createSignal(false);
+  const [lastError, setLastError] = createSignal("");
 
-  const [accounts] = createResource<Account[]>(() => api.accounts().catch(() => []));
+  // Under Tauri there is no usable origin, so the shell supplies the URL.
+  if (connection().baseUrl === "") {
+    void shellServerUrl().then((url) => {
+      if (url) setConnection({ ...connection(), baseUrl: url });
+    });
+  }
+
+  // Every request source keys on the base URL as well as the revision. Under
+  // Tauri the URL arrives asynchronously from the shell, so a resource that
+  // does not depend on it fires once against an empty base and never retries --
+  // which is how the account list silently stayed empty on the desktop.
+  const [accounts] = createResource(
+    () => connection().baseUrl,
+    async (baseUrl) => (baseUrl ? await api.accounts().catch(() => []) : ([] as Account[])),
+  );
 
   const [threads, { refetch: refetchThreads }] = createResource(
-    () => [query(), revision()] as const,
-    async ([q]) => {
+    () => [query(), revision(), connection().baseUrl] as const,
+    async ([q, , baseUrl]) => {
+      if (!baseUrl) {
+        return { revision: { uuid: "", lastmod: 0 }, total: 0, items: [] as ThreadSummary[] };
+      }
       try {
         const page = await api.threads(q);
         setConnected(true);
+        setLastError("");
         return page;
       } catch (error) {
-        setStatus(error instanceof Error ? error.message : "request failed");
+        const message = error instanceof Error ? error.message : "request failed";
+        setStatus(message);
+        setLastError(message);
         setConnected(false);
         return { revision: { uuid: "", lastmod: 0 }, total: 0, items: [] as ThreadSummary[] };
       }
@@ -84,8 +106,8 @@ export function createAppStore() {
   );
 
   const [thread] = createResource(
-    () => [openThread(), revision()] as const,
-    async ([id]) => (id ? api.thread(id).catch(() => null) : null),
+    () => [openThread(), revision(), connection().baseUrl] as const,
+    async ([id, , baseUrl]) => (id && baseUrl ? await api.thread(id).catch(() => null) : null),
   );
 
   function setConnection(next: Connection) {
@@ -195,6 +217,7 @@ export function createAppStore() {
   }
 
   function subscribe() {
+    if (!connection().baseUrl) return () => {};
     return api.events(onServerEvent, () => setConnected(false));
   }
 
@@ -216,6 +239,7 @@ export function createAppStore() {
     setOpenThread,
     status,
     setStatus,
+    lastError,
     pendingKeys,
     setPendingKeys,
     allowRemote,

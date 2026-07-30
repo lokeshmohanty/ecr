@@ -1,4 +1,4 @@
-import { Show, createSignal, onCleanup, onMount } from "solid-js";
+import { Show, createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { Keymap, type Action } from "./keymap/engine";
 import { createAppStore } from "./state/store";
 import { Sidebar } from "./ui/Sidebar";
@@ -27,13 +27,16 @@ export function App() {
   const configured = () => store.connection().baseUrl !== "";
 
   onMount(() => {
-    const unsubscribe = store.subscribe();
     document.addEventListener("keydown", onKeyDown);
+    onCleanup(() => document.removeEventListener("keydown", onKeyDown));
+  });
 
-    onCleanup(() => {
-      unsubscribe();
-      document.removeEventListener("keydown", onKeyDown);
-    });
+  // The desktop shell supplies the server URL after the first render, so the
+  // event stream has to follow the connection rather than be opened once.
+  createEffect(() => {
+    store.connection().baseUrl;
+    const unsubscribe = store.subscribe();
+    onCleanup(unsubscribe);
   });
 
   function onKeyDown(event: KeyboardEvent) {
@@ -165,8 +168,10 @@ export function App() {
         store.setMode("command");
         break;
       case "enterSearch":
+        // Starts empty, like vim's `/`. Pre-filling with the current query
+        // means the next keystroke appends to it instead of replacing it.
         store.setMode("search");
-        store.setPalette(store.query());
+        store.setPalette("");
         break;
       case "help":
         setShowHelp(true);
