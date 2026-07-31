@@ -2,27 +2,35 @@
 @import "@fontsource-variable/cascadia-code";
 
 @theme {
-  /* Ported verbatim from the egui client's src/theme.rs */
-  --color-bg-main: #1a1b26;
-  --color-bg-panel: #16161e;
-  --color-bg-hover: #292e42;
-  --color-bg-selected: #33467c;
-  --color-bg-input: #15161e;
-  --color-bg-tag: #1f2335;
-  --color-bg-tag-urgent: #491e2d;
+  /*
+   * Tokyo Night Day — the light sibling of the palette the egui client used,
+   * so the identity carries over. Light is the default because HTML mail is
+   * overwhelmingly authored for a white background: forcing a dark canvas
+   * under it produced dark-on-dark text in a large share of real messages.
+   */
+  --color-bg-main: #e1e2e7;
+  --color-bg-panel: #d0d5e3;
+  --color-bg-raised: #ffffff;
+  --color-bg-hover: #c4c8da;
+  --color-bg-selected: #99a7df;
+  --color-bg-input: #ffffff;
+  --color-bg-tag: #cbd0e0;
+  --color-bg-tag-urgent: #f7d3dc;
 
-  --color-accent: #7aa2f7;
-  --color-accent-dim: #7dcfff;
-  --color-text-primary: #c0caf5;
-  --color-text-secondary: #9aabeb;
-  --color-text-dim: #565f89;
-  --color-text-quoted: #9ece6a;
-  --color-border: #292e42;
+  --color-accent: #2e7de9;
+  --color-accent-dim: #007197;
+  --color-text-primary: #3760bf;
+  --color-text-strong: #1b2a5c;
+  --color-text-secondary: #5a6ba8;
+  --color-text-dim: #848cb5;
+  --color-text-quoted: #587539;
+  --color-border: #a8aecb;
+  --color-border-soft: #c3c8dc;
 
-  --color-tag-unread: #9ece6a;
-  --color-tag-urgent: #f7768e;
-  --color-tag-default: #bb9af7;
-  --color-star: #e0af68;
+  --color-tag-unread: #587539;
+  --color-tag-urgent: #f52a65;
+  --color-tag-default: #9854f1;
+  --color-star: #b15c00;
 
   --font-mono: "Cascadia Code Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
   --default-mono-font-family: var(--font-mono);
@@ -30,14 +38,14 @@
 }
 
 :root {
-  --row-height: 2.75rem;
+  --row-height: 3.5rem;
   --date-column: 7.5rem;
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 @media (max-width: 768px) {
   :root {
-    --row-height: 3.25rem;
+    --row-height: 4rem;
     --date-column: 5rem;
   }
 }
@@ -80,6 +88,7 @@ body {
 .scroll-y {
   overflow-y: auto;
   overscroll-behavior: contain;
+  min-height: 0;
 }
 
 .scroll-y::-webkit-scrollbar {
@@ -93,6 +102,20 @@ body {
 
 .scroll-y::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* The pane holding keyboard focus gets a visible edge rather than a glow. */
+.pane {
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 2px solid transparent;
+}
+
+.pane-focused {
+  border-left-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 4%, transparent);
 }
 
 kbd {
@@ -112,7 +135,7 @@ textarea {
   font-family: inherit;
   font-size: inherit;
   background: var(--color-bg-input);
-  color: var(--color-text-primary);
+  color: var(--color-text-strong);
   border: 1px solid var(--color-border);
   outline: none;
 }

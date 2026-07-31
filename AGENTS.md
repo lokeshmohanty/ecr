@@ -60,6 +60,14 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
 - **Sandboxed iframes cannot send `Authorization` headers**, and relative URLs
   in a `srcdoc` frame resolve against the web origin. Part URLs are
   absolutized with a query-string token in the client.
+- **The message iframe needs `allow-same-origin` to be measurable.** Without it
+  `contentDocument` is null, the resize is a no-op and every message renders
+  truncated. `allow-scripts` is the flag that matters and is never granted, so
+  same-origin access is inert.
+- **An editor that opens must take focus.** Otherwise keystrokes fall through
+  to the app and the editor looks inert.
+- **Reply picks the account from the message tags**, never `accounts()[0]` —
+  that answered Gmail threads from the work address because it sorts first.
 
 ## Testing rules
 
@@ -69,6 +77,23 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   `ServerSettings::{mbsync_bin, msmtp_bin}`. Never let a test reach Gmail.
 - If a change touches the UI, run `./scripts/verify-web.sh`. Unit tests did not
   catch the empty-list, broken-image or stuck-overlay bugs; the browser did.
+
+## Interaction model
+
+Three panes — `sidebar`, `list`, `detail` — with `h`/`l` moving focus. Bindings
+are pane-scoped: `Enter` opens a thread in the list and selects a view in the
+sidebar. `web/src/keymap/engine.ts` owns the table; a binding without `panes`
+is global.
+
+The right-hand pane shows one of three things (`RightPane` in the store):
+the thread, a composer, or settings. Reply, compose and settings all render
+*there*, not in a modal, and all use the same vim editor
+(`web/src/keymap/vim.ts` is the pure engine; `ui/VimEditor.tsx` applies it to a
+textarea). Drafts are edited as whole messages: headers, blank line, body.
+
+Settings are edited as text through that same editor and stored in
+localStorage; `state/settings.ts` parses them and reports errors with line
+numbers rather than silently discarding a bad line.
 
 ## Layout
 

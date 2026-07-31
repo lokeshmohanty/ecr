@@ -1,13 +1,14 @@
-import { Show, createEffect, createSignal, onCleanup, onMount } from "solid-js";
+import { Match, Show, Switch, createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { Keymap, type Action } from "./keymap/engine";
 import { createAppStore } from "./state/store";
 import { Sidebar } from "./ui/Sidebar";
 import { ThreadList } from "./ui/ThreadList";
 import { ReadingPane } from "./ui/ReadingPane";
 import { Palette } from "./ui/Palette";
-import { Compose, emptyDraft } from "./ui/Compose";
+import { ComposePane, emptyDraft } from "./ui/ComposePane";
+import { SettingsPane } from "./ui/SettingsPane";
 import { ConnectionSetup, Help, StatusBar, TopBar } from "./ui/Chrome";
-import type { Draft } from "./api/types";
+import type { Draft, Message } from "./api/types";
 
 /** A key belongs to a text field whenever one of these has focus. */
 function isEditing(target: EventTarget | null): boolean {
@@ -18,13 +19,16 @@ function isEditing(target: EventTarget | null): boolean {
 
 export function App() {
   const store = createAppStore();
-  const keymap = new Keymap();
+  const keymap = new Keymap(store.settings().bindings);
 
   const [showHelp, setShowHelp] = createSignal(false);
-  const [draft, setDraft] = createSignal<Draft | null>(null);
-  const [mobilePane, setMobilePane] = createSignal<"list" | "reading">("list");
+  const [mobilePane, setMobilePane] = createSignal<"list" | "detail">("list");
 
   const configured = () => store.connection().baseUrl !== "";
+  const editing = () => store.right().kind !== "reading";
+
+  // Custom bindings take effect as soon as settings are applied.
+  createEffect(() => keymap.replace(store.settings().bindings));
 
   onMount(() => {
     document.addEventListener("keydown", onKeyDown);
@@ -40,10 +44,9 @@ export function App() {
   });
 
   function onKeyDown(event: KeyboardEvent) {
-    if (draft()) return;
+    // The editor owns every key while it is open; it handles its own Escape.
+    if (editing()) return;
 
-    // The keymap treats Escape in idle normal mode as none of its business, so
-    // any transient overlay has to claim it before the keymap is consulted.
     if (event.key === "Escape" && showHelp()) {
       event.preventDefault();
       setShowHelp(false);
@@ -54,6 +57,7 @@ export function App() {
       { key: event.key, ctrl: event.ctrlKey, alt: event.altKey, meta: event.metaKey },
       store.mode(),
       isEditing(event.target),
+      store.pane(),
     );
 
     store.setPendingKeys(keymap.sequence);
@@ -73,32 +77,100 @@ export function App() {
     }
   }
 
+  function threadMessages(): Message[] {
+    return store.thread()?.messages ?? [];
+  }
+
+  function openCompose(draft: Draft, label: string) {
+    store.setRight({ kind: "compose", draft, label });
+    store.setPane("detail");
+    setMobilePane("detail");
+  }
+
+  function closeRight() {
+    store.setRight({ kind: "reading" });
+    store.setMode("normal");
+  }
+
   async function dispatch(action: Action) {
+    const pane = store.pane();
+
     switch (action.kind) {
+      case "focusLeft":
+        store.focusPane(-1);
+        setMobilePane(store.pane() === "detail" ? "detail" : "list");
+        break;
+      case "focusRight":
+        store.focusPane(1);
+        setMobilePane(store.pane() === "detail" ? "detail" : "list");
+        break;
+
       case "next":
-        store.move(1);
+        if (pane === "sidebar") store.moveSidebar(1);
+        else if (pane === "list") store.move(1);
+        else store.setMessageIndex(Math.min(store.messageIndex() + 1, threadMessages().length - 1));
         break;
       case "prev":
-        store.move(-1);
+        if (pane === "sidebar") store.moveSidebar(-1);
+        else if (pane === "list") store.move(-1);
+        else store.setMessageIndex(Math.max(store.messageIndex() - 1, 0));
         break;
       case "first":
-        store.setSelected(0);
+        if (pane === "sidebar") store.setSidebarIndex(0);
+        else if (pane === "list") store.setSelected(0);
+        else store.setMessageIndex(0);
         break;
       case "last":
-        store.setSelected(Math.max(store.items().length - 1, 0));
+        if (pane === "sidebar") store.setSidebarIndex(store.sidebarRows().length - 1);
+        else if (pane === "list") store.setSelected(Math.max(store.items().length - 1, 0));
+        else store.setMessageIndex(Math.max(threadMessages().length - 1, 0));
         break;
+
+      case "select":
+        store.activateSidebar();
+        store.setPane("list");
+        break;
+
       case "open": {
         const thread = store.current();
         if (thread) {
           store.setOpenThread(thread.id);
-          setMobilePane("reading");
+          store.setRight({ kind: "reading" });
+          store.setMessageIndex(0);
+          store.setPane("detail");
+          setMobilePane("detail");
         }
         break;
       }
-      case "back":
-        setMobilePane("list");
-        store.setOpenThread(null);
+
+      case "nextMessage":
+        store.setMessageIndex(Math.min(store.messageIndex() + 1, threadMessages().length - 1));
         break;
+      case "prevMessage":
+        store.setMessageIndex(Math.max(store.messageIndex() - 1, 0));
+        break;
+
+      case "toggleFold": {
+        if (pane === "sidebar") {
+          store.activateSidebar();
+          break;
+        }
+        const message = threadMessages()[store.messageIndex()];
+        if (message) store.toggleCollapsed(message.id);
+        break;
+      }
+      case "foldAll":
+        store.setAllCollapsed(threadMessages().map((m) => m.id), true);
+        break;
+      case "unfoldAll":
+        store.setAllCollapsed(threadMessages().map((m) => m.id), false);
+        break;
+
+      case "loadRemote":
+        store.setAllowRemote(true);
+        store.setStatus("remote images loaded");
+        break;
+
       case "archive":
         store.mark("archive");
         break;
@@ -130,40 +202,57 @@ export function App() {
       case "sync":
         await store.sync();
         break;
+
       case "compose":
-        setDraft(emptyDraft());
+        openCompose(emptyDraft(), "compose");
         break;
+
       case "reply":
       case "forward": {
-        const thread = store.thread();
-        const message = thread?.messages[thread.messages.length - 1];
+        // Replying from the list is the common case: the thread the cursor is
+        // on has usually not been opened yet, so fetch it rather than telling
+        // the user to press Enter first.
+        let messages = threadMessages();
+        if (messages.length === 0) {
+          const selected = store.current();
+          if (selected) {
+            store.setStatus("loading thread…");
+            const fetched = await store.api.thread(selected.id).catch(() => null);
+            messages = fetched?.messages ?? [];
+            if (messages.length > 0) store.setOpenThread(selected.id);
+          }
+        }
+
+        const message = messages[store.messageIndex()] ?? messages[messages.length - 1];
         if (!message) {
-          store.setStatus("open a thread first");
+          store.setStatus("nothing to reply to");
           break;
         }
-        setDraft(
-          action.kind === "forward"
-            ? {
-                ...emptyDraft(),
-                subject: prefixed(message.subject, "Fwd:"),
-                body: `\n\n---------- Forwarded message ----------\nFrom: ${message.from
-                  .map((a) => a.email)
-                  .join(", ")}\nSubject: ${message.subject}\n\n`,
-              }
-            : {
-                ...emptyDraft(),
-                to: (message.reply_to.length ? message.reply_to : message.from).map(
-                  (a) => a.email,
-                ),
-                cc: action.all ? message.cc.map((a) => a.email) : [],
-                subject: prefixed(message.subject, "Re:"),
-                in_reply_to: message.id,
-                references: [...message.references, message.id],
-                body: `\n\nOn ${message.date}, ${message.from[0]?.email ?? "someone"} wrote:\n`,
-              },
+        const all = action.kind === "reply" && (action.all || store.settings().preferences.replyAll);
+        openCompose(
+          action.kind === "forward" ? forwardDraft(message) : replyDraft(message, all),
+          action.kind === "forward" ? "forward" : all ? "reply all" : "reply",
         );
         break;
       }
+
+      case "nextAccount":
+        store.cycleAccount(1);
+        break;
+      case "prevAccount":
+        store.cycleAccount(-1);
+        break;
+
+      case "settings":
+        store.setRight({ kind: "settings" });
+        store.setPane("detail");
+        setMobilePane("detail");
+        break;
+
+      case "closeRight":
+        closeRight();
+        break;
+
       case "enterCommand":
         store.setMode("command");
         break;
@@ -176,25 +265,25 @@ export function App() {
       case "help":
         setShowHelp(true);
         break;
-      case "paneLeft":
-        setMobilePane("list");
-        break;
-      case "paneRight":
-        setMobilePane("reading");
-        break;
-      default:
-        store.setStatus(`${action.kind} is not wired up yet`);
     }
   }
 
   return (
     <Show when={configured()} fallback={<ConnectionSetup store={store} />}>
       <div class="relative flex h-full flex-col">
-        <TopBar store={store} onSync={() => void store.sync()} />
+        <TopBar
+          store={store}
+          onSync={() => void store.sync()}
+          onSettings={() => void dispatch({ kind: "settings" })}
+        />
 
-        <main class="grid min-h-0 flex-1 md:grid-cols-[14rem_minmax(0,1.1fr)_minmax(0,1.4fr)]">
-          <div class="hidden md:block">
-            <Sidebar store={store} onCompose={() => setDraft(emptyDraft())} />
+        <main class="grid min-h-0 flex-1 md:grid-cols-[14rem_minmax(0,1.05fr)_minmax(0,1.45fr)]">
+          <div class="hidden min-h-0 md:block">
+            <Sidebar
+              store={store}
+              onCompose={() => openCompose(emptyDraft(), "compose")}
+              onSettings={() => void dispatch({ kind: "settings" })}
+            />
           </div>
 
           <div
@@ -206,9 +295,33 @@ export function App() {
 
           <div
             class="min-h-0"
-            classList={{ hidden: mobilePane() !== "reading", "md:block": true }}
+            classList={{ hidden: mobilePane() !== "detail", "md:block": true }}
           >
-            <ReadingPane store={store} />
+            <section
+              class="pane h-full"
+              classList={{ "pane-focused": store.pane() === "detail" }}
+              onClick={() => store.setPane("detail")}
+            >
+              <Switch fallback={<ReadingPane store={store} />}>
+                <Match when={store.right().kind === "settings"}>
+                  <SettingsPane store={store} onClose={closeRight} />
+                </Match>
+                <Match when={store.right().kind === "compose"}>
+                  {(() => {
+                    const right = store.right();
+                    if (right.kind !== "compose") return null;
+                    return (
+                      <ComposePane
+                        store={store}
+                        draft={right.draft}
+                        label={right.label}
+                        onClose={closeRight}
+                      />
+                    );
+                  })()}
+                </Match>
+              </Switch>
+            </section>
           </div>
         </main>
 
@@ -216,17 +329,49 @@ export function App() {
         <Palette store={store} />
 
         <Show when={showHelp()}>
-          <Help store={store} bindings={keymap.describe()} onClose={() => setShowHelp(false)} />
-        </Show>
-
-        <Show when={draft()}>
-          {(current) => (
-            <Compose store={store} draft={current()} onClose={() => setDraft(null)} />
-          )}
+          <Help
+            bindings={keymap.describe(store.pane())}
+            pane={store.pane()}
+            onClose={() => setShowHelp(false)}
+          />
         </Show>
       </div>
     </Show>
   );
+}
+
+function replyDraft(message: Message, all: boolean): Draft {
+  const to = (message.reply_to.length ? message.reply_to : message.from).map((a) => a.email);
+  return {
+    to,
+    cc: all ? message.cc.map((a) => a.email).filter((e) => !to.includes(e)) : [],
+    bcc: [],
+    subject: prefixed(message.subject, "Re:"),
+    body: `\n\nOn ${message.date}, ${message.from[0]?.email ?? "someone"} wrote:\n${quote(message)}`,
+    in_reply_to: message.id,
+    references: [...message.references, message.id],
+  };
+}
+
+function forwardDraft(message: Message): Draft {
+  return {
+    to: [],
+    cc: [],
+    bcc: [],
+    subject: prefixed(message.subject, "Fwd:"),
+    body:
+      `\n\n---------- Forwarded message ----------\n` +
+      `From: ${message.from.map((a) => a.email).join(", ")}\n` +
+      `Date: ${message.date}\n` +
+      `Subject: ${message.subject}\n` +
+      `To: ${message.to.map((a) => a.email).join(", ")}\n\n`,
+    in_reply_to: null,
+    references: [],
+  };
+}
+
+function quote(message: Message): string {
+  return `> (${message.subject})\n`;
 }
 
 function prefixed(subject: string, prefix: string): string {

@@ -1,14 +1,17 @@
 export type Mode = "normal" | "insert" | "command" | "search";
 
+/** Which pane owns the keyboard. `h`/`l` move between them. */
+export type Pane = "sidebar" | "list" | "detail";
+
 export type Action =
   | { kind: "next" }
   | { kind: "prev" }
   | { kind: "first" }
   | { kind: "last" }
   | { kind: "open" }
-  | { kind: "back" }
-  | { kind: "paneLeft" }
-  | { kind: "paneRight" }
+  | { kind: "focusLeft" }
+  | { kind: "focusRight" }
+  | { kind: "select" }
   | { kind: "mark"; tag: string }
   | { kind: "executeMarks" }
   | { kind: "clearMarks" }
@@ -23,44 +26,69 @@ export type Action =
   | { kind: "toggleFold" }
   | { kind: "foldAll" }
   | { kind: "unfoldAll" }
+  | { kind: "scrollDown" }
+  | { kind: "scrollUp" }
+  | { kind: "nextMessage" }
+  | { kind: "prevMessage" }
+  | { kind: "loadRemote" }
   | { kind: "enterCommand" }
   | { kind: "enterSearch" }
   | { kind: "nextAccount" }
   | { kind: "prevAccount" }
+  | { kind: "settings" }
+  | { kind: "closeRight" }
   | { kind: "help" };
 
 export interface Binding {
   keys: string;
   action: Action;
   description: string;
+  /** Panes this applies in. Absent means everywhere. */
+  panes?: Pane[];
 }
 
 export const DEFAULT_BINDINGS: Binding[] = [
+  // Focus
+  { keys: "h", action: { kind: "focusLeft" }, description: "focus pane left" },
+  { keys: "l", action: { kind: "focusRight" }, description: "focus pane right" },
+
+  // Movement — meaning depends on the focused pane
   { keys: "j", action: { kind: "next" }, description: "next" },
   { keys: "k", action: { kind: "prev" }, description: "previous" },
   { keys: "gg", action: { kind: "first" }, description: "first" },
   { keys: "G", action: { kind: "last" }, description: "last" },
-  { keys: "Enter", action: { kind: "open" }, description: "open" },
-  { keys: "l", action: { kind: "open" }, description: "open" },
-  { keys: "h", action: { kind: "back" }, description: "back" },
-  { keys: "H", action: { kind: "paneLeft" }, description: "pane left" },
-  { keys: "L", action: { kind: "paneRight" }, description: "pane right" },
-  { keys: "za", action: { kind: "toggleFold" }, description: "toggle fold" },
-  { keys: "zM", action: { kind: "foldAll" }, description: "fold all" },
-  { keys: "zR", action: { kind: "unfoldAll" }, description: "unfold all" },
-  { keys: "a", action: { kind: "archive" }, description: "archive" },
-  { keys: "d", action: { kind: "delete" }, description: "delete" },
-  { keys: "u", action: { kind: "toggleRead" }, description: "toggle read" },
-  { keys: "f", action: { kind: "toggleFlag" }, description: "flag" },
-  { keys: "x", action: { kind: "executeMarks" }, description: "execute marks" },
-  { keys: "X", action: { kind: "clearMarks" }, description: "clear marks" },
+
+  // Sidebar
+  { keys: "Enter", action: { kind: "select" }, description: "open view or folder", panes: ["sidebar"] },
+  { keys: "o", action: { kind: "toggleFold" }, description: "expand or collapse account", panes: ["sidebar"] },
+
+  // List
+  { keys: "Enter", action: { kind: "open" }, description: "read thread", panes: ["list"] },
+  { keys: "a", action: { kind: "archive" }, description: "mark archive", panes: ["list"] },
+  { keys: "d", action: { kind: "delete" }, description: "mark delete", panes: ["list"] },
+  { keys: "u", action: { kind: "toggleRead" }, description: "toggle read", panes: ["list"] },
+  { keys: "f", action: { kind: "toggleFlag" }, description: "toggle flag", panes: ["list"] },
+  { keys: "x", action: { kind: "executeMarks" }, description: "execute marks", panes: ["list"] },
+  { keys: "X", action: { kind: "clearMarks" }, description: "clear marks", panes: ["list"] },
+
+  // Detail
+  { keys: "J", action: { kind: "nextMessage" }, description: "next message in thread", panes: ["detail"] },
+  { keys: "K", action: { kind: "prevMessage" }, description: "previous message in thread", panes: ["detail"] },
+  { keys: "za", action: { kind: "toggleFold" }, description: "fold message", panes: ["detail"] },
+  { keys: "zM", action: { kind: "foldAll" }, description: "fold all messages", panes: ["detail"] },
+  { keys: "zR", action: { kind: "unfoldAll" }, description: "unfold all messages", panes: ["detail"] },
+  { keys: "i", action: { kind: "loadRemote" }, description: "load remote images", panes: ["detail"] },
+  { keys: "q", action: { kind: "closeRight" }, description: "close the pane", panes: ["detail"] },
+
+  // Global
   { keys: "c", action: { kind: "compose" }, description: "compose" },
   { keys: "r", action: { kind: "reply", all: false }, description: "reply" },
   { keys: "R", action: { kind: "reply", all: true }, description: "reply all" },
   { keys: "F", action: { kind: "forward" }, description: "forward" },
   { keys: "s", action: { kind: "sync" }, description: "sync" },
   { keys: "]a", action: { kind: "nextAccount" }, description: "next account" },
-  { keys: "[a", action: { kind: "prevAccount" }, description: "prev account" },
+  { keys: "[a", action: { kind: "prevAccount" }, description: "previous account" },
+  { keys: ",", action: { kind: "settings" }, description: "settings" },
   { keys: ":", action: { kind: "enterCommand" }, description: "command" },
   { keys: "/", action: { kind: "enterSearch" }, description: "search" },
   { keys: "?", action: { kind: "help" }, description: "help" },
@@ -103,12 +131,28 @@ export class Keymap {
     this.pendingAt = 0;
   }
 
+  replace(bindings: Binding[]): void {
+    this.bindings = bindings;
+    this.reset();
+  }
+
+  /** Bindings live in a pane when they name it, or everywhere when they do not. */
+  private inPane(pane: Pane): Binding[] {
+    return this.bindings.filter((b) => !b.panes || b.panes.includes(pane));
+  }
+
   /**
    * `mode` and `editing` together decide whether a key is ours at all.
    * `editing` is true whenever a text input holds focus, which is the rule
    * that keeps typing in a field from triggering navigation.
    */
-  handle(event: KeyEvent, mode: Mode, editing: boolean, now = Date.now()): Outcome {
+  handle(
+    event: KeyEvent,
+    mode: Mode,
+    editing: boolean,
+    pane: Pane = "list",
+    now = Date.now(),
+  ): Outcome {
     if (event.ctrl || event.alt || event.meta) {
       return { type: "ignored", consumed: false };
     }
@@ -129,29 +173,36 @@ export class Keymap {
       this.reset();
     }
 
-    const candidate = this.pending + normalize(event.key);
-    const exact = this.bindings.find((b) => b.keys === candidate);
+    const scoped = this.inPane(pane);
+    const candidate = this.pending + event.key;
+
+    // A pane-specific binding wins over a global one on the same keys.
+    const exact =
+      scoped.find((b) => b.keys === candidate && b.panes) ??
+      scoped.find((b) => b.keys === candidate);
     if (exact) {
       this.reset();
       return { type: "action", action: exact.action, consumed: true };
     }
 
-    const prefixed = this.bindings.some((b) => b.keys.startsWith(candidate));
-    if (prefixed) {
+    if (scoped.some((b) => b.keys.startsWith(candidate))) {
       this.pending = candidate;
       this.pendingAt = now;
       return { type: "pending", sequence: candidate, consumed: true };
+    }
+
+    // `zq` is not a binding, but `q` is. Rather than swallow the key that
+    // ended a dead sequence, abandon the prefix and try the key on its own.
+    if (this.pending) {
+      this.reset();
+      return this.handle(event, mode, editing, pane, now);
     }
 
     this.reset();
     return { type: "ignored", consumed: false };
   }
 
-  describe(): Binding[] {
-    return [...this.bindings];
+  describe(pane?: Pane): Binding[] {
+    return pane ? this.inPane(pane) : [...this.bindings];
   }
-}
-
-function normalize(key: string): string {
-  return key.length === 1 ? key : key;
 }

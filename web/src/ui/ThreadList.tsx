@@ -48,9 +48,15 @@ export function ThreadList(props: { store: AppStore }) {
     }
   });
 
+  const focused = () => props.store.pane() === "list";
+
   return (
-    <section class="flex h-full min-w-0 flex-col border-r border-border">
-      <header class="row-grid border-b border-border px-3 py-2 text-xs uppercase tracking-wide text-text-dim">
+    <section
+      class="pane h-full border-r border-border"
+      classList={{ "pane-focused": focused() }}
+      onClick={() => props.store.setPane("list")}
+    >
+      <header class="row-grid shrink-0 border-b border-border bg-bg-panel px-3 py-2 text-xs uppercase tracking-wide text-text-dim">
         <span />
         <span class="truncate-cell">{props.store.query()}</span>
         <span class="text-right">
@@ -135,12 +141,14 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
       class="row-grid touch-target cursor-pointer border-b border-border/60 px-3 py-2"
       style={{ height: `${ROW_HEIGHT}px` }}
       classList={{
-        "bg-bg-selected": selected(),
+        "bg-bg-selected text-text-strong": selected(),
         "hover:bg-bg-hover": !selected(),
       }}
       onClick={() => {
         props.store.setSelected(props.index);
         props.store.setOpenThread(props.thread.id);
+        props.store.setRight({ kind: "reading" });
+        props.store.setMessageIndex(0);
       }}
     >
       <span class="text-xs" classList={{ "text-star": flagged() }}>
@@ -153,7 +161,7 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
         <div
           class="truncate-cell"
           classList={{
-            "text-text-primary font-semibold": unread(),
+            "text-text-strong font-semibold": unread(),
             "text-text-secondary": !unread(),
           }}
         >

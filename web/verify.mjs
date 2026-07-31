@@ -151,9 +151,11 @@ if (frameHtml) {
 const sandbox = await page
   .getAttribute("iframe[title='message body']", "sandbox", { timeout: 3000 })
   .catch(() => null);
+// allow-scripts is the flag that matters: without it nothing in a message can
+// execute, so same-origin access (needed to measure and size the frame) is inert.
 check(
-  "iframe is sandboxed without same-origin",
-  sandbox !== null && !sandbox.includes("allow-same-origin"),
+  "message HTML can never execute",
+  sandbox !== null && !sandbox.includes("allow-scripts"),
   sandbox ?? "no iframe rendered",
 );
 

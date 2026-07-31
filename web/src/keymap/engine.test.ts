@@ -1,8 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { Keymap, SEQUENCE_TIMEOUT } from "./engine";
+import { Keymap, SEQUENCE_TIMEOUT, type Mode, type Pane } from "./engine";
 
-const press = (map: Keymap, key: string, mode: "normal" | "insert" | "command" | "search" = "normal", editing = false, now?: number) =>
-  map.handle({ key }, mode, editing, now);
+interface Options {
+  mode?: Mode;
+  editing?: boolean;
+  pane?: Pane;
+  now?: number;
+}
+
+const press = (map: Keymap, key: string, o: Options = {}) =>
+  map.handle(
+    { key },
+    o.mode ?? "normal",
+    o.editing ?? false,
+    o.pane ?? "list",
+    o.now,
+  );
 
 describe("single keys", () => {
   it("resolves an immediate binding", () => {
@@ -22,11 +35,55 @@ describe("single keys", () => {
   });
 });
 
+describe("pane scoping", () => {
+  it("Enter opens a thread in the list and selects a view in the sidebar", () => {
+    const map = new Keymap();
+    expect(press(map, "Enter", { pane: "list" })).toMatchObject({ action: { kind: "open" } });
+    expect(press(map, "Enter", { pane: "sidebar" })).toMatchObject({ action: { kind: "select" } });
+  });
+
+  it("a list binding does not fire in another pane", () => {
+    const map = new Keymap();
+    expect(press(map, "a", { pane: "list" })).toMatchObject({ action: { kind: "archive" } });
+    expect(press(map, "a", { pane: "detail" })).toEqual({ type: "ignored", consumed: false });
+  });
+
+  it("a global binding fires in every pane", () => {
+    const map = new Keymap();
+    for (const pane of ["sidebar", "list", "detail"] as Pane[]) {
+      expect(press(map, "c", { pane }), pane).toMatchObject({ action: { kind: "compose" } });
+    }
+  });
+
+  it("h and l move focus from any pane", () => {
+    const map = new Keymap();
+    for (const pane of ["sidebar", "list", "detail"] as Pane[]) {
+      expect(press(map, "h", { pane })).toMatchObject({ action: { kind: "focusLeft" } });
+      expect(press(map, "l", { pane })).toMatchObject({ action: { kind: "focusRight" } });
+    }
+  });
+
+  it("a pane binding wins over a global one on the same keys", () => {
+    const map = new Keymap([
+      { keys: "z", action: { kind: "help" }, description: "global" },
+      { keys: "z", action: { kind: "sync" }, description: "list only", panes: ["list"] },
+    ]);
+    expect(press(map, "z", { pane: "list" })).toMatchObject({ action: { kind: "sync" } });
+    expect(press(map, "z", { pane: "detail" })).toMatchObject({ action: { kind: "help" } });
+  });
+
+  it("describe narrows to a pane", () => {
+    const map = new Keymap();
+    const detail = map.describe("detail");
+    expect(detail.some((b) => b.keys === "za")).toBe(true);
+    expect(detail.some((b) => b.keys === "a" && b.panes?.includes("list"))).toBe(false);
+  });
+});
+
 describe("multi-key sequences", () => {
   it("reports a partial sequence as pending", () => {
     const map = new Keymap();
     expect(press(map, "g")).toEqual({ type: "pending", sequence: "g", consumed: true });
-    expect(map.sequence).toBe("g");
   });
 
   it("completes a sequence on the second key", () => {
@@ -38,23 +95,22 @@ describe("multi-key sequences", () => {
 
   it("abandons a sequence that cannot complete", () => {
     const map = new Keymap();
-    press(map, "z");
-    expect(press(map, "q")).toEqual({ type: "ignored", consumed: false });
-    expect(map.sequence).toBe("");
+    press(map, "z", { pane: "detail" });
+    expect(press(map, "q", { pane: "detail" })).toMatchObject({ action: { kind: "closeRight" } });
   });
 
   it("does not let a stale prefix swallow a later key", () => {
     const map = new Keymap();
-    press(map, "g", "normal", false, 0);
-
-    const outcome = press(map, "j", "normal", false, SEQUENCE_TIMEOUT + 1);
-    expect(outcome).toMatchObject({ action: { kind: "next" } });
+    press(map, "g", { now: 0 });
+    expect(press(map, "j", { now: SEQUENCE_TIMEOUT + 1 })).toMatchObject({
+      action: { kind: "next" },
+    });
   });
 
   it("keeps a prefix alive inside the timeout", () => {
     const map = new Keymap();
-    press(map, "g", "normal", false, 0);
-    expect(press(map, "g", "normal", false, SEQUENCE_TIMEOUT - 1)).toMatchObject({
+    press(map, "g", { now: 0 });
+    expect(press(map, "g", { now: SEQUENCE_TIMEOUT - 1 })).toMatchObject({
       action: { kind: "first" },
     });
   });
@@ -64,32 +120,29 @@ describe("multi-key sequences", () => {
     press(map, "]");
     expect(press(map, "a")).toMatchObject({ action: { kind: "nextAccount" } });
   });
+
+  it("z sequences only exist in the detail pane", () => {
+    const map = new Keymap();
+    expect(press(map, "z", { pane: "detail" })).toMatchObject({ type: "pending" });
+    map.reset();
+    expect(press(map, "z", { pane: "list" })).toEqual({ type: "ignored", consumed: false });
+  });
 });
 
 describe("modes and focus", () => {
   it("does not act on keys while a text field has focus", () => {
     const map = new Keymap();
-    expect(press(map, "j", "normal", true)).toEqual({ type: "ignored", consumed: false });
+    expect(press(map, "j", { editing: true })).toEqual({ type: "ignored", consumed: false });
   });
 
   it("does not act on keys in insert mode", () => {
     const map = new Keymap();
-    expect(press(map, "j", "insert")).toEqual({ type: "ignored", consumed: false });
-  });
-
-  it("does not act on keys in command mode", () => {
-    const map = new Keymap();
-    expect(press(map, "a", "command")).toEqual({ type: "ignored", consumed: false });
+    expect(press(map, "j", { mode: "insert" })).toEqual({ type: "ignored", consumed: false });
   });
 
   it("escape leaves insert mode even though insert ignores other keys", () => {
     const map = new Keymap();
-    expect(press(map, "Escape", "insert")).toEqual({ type: "cancelled", consumed: true });
-  });
-
-  it("escape leaves a text field", () => {
-    const map = new Keymap();
-    expect(press(map, "Escape", "normal", true)).toEqual({ type: "cancelled", consumed: true });
+    expect(press(map, "Escape", { mode: "insert" })).toEqual({ type: "cancelled", consumed: true });
   });
 
   it("escape clears a pending sequence in normal mode", () => {
@@ -108,7 +161,7 @@ describe("modes and focus", () => {
 describe("modifiers", () => {
   it("never claims a key held with ctrl", () => {
     const map = new Keymap();
-    expect(map.handle({ key: "j", ctrl: true }, "normal", false)).toEqual({
+    expect(map.handle({ key: "j", ctrl: true }, "normal", false, "list")).toEqual({
       type: "ignored",
       consumed: false,
     });
@@ -116,51 +169,51 @@ describe("modifiers", () => {
 
   it("never claims a key held with meta, so browser shortcuts keep working", () => {
     const map = new Keymap();
-    expect(map.handle({ key: "r", meta: true }, "normal", false)).toEqual({
+    expect(map.handle({ key: "r", meta: true }, "normal", false, "list")).toEqual({
       type: "ignored",
       consumed: false,
     });
   });
 });
 
-describe("mode entry", () => {
-  it("enters command mode on colon", () => {
-    const map = new Keymap();
-    expect(press(map, ":")).toMatchObject({ action: { kind: "enterCommand" } });
-  });
+describe("every default binding is reachable in its own pane", () => {
+  const panes: Pane[] = ["sidebar", "list", "detail"];
 
-  it("enters search mode on slash", () => {
-    const map = new Keymap();
-    expect(press(map, "/")).toMatchObject({ action: { kind: "enterSearch" } });
-  });
-});
-
-describe("every default binding is reachable", () => {
   it("resolves each bound sequence to its action", () => {
-    const map = new Keymap();
-    for (const binding of map.describe()) {
-      map.reset();
-      const keys = splitSequence(binding.keys);
-      let outcome = null;
-      for (const key of keys) {
-        outcome = press(map, key);
+    for (const pane of panes) {
+      const map = new Keymap();
+      for (const binding of map.describe(pane)) {
+        map.reset();
+        const keys = binding.keys === "Enter" ? ["Enter"] : binding.keys.split("");
+        let outcome = null;
+        for (const key of keys) outcome = press(map, key, { pane });
+
+        expect(outcome, `${binding.keys} in ${pane}`).toMatchObject({
+          type: "action",
+          action: binding.action,
+        });
       }
-      expect(outcome, `binding ${binding.keys}`).toMatchObject({
-        type: "action",
-        action: binding.action,
-      });
     }
   });
 
-  it("has no duplicate sequences", () => {
-    const seen = new Set<string>();
-    for (const binding of new Keymap().describe()) {
-      expect(seen.has(binding.keys), `duplicate ${binding.keys}`).toBe(false);
-      seen.add(binding.keys);
+  it("no pane has two bindings on the same sequence", () => {
+    for (const pane of panes) {
+      const seen = new Map<string, number>();
+      for (const binding of new Keymap().describe(pane)) {
+        seen.set(binding.keys, (seen.get(binding.keys) ?? 0) + 1);
+      }
+      const clashes = [...seen.entries()].filter(([, n]) => n > 1);
+      expect(clashes, `${pane}: ${JSON.stringify(clashes)}`).toEqual([]);
     }
   });
 });
 
-function splitSequence(sequence: string): string[] {
-  return sequence === "Enter" ? ["Enter"] : sequence.split("");
-}
+describe("custom bindings", () => {
+  it("replace swaps the whole table", () => {
+    const map = new Keymap();
+    map.replace([{ keys: "n", action: { kind: "next" }, description: "next" }]);
+
+    expect(press(map, "n")).toMatchObject({ action: { kind: "next" } });
+    expect(press(map, "j")).toEqual({ type: "ignored", consumed: false });
+  });
+});
