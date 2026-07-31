@@ -142,3 +142,67 @@ describe("robustness", () => {
     expect(fromText("stray = 1\n[preferences]\npageSize = 5\n").settings.preferences.pageSize).toBe(5);
   });
 });
+
+describe("new preferences", () => {
+  it("follows selection by default, so navigating updates the detail pane", () => {
+    expect(DEFAULT_PREFERENCES.followSelection).toBe(true);
+  });
+
+  it("starts the editor in normal mode by default", () => {
+    expect(DEFAULT_PREFERENCES.editorStartMode).toBe("normal");
+  });
+
+  it("parses the editor start mode", () => {
+    const { settings, errors } = fromText("[preferences]\neditorStartMode = insert\n");
+    expect(errors).toEqual([]);
+    expect(settings.preferences.editorStartMode).toBe("insert");
+  });
+
+  it("rejects an editor start mode that is not a vim mode", () => {
+    expect(fromText("[preferences]\neditorStartMode = shouting\n").errors[0]).toMatch(
+      /normal or insert/,
+    );
+  });
+
+  it("round-trips the new preferences", () => {
+    const { settings } = fromText(toText(defaultSettings()));
+    expect(settings.preferences.followSelection).toBe(DEFAULT_PREFERENCES.followSelection);
+    expect(settings.preferences.editorStartMode).toBe(DEFAULT_PREFERENCES.editorStartMode);
+  });
+});
+
+describe("packages", () => {
+  it("defaults every package to self-managed", () => {
+    const { settings } = fromText("");
+    for (const id of Object.keys(settings.packages)) {
+      expect(settings.packages[id as keyof typeof settings.packages].management).toBe("self");
+    }
+  });
+
+  it("parses a management choice", () => {
+    const { settings, errors } = fromText("[packages]\nnotmuch = ecr\n");
+    expect(errors).toEqual([]);
+    expect(settings.packages.notmuch.management).toBe("ecr");
+  });
+
+  it("rejects an unknown management mode", () => {
+    expect(fromText("[packages]\nnotmuch = magic\n").errors[0]).toMatch(/self or ecr/);
+  });
+
+  it("rejects an unknown package", () => {
+    expect(fromText("[packages]\nnonesuch = ecr\n").errors[0]).toMatch(/unknown package/);
+  });
+
+  it("round-trips through text", () => {
+    const original = defaultSettings();
+    original.packages.mbsync.management = "ecr";
+
+    const { settings, errors } = fromText(toText(original));
+    expect(errors).toEqual([]);
+    expect(settings.packages.mbsync.management).toBe("ecr");
+  });
+
+  it("writes a packages section people can find", () => {
+    expect(toText(defaultSettings())).toContain("[packages]");
+  });
+});

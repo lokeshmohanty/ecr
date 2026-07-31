@@ -89,7 +89,7 @@ build-web:
 check: fmt-check lint test test-web verify
 
 # Everything, including the checks that use your real mail. All read-only bar none.
-check-all: check verify-live verify-live-ui verify-features verify-widths verify-desktop
+check-all: check verify-live verify-live-ui verify-features verify-v2 verify-widths verify-desktop
 
 # Rust tests. Integration tests build a throwaway notmuch database from fixtures/.
 test *args:
@@ -142,6 +142,18 @@ verify-features:
     trap 'kill %1 2>/dev/null || true' EXIT
     for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null && break; sleep 0.5; done
     node web/verify-features.mjs "http://127.0.0.1:$port"
+
+# Drive account views, suggestions, the pinned composer and packages.
+verify-v2:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    port=8390
+    cargo build -q -p {{server}}
+    pnpm --dir web build > /dev/null
+    RUST_LOG=warn ./target/debug/{{server}} serve --bind "127.0.0.1:$port" --read-only --no-watch &
+    trap 'kill %1 2>/dev/null || true' EXIT
+    for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null && break; sleep 0.5; done
+    node web/verify-v2.mjs "http://127.0.0.1:$port"
 
 # Check the row layout holds from 320px to 1920px.
 verify-widths:

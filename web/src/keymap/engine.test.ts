@@ -159,9 +159,13 @@ describe("modes and focus", () => {
 });
 
 describe("modifiers", () => {
-  it("never claims a key held with ctrl", () => {
+  it("claims only the ctrl chords it has bound", () => {
     const map = new Keymap();
-    expect(map.handle({ key: "j", ctrl: true }, "normal", false, "list")).toEqual({
+    // C-j is bound; C-t is not and belongs to the browser.
+    expect(map.handle({ key: "j", ctrl: true }, "normal", false, "list")).toMatchObject({
+      type: "action",
+    });
+    expect(map.handle({ key: "t", ctrl: true }, "normal", false, "list")).toEqual({
       type: "ignored",
       consumed: false,
     });
@@ -183,6 +187,8 @@ describe("every default binding is reachable in its own pane", () => {
     for (const pane of panes) {
       const map = new Keymap();
       for (const binding of map.describe(pane)) {
+        // Chords are matched whole, not as a key sequence.
+        if (binding.keys.startsWith("C-")) continue;
         map.reset();
         const keys = binding.keys === "Enter" ? ["Enter"] : binding.keys.split("");
         let outcome = null;
@@ -215,5 +221,46 @@ describe("custom bindings", () => {
 
     expect(press(map, "n")).toMatchObject({ action: { kind: "next" } });
     expect(press(map, "j")).toEqual({ type: "ignored", consumed: false });
+  });
+});
+
+describe("ctrl chords", () => {
+  it("move focus from any pane", () => {
+    const map = new Keymap();
+    expect(map.handle({ key: "h", ctrl: true }, "normal", false, "detail")).toMatchObject({
+      action: { kind: "focusLeft" },
+    });
+    expect(map.handle({ key: "l", ctrl: true }, "normal", false, "sidebar")).toMatchObject({
+      action: { kind: "focusRight" },
+    });
+  });
+
+  it("work while a text field has focus, so you can leave an open editor", () => {
+    const map = new Keymap();
+    expect(map.handle({ key: "h", ctrl: true }, "insert", true, "detail")).toMatchObject({
+      action: { kind: "focusLeft" },
+    });
+  });
+
+  it("ctrl+p toggles the pinned split", () => {
+    const map = new Keymap();
+    expect(map.handle({ key: "p", ctrl: true }, "insert", true, "detail")).toMatchObject({
+      action: { kind: "togglePinned" },
+    });
+  });
+
+  it("an unbound chord is left to the browser", () => {
+    const map = new Keymap();
+    expect(map.handle({ key: "t", ctrl: true }, "normal", false, "list")).toEqual({
+      type: "ignored",
+      consumed: false,
+    });
+  });
+
+  it("a plain key is unaffected by the chord path", () => {
+    const map = new Keymap();
+    expect(map.handle({ key: "h" }, "normal", false, "list")).toMatchObject({
+      action: { kind: "focusLeft" },
+    });
   });
 });

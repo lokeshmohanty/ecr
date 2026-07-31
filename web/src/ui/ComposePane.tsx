@@ -95,12 +95,22 @@ export function ComposePane(props: {
 
   return (
     <>
-      <header class="shrink-0 border-b border-border px-4 py-3">
-        <h1 class="text-base text-text-strong">{props.label}</h1>
-        <div class="text-xs text-text-dim">
-          from {account()?.address ?? "no account"} · headers above the blank line ·{" "}
-          <kbd>ZZ</kbd> send · <kbd>ZQ</kbd> discard
+      <header class="flex shrink-0 items-start gap-3 border-b border-border bg-bg-panel px-4 py-2">
+        <div class="min-w-0 flex-1">
+          <h1 class="text-sm text-text-strong">{props.label}</h1>
+          <div class="text-xs text-text-dim">
+            from {account()?.address ?? "no account"} · <kbd>ZZ</kbd> send ·{" "}
+            <kbd>ZQ</kbd> discard · <kbd>C-p</kbd> hide
+          </div>
         </div>
+        <button
+          type="button"
+          class="shrink-0 rounded border border-border px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-hover"
+          onClick={props.onClose}
+          title="Discard (ZQ)"
+        >
+          ✕
+        </button>
       </header>
 
       <Show when={error()}>
@@ -117,6 +127,8 @@ export function ComposePane(props: {
         initial={draftToText(props.draft)}
         label={props.label}
         submitLabel="send"
+        addressBook={props.store.addressBook() ?? []}
+        startMode={props.store.settings().preferences.editorStartMode}
         onSubmit={(text) => void submit(text)}
         onCancel={props.onClose}
         onModeChange={(mode) => props.store.setMode(mode === "insert" ? "insert" : "normal")}

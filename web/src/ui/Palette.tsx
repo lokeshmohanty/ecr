@@ -1,5 +1,6 @@
-import { Show, createEffect } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import type { AppStore } from "../state/store";
+import { suggestQuery } from "../state/suggest";
 
 export interface CommandResult {
   query?: string;
@@ -41,25 +42,41 @@ export function runCommand(input: string): CommandResult {
 
 export function Palette(props: { store: AppStore }) {
   let input: HTMLInputElement | undefined;
+  const [highlight, setHighlight] = createSignal(0);
+
   const active = () => props.store.mode() === "command" || props.store.mode() === "search";
-  const prefix = () => (props.store.mode() === "command" ? ":" : "/");
+  const searching = () => props.store.mode() === "search";
+  const prefix = () => (searching() ? "/" : ":");
+
+  /** `/` is a notmuch query prompt, so it completes tags and search prefixes. */
+  const suggestions = createMemo(() =>
+    searching() ? suggestQuery(props.store.palette(), props.store.allTags() ?? []) : [],
+  );
 
   createEffect(() => {
     if (active()) queueMicrotask(() => input?.focus());
   });
 
-  const submit = () => {
-    const value = props.store.palette();
+  createEffect(() => {
+    props.store.palette();
+    setHighlight(0);
+  });
 
-    if (props.store.mode() === "search") {
-      props.store.setQuery(value);
-      props.store.setSelected(0);
+  const apply = (value: string) => {
+    props.store.setQuery(value);
+    props.store.setSelected(0);
+    props.store.followSelection(0);
+  };
+
+  const submit = () => {
+    const chosen = suggestions()[highlight()];
+    const value = searching() && chosen ? chosen.value : props.store.palette();
+
+    if (searching()) {
+      apply(value);
     } else {
       const result = runCommand(value);
-      if (result.query) {
-        props.store.setQuery(result.query);
-        props.store.setSelected(0);
-      }
+      if (result.query) apply(result.query);
       if (result.sync) void props.store.sync();
       if (result.status) props.store.setStatus(result.status);
     }
@@ -73,26 +90,80 @@ export function Palette(props: { store: AppStore }) {
     props.store.setMode("normal");
   };
 
+  const onKeyDown = (event: KeyboardEvent) => {
+    const list = suggestions();
+
+    if (event.key === "Tab" && list.length > 0) {
+      event.preventDefault();
+      props.store.setPalette(list[highlight()]!.value);
+      return;
+    }
+    if ((event.key === "ArrowDown" || (event.ctrlKey && event.key === "n")) && list.length > 0) {
+      event.preventDefault();
+      setHighlight((h) => Math.min(h + 1, list.length - 1));
+      return;
+    }
+    if ((event.key === "ArrowUp" || (event.ctrlKey && event.key === "p")) && list.length > 0) {
+      event.preventDefault();
+      setHighlight((h) => Math.max(h - 1, 0));
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      submit();
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancel();
+    }
+  };
+
   return (
     <Show when={active()}>
       <div class="absolute inset-x-0 top-0 z-30 flex justify-center px-4 pt-16">
-        <div class="flex w-full max-w-2xl items-center gap-2 rounded border border-accent bg-bg-panel px-3 py-2 shadow-2xl">
-          <span class="text-accent">{prefix()}</span>
-          <input
-            ref={input}
-            class="w-full border-0 bg-transparent p-0 text-text-primary outline-none"
-            value={props.store.palette()}
-            onInput={(e) => props.store.setPalette(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                submit();
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                cancel();
-              }
-            }}
-          />
+        <div class="w-full max-w-2xl overflow-hidden rounded border border-accent bg-bg-raised shadow-2xl">
+          <div class="flex items-center gap-2 px-3 py-2">
+            <span class="text-accent">{prefix()}</span>
+            <input
+              ref={input}
+              class="w-full border-0 bg-transparent p-0 text-text-strong outline-none"
+              placeholder={searching() ? "notmuch query, e.g. tag:unread and from:alice" : "command"}
+              value={props.store.palette()}
+              onInput={(e) => props.store.setPalette(e.currentTarget.value)}
+              onKeyDown={onKeyDown}
+            />
+          </div>
+
+          <Show when={suggestions().length > 0}>
+            <ul class="max-h-72 overflow-y-auto border-t border-border-soft">
+              <For each={suggestions()}>
+                {(suggestion, index) => (
+                  <li>
+                    <button
+                      type="button"
+                      class="flex w-full items-baseline gap-3 px-3 py-1.5 text-left"
+                      classList={{
+                        "bg-bg-selected text-text-strong": index() === highlight(),
+                        "hover:bg-bg-hover": index() !== highlight(),
+                      }}
+                      onMouseEnter={() => setHighlight(index())}
+                      onClick={() => {
+                        props.store.setPalette(suggestion.value);
+                        submit();
+                      }}
+                    >
+                      <span class="truncate-cell flex-1">{suggestion.label}</span>
+                      <span class="shrink-0 text-xs text-text-dim">{suggestion.detail}</span>
+                    </button>
+                  </li>
+                )}
+              </For>
+            </ul>
+            <div class="border-t border-border-soft px-3 py-1 text-xs text-text-dim">
+              <kbd>Tab</kbd> complete · <kbd>↑↓</kbd> choose · <kbd>Enter</kbd> run
+            </div>
+          </Show>
         </div>
       </div>
     </Show>

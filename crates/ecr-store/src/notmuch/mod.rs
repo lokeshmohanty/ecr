@@ -198,6 +198,44 @@ impl Notmuch {
             })
     }
 
+    /// The address book, built from who you have written to and who has
+    /// written to you. Recipients are collected first so they outrank senders.
+    pub async fn address_book(&self, limit: usize) -> Result<crate::address::AddressBook> {
+        use crate::address::{AddressBook, Source};
+
+        let mut book = AddressBook::new();
+
+        let recipients = self
+            .run(&[
+                "address",
+                "--output=recipients",
+                "--deduplicate=address",
+                "tag:sent or tag:draft",
+            ])
+            .await
+            .unwrap_or_default();
+        book.add_lines(&recipients, Source::Recipient);
+
+        let senders = self
+            .run(&["address", "--output=sender", "--deduplicate=address", "*"])
+            .await
+            .unwrap_or_default();
+        book.add_lines(&senders, Source::Sender);
+
+        let _ = limit;
+        Ok(book)
+    }
+
+    /// Every tag in the database, for query completion.
+    pub async fn tags(&self) -> Result<Vec<String>> {
+        let stdout = self.run(&["search", "--output=tags", "*"]).await?;
+        Ok(stdout
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect())
+    }
+
     pub async fn tag(&self, ops: &[TagOp]) -> Result<Revision> {
         self.tag_batch(&batch::build(ops)?).await
     }

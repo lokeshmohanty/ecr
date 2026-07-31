@@ -123,6 +123,14 @@ export class Api {
     return this.request("/api/v1/accounts");
   }
 
+  addresses(): Promise<{ name: string | null; email: string; source: string; count: number }[]> {
+    return this.request("/api/v1/addresses");
+  }
+
+  tags(): Promise<string[]> {
+    return this.request("/api/v1/tags");
+  }
+
   threads(query: string, limit = 100, offset = 0): Promise<Page<ThreadSummary>> {
     const params = new URLSearchParams({
       q: query,

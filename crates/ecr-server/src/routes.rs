@@ -51,6 +51,39 @@ pub async fn accounts(State(state): State<AppState>) -> ApiResult<Json<Vec<Accou
     Ok(Json(state.store.accounts().await?))
 }
 
+#[derive(Serialize)]
+pub struct AddressEntry {
+    pub name: Option<String>,
+    pub email: String,
+    pub source: &'static str,
+    pub count: usize,
+}
+
+/// The address book, for recipient completion in the composer.
+pub async fn addresses(State(state): State<AppState>) -> ApiResult<Json<Vec<AddressEntry>>> {
+    let book = state.store.notmuch().address_book(0).await?;
+
+    Ok(Json(
+        book.ranked()
+            .into_iter()
+            .map(|entry| AddressEntry {
+                name: entry.address.name,
+                email: entry.address.email,
+                source: match entry.source {
+                    ecr_store::address::Source::Recipient => "recipient",
+                    ecr_store::address::Source::Sender => "sender",
+                },
+                count: entry.count,
+            })
+            .collect(),
+    ))
+}
+
+/// Every tag in the database, for query completion.
+pub async fn tags(State(state): State<AppState>) -> ApiResult<Json<Vec<String>>> {
+    Ok(Json(state.store.notmuch().tags().await?))
+}
+
 pub async fn threads(
     State(state): State<AppState>,
     headers: HeaderMap,

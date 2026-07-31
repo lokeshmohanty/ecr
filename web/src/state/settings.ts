@@ -1,4 +1,11 @@
 import { DEFAULT_BINDINGS, type Action, type Binding, type Pane } from "../keymap/engine";
+import {
+  DEFAULT_PACKAGES,
+  PACKAGE_IDS,
+  type Management,
+  type PackageId,
+  type PackageSettings,
+} from "./packages";
 
 export interface Preferences {
   /** Rows fetched per query. */
@@ -13,6 +20,12 @@ export interface Preferences {
   replyAll: boolean;
   /** Query the client starts on. */
   startQuery: string;
+  /** Moving through a list updates the detail pane as you go. */
+  followSelection: boolean;
+  /** Which vim mode the composer and settings editor open in. */
+  editorStartMode: "normal" | "insert";
+  /** Open compose pinned to the bottom of the detail pane. */
+  pinnedCompose: boolean;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -22,17 +35,25 @@ export const DEFAULT_PREFERENCES: Preferences = {
   expandNewest: true,
   replyAll: false,
   startQuery: "tag:inbox",
+  followSelection: true,
+  editorStartMode: "normal",
+  pinnedCompose: true,
 };
 
 export interface Settings {
   preferences: Preferences;
   bindings: Binding[];
+  packages: PackageSettings;
 }
 
 const STORAGE_KEY = "ecr.settings";
 
 export function defaultSettings(): Settings {
-  return { preferences: { ...DEFAULT_PREFERENCES }, bindings: [...DEFAULT_BINDINGS] };
+  return {
+    preferences: { ...DEFAULT_PREFERENCES },
+    bindings: [...DEFAULT_BINDINGS],
+    packages: structuredClone(DEFAULT_PACKAGES),
+  };
 }
 
 export function loadSettings(): Settings {
@@ -43,6 +64,7 @@ export function loadSettings(): Settings {
     return {
       preferences: { ...DEFAULT_PREFERENCES, ...(parsed.preferences ?? {}) },
       bindings: parsed.bindings?.length ? parsed.bindings : [...DEFAULT_BINDINGS],
+      packages: { ...structuredClone(DEFAULT_PACKAGES), ...(parsed.packages ?? {}) },
     };
   } catch {
     return defaultSettings();
@@ -71,6 +93,11 @@ export function toText(settings: Settings): string {
 
   for (const [key, value] of Object.entries(settings.preferences)) {
     lines.push(`${key} = ${value}`);
+  }
+
+  lines.push("", "[packages]", "# self = you manage it (ecr reads only) · ecr = ecr owns the config");
+  for (const id of PACKAGE_IDS) {
+    lines.push(`${id} = ${settings.packages[id]?.management ?? "self"}`);
   }
 
   lines.push(
@@ -117,6 +144,26 @@ export function fromText(text: string): ParseResult {
         return;
       }
       applyPreference(settings.preferences, name as keyof Preferences, value, index + 1, errors);
+      return;
+    }
+
+    if (section === "packages") {
+      const [key, ...rest] = line.split("=");
+      const id = (key?.trim() ?? "") as PackageId;
+      const value = rest.join("=").trim();
+
+      if (!PACKAGE_IDS.includes(id)) {
+        errors.push(`line ${index + 1}: unknown package "${id}"`);
+        return;
+      }
+      if (value !== "self" && value !== "ecr") {
+        errors.push(`line ${index + 1}: ${id} expects self or ecr`);
+        return;
+      }
+      settings.packages[id] = {
+        ...(settings.packages[id] ?? { config: "" }),
+        management: value as Management,
+      };
       return;
     }
 
@@ -169,6 +216,15 @@ function applyPreference(
       return;
     }
     (preferences[name] as boolean) = value === "true";
+    return;
+  }
+
+  if (name === "editorStartMode") {
+    if (value !== "normal" && value !== "insert") {
+      errors.push(`line ${line}: editorStartMode expects normal or insert`);
+      return;
+    }
+    preferences.editorStartMode = value;
     return;
   }
 

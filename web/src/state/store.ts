@@ -5,6 +5,8 @@ import { shellServerUrl } from "../api/platform";
 import type { Account, Draft, ServerEvent, ThreadSummary } from "../api/types";
 import type { Mode, Pane } from "../keymap/engine";
 import { loadSettings, saveSettings, type Settings } from "./settings";
+import { ALL_ACCOUNTS, accountLabel, buildTree, type ViewGroup } from "./views";
+import { parseAddress, type AddressEntry } from "./suggest";
 
 export type Mark = "archive" | "delete" | "read" | "unread" | "flag";
 
@@ -84,6 +86,8 @@ export function createAppStore() {
   const [connected, setConnected] = createSignal(false);
   const [lastError, setLastError] = createSignal("");
   const [collapsed, setCollapsed] = createStore<Record<string, boolean>>({});
+  const [pinnedOpen, setPinnedOpen] = createSignal(true);
+  const [expandedGroup, setExpandedGroup] = createSignal<string>(ALL_ACCOUNTS);
 
   // Under Tauri there is no usable origin, so the shell supplies the URL.
   if (connection().baseUrl === "") {
@@ -121,6 +125,22 @@ export function createAppStore() {
     },
   );
 
+  const [addressBook] = createResource(
+    () => connection().baseUrl,
+    async (baseUrl) => {
+      if (!baseUrl) return [] as AddressEntry[];
+      const raw = await api.addresses().catch(() => []);
+      return raw
+        .map((a) => (a.name ? parseAddress(`${a.name} <${a.email}>`) : parseAddress(a.email)))
+        .filter((a): a is AddressEntry => a !== null);
+    },
+  );
+
+  const [allTags] = createResource(
+    () => [connection().baseUrl, revision()] as const,
+    async ([baseUrl]) => (baseUrl ? await api.tags().catch(() => []) : ([] as string[])),
+  );
+
   const [thread] = createResource(
     () => [openThread(), revision(), connection().baseUrl] as const,
     async ([id, , baseUrl]) => (id && baseUrl ? await api.thread(id).catch(() => null) : null),
@@ -155,22 +175,58 @@ export function createAppStore() {
   function move(delta: number) {
     const total = items().length;
     if (total === 0) return;
-    setSelected((s) => Math.min(Math.max(s + delta, 0), total - 1));
+
+    const next = Math.min(Math.max(selected() + delta, 0), total - 1);
+    setSelected(next);
+    followSelection(next);
   }
 
-  /** Sidebar rows are the views followed by the accounts. */
-  function sidebarRows(): { kind: "view" | "account"; name: string; query: string }[] {
-    const views = DEFAULT_VIEWS.map((v) => ({
-      kind: "view" as const,
-      name: v.name,
-      query: v.query,
-    }));
-    const accountRows = (accounts() ?? []).map((a) => ({
-      kind: "account" as const,
-      name: a.id,
-      query: `tag:${a.id}`,
-    }));
-    return [...views, ...accountRows];
+  /**
+   * Opens whatever the cursor lands on, so moving through the list reads as
+   * browsing rather than a two-step select-then-open.
+   */
+  function followSelection(index: number) {
+    if (!settings().preferences.followSelection) return;
+    if (right().kind !== "reading") return;
+
+    const thread = items()[index];
+    if (thread) {
+      setOpenThread(thread.id);
+      setMessageIndex(0);
+    }
+  }
+
+  function tree(): ViewGroup[] {
+    return buildTree(accounts() ?? []);
+  }
+
+  /** Which account the current query is showing, for the footer. */
+  function currentAccount(): string {
+    return accountLabel(query(), accounts() ?? []);
+  }
+
+  /**
+   * Flattened sidebar rows: each account header, then its views when expanded.
+   * Flattening keeps j/k a single index rather than a nested cursor.
+   */
+  function sidebarRows(): { kind: "group" | "view"; name: string; group: string; query: string }[] {
+    const rows: { kind: "group" | "view"; name: string; group: string; query: string }[] = [];
+
+    for (const group of tree()) {
+      rows.push({
+        kind: "group",
+        name: group.account,
+        group: group.account,
+        query: group.views[0]?.query ?? "*",
+      });
+
+      if (expandedGroup() === group.account) {
+        for (const view of group.views) {
+          rows.push({ kind: "view", name: view.name, group: group.account, query: view.query });
+        }
+      }
+    }
+    return rows;
   }
 
   function moveSidebar(delta: number) {
@@ -182,8 +238,9 @@ export function createAppStore() {
   function activateSidebar() {
     const row = sidebarRows()[sidebarIndex()];
     if (!row) return;
-    if (row.kind === "account") {
-      setExpandedAccount((c) => (c === row.name ? null : row.name));
+
+    if (row.kind === "group") {
+      setExpandedGroup(row.group);
     }
     selectQuery(row.query);
   }
@@ -369,6 +426,15 @@ export function createAppStore() {
     setPalette,
     selected,
     setSelected,
+    followSelection,
+    pinnedOpen,
+    setPinnedOpen,
+    expandedGroup,
+    setExpandedGroup,
+    tree,
+    currentAccount,
+    addressBook,
+    allTags,
     sidebarIndex,
     setSidebarIndex,
     sidebarRows,

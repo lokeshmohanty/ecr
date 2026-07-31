@@ -1,5 +1,6 @@
 import { For, Show } from "solid-js";
 import type { AppStore } from "../state/store";
+import { ALL_ACCOUNTS } from "../state/views";
 
 export function TopBar(props: { store: AppStore; onSync: () => void; onSettings: () => void }) {
   return (
@@ -45,6 +46,14 @@ export function TopBar(props: { store: AppStore; onSync: () => void; onSettings:
   );
 }
 
+function accountName(store: AppStore): string {
+  const id = store.currentAccount();
+  if (id === ALL_ACCOUNTS) return "all accounts";
+
+  const account = (store.accounts() ?? []).find((a) => a.id === id);
+  return account?.address ?? id;
+}
+
 export function StatusBar(props: { store: AppStore }) {
   const markCount = () => Object.keys(props.store.marks).length;
 
@@ -76,6 +85,13 @@ export function StatusBar(props: { store: AppStore }) {
 
       <span class="shrink-0 rounded border border-border px-1.5 py-0.5 uppercase text-text-dim">
         {props.store.pane()}
+      </span>
+
+      <span
+        class="shrink-0 rounded bg-bg-tag px-1.5 py-0.5 text-text-secondary"
+        title="account this view is scoped to"
+      >
+        {accountName(props.store)}
       </span>
 
       <span class="hidden min-w-0 flex-1 gap-3 md:flex">

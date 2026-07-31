@@ -37,6 +37,8 @@ export type Action =
   | { kind: "prevAccount" }
   | { kind: "settings" }
   | { kind: "closeRight" }
+  | { kind: "togglePinned" }
+  | { kind: "focusPinned" }
   | { kind: "help" };
 
 export interface Binding {
@@ -48,9 +50,15 @@ export interface Binding {
 }
 
 export const DEFAULT_BINDINGS: Binding[] = [
-  // Focus
+  // Focus. The ctrl chords work from anywhere, including mid-edit, which is
+  // what makes reading while composing possible.
   { keys: "h", action: { kind: "focusLeft" }, description: "focus pane left" },
   { keys: "l", action: { kind: "focusRight" }, description: "focus pane right" },
+  { keys: "C-h", action: { kind: "focusLeft" }, description: "focus pane left" },
+  { keys: "C-l", action: { kind: "focusRight" }, description: "focus pane right" },
+  { keys: "C-j", action: { kind: "focusPinned" }, description: "focus the pinned split" },
+  { keys: "C-k", action: { kind: "focusRight" }, description: "focus the reading pane" },
+  { keys: "C-p", action: { kind: "togglePinned" }, description: "hide or show the pinned split" },
 
   // Movement — meaning depends on the focused pane
   { keys: "j", action: { kind: "next" }, description: "next" },
@@ -93,6 +101,11 @@ export const DEFAULT_BINDINGS: Binding[] = [
   { keys: "/", action: { kind: "enterSearch" }, description: "search" },
   { keys: "?", action: { kind: "help" }, description: "help" },
 ];
+
+/** Chords are written `C-h` in a binding table. */
+export function chordName(event: KeyEvent): string {
+  return event.ctrl ? `C-${event.key}` : event.key;
+}
 
 export interface KeyEvent {
   key: string;
@@ -153,8 +166,17 @@ export class Keymap {
     pane: Pane = "list",
     now = Date.now(),
   ): Outcome {
-    if (event.ctrl || event.alt || event.meta) {
+    if (event.alt || event.meta) {
       return { type: "ignored", consumed: false };
+    }
+
+    // Ctrl chords are matched directly and work in every mode, including while
+    // a text field has focus, so they can move away from an open editor.
+    if (event.ctrl) {
+      const chord = this.bindings.find((b) => b.keys === chordName(event));
+      return chord
+        ? { type: "action", action: chord.action, consumed: true }
+        : { type: "ignored", consumed: false };
     }
 
     if (event.key === "Escape") {

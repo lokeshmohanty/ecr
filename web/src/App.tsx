@@ -25,7 +25,9 @@ export function App() {
   const [mobilePane, setMobilePane] = createSignal<"list" | "detail">("list");
 
   const configured = () => store.connection().baseUrl !== "";
-  const editing = () => store.right().kind !== "reading";
+  const composing = () => store.right().kind === "compose";
+  /** Settings takes the whole pane; compose is pinned below the thread. */
+  const fullPane = () => store.right().kind === "settings";
 
   // Custom bindings take effect as soon as settings are applied.
   createEffect(() => keymap.replace(store.settings().bindings));
@@ -44,8 +46,24 @@ export function App() {
   });
 
   function onKeyDown(event: KeyboardEvent) {
-    // The editor owns every key while it is open; it handles its own Escape.
-    if (editing()) return;
+    // Ctrl chords always reach the app, even mid-edit, so focus can leave an
+    // open composer without discarding it.
+    if (event.ctrlKey && !event.metaKey && !event.altKey) {
+      const outcome = keymap.handle(
+        { key: event.key, ctrl: true },
+        store.mode(),
+        false,
+        store.pane(),
+      );
+      if (outcome.type === "action") {
+        event.preventDefault();
+        void dispatch(outcome.action);
+        return;
+      }
+    }
+
+    // Otherwise the editor owns every key while it is open.
+    if (fullPane() || (composing() && store.pane() === "detail" && store.pinnedOpen())) return;
 
     if (event.key === "Escape" && showHelp()) {
       event.preventDefault();
@@ -83,6 +101,7 @@ export function App() {
 
   function openCompose(draft: Draft, label: string) {
     store.setRight({ kind: "compose", draft, label });
+    store.setPinnedOpen(true);
     store.setPane("detail");
     setMobilePane("detail");
   }
@@ -103,6 +122,16 @@ export function App() {
       case "focusRight":
         store.focusPane(1);
         setMobilePane(store.pane() === "detail" ? "detail" : "list");
+        break;
+
+      case "togglePinned":
+        store.setPinnedOpen(!store.pinnedOpen());
+        break;
+      case "focusPinned":
+        if (composing()) {
+          store.setPinnedOpen(true);
+          store.setPane("detail");
+        }
         break;
 
       case "next":
@@ -128,7 +157,6 @@ export function App() {
 
       case "select":
         store.activateSidebar();
-        store.setPane("list");
         break;
 
       case "open": {
@@ -302,23 +330,53 @@ export function App() {
               classList={{ "pane-focused": store.pane() === "detail" }}
               onClick={() => store.setPane("detail")}
             >
-              <Switch fallback={<ReadingPane store={store} />}>
+              <Switch>
                 <Match when={store.right().kind === "settings"}>
                   <SettingsPane store={store} onClose={closeRight} />
                 </Match>
-                <Match when={store.right().kind === "compose"}>
-                  {(() => {
-                    const right = store.right();
-                    if (right.kind !== "compose") return null;
-                    return (
-                      <ComposePane
-                        store={store}
-                        draft={right.draft}
-                        label={right.label}
-                        onClose={closeRight}
-                      />
-                    );
-                  })()}
+                <Match when={true}>
+                  {/*
+                    The thread stays mounted while composing, so a reply can be
+                    written with the conversation still on screen and still
+                    navigable.
+                  */}
+                  <div class="flex min-h-0 flex-1 flex-col">
+                    <ReadingPane store={store} />
+                  </div>
+
+                  <Show when={composing()}>
+                    {(() => {
+                      const right = store.right();
+                      if (right.kind !== "compose") return null;
+
+                      return (
+                        <Show
+                          when={store.pinnedOpen()}
+                          fallback={
+                            <button
+                              type="button"
+                              class="flex shrink-0 items-center gap-2 border-t border-accent bg-bg-panel px-4 py-1.5 text-xs text-accent"
+                              onClick={() => store.setPinnedOpen(true)}
+                            >
+                              ▴ {right.label} minimised — <kbd>C-p</kbd> to show
+                            </button>
+                          }
+                        >
+                          <div
+                            class="flex shrink-0 flex-col border-t-2 border-accent"
+                            style={{ height: "45%" }}
+                          >
+                            <ComposePane
+                              store={store}
+                              draft={right.draft}
+                              label={right.label}
+                              onClose={closeRight}
+                            />
+                          </div>
+                        </Show>
+                      );
+                    })()}
+                  </Show>
                 </Match>
               </Switch>
             </section>

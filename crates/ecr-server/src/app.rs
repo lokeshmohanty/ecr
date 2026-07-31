@@ -42,6 +42,8 @@ pub fn router_with_cors(state: AppState, allowed_origins: Option<Vec<String>>) -
     let protected = Router::new()
         .route("/api/v1/revision", get(routes::revision))
         .route("/api/v1/accounts", get(routes::accounts))
+        .route("/api/v1/addresses", get(routes::addresses))
+        .route("/api/v1/tags", get(routes::tags))
         .route("/api/v1/threads", get(routes::threads))
         .route("/api/v1/threads/{id}", get(routes::thread))
         .route("/api/v1/messages/{id}", get(routes::message))

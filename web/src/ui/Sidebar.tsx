@@ -1,25 +1,25 @@
 import { For, Show, createEffect } from "solid-js";
 import type { AppStore } from "../state/store";
-import { DEFAULT_VIEWS } from "../state/store";
+import { ALL_ACCOUNTS } from "../state/views";
 
 export function Sidebar(props: { store: AppStore; onCompose: () => void; onSettings: () => void }) {
   let scroller: HTMLDivElement | undefined;
 
   const focused = () => props.store.pane() === "sidebar";
-  const isActive = (query: string) => props.store.query() === query;
-  const cursorAt = (index: number) => focused() && props.store.sidebarIndex() === index;
+  const rows = () => props.store.sidebarRows();
 
-  // Follow the keyboard cursor when it leaves the visible area.
   createEffect(() => {
     const index = props.store.sidebarIndex();
     if (!focused() || !scroller) return;
-    const row = scroller.querySelector<HTMLElement>(`[data-row="${index}"]`);
-    row?.scrollIntoView({ block: "nearest" });
+    scroller.querySelector<HTMLElement>(`[data-row="${index}"]`)?.scrollIntoView({
+      block: "nearest",
+    });
   });
 
-  const select = (query: string, index: number) => {
+  const activate = (index: number) => {
     props.store.setSidebarIndex(index);
-    props.store.selectQuery(query);
+    props.store.setPane("sidebar");
+    props.store.activateSidebar();
   };
 
   return (
@@ -28,65 +28,49 @@ export function Sidebar(props: { store: AppStore; onCompose: () => void; onSetti
       classList={{ "pane-focused": focused() }}
       onClick={() => props.store.setPane("sidebar")}
     >
-      <div ref={scroller} class="scroll-y flex-1 px-2 py-3">
-        <Section label="Views" />
-        <For each={DEFAULT_VIEWS}>
-          {(view, index) => (
-            <Row
-              label={view.name}
-              index={index()}
-              active={isActive(view.query)}
-              cursor={cursorAt(index())}
-              onSelect={() => select(view.query, index())}
-            />
-          )}
-        </For>
-
-        <Section label="Accounts" />
-        <For each={props.store.accounts() ?? []}>
-          {(account, position) => {
-            const index = () => DEFAULT_VIEWS.length + position();
-            const expanded = () => props.store.expandedAccount() === account.id;
+      <div ref={scroller} class="scroll-y flex-1 px-2 py-2">
+        <For each={rows()}>
+          {(row, index) => {
+            const active = () => props.store.query() === row.query;
+            const cursor = () => focused() && props.store.sidebarIndex() === index();
+            const expanded = () => props.store.expandedGroup() === row.group;
 
             return (
-              <div>
-                <Row
-                  label={account.id}
-                  index={index()}
-                  active={isActive(`tag:${account.id}`)}
-                  cursor={cursorAt(index())}
-                  marker={expanded() ? "▾" : "▸"}
-                  trailing={String(account.folders.length)}
-                  onSelect={() => {
-                    props.store.setExpandedAccount(expanded() ? null : account.id);
-                    select(`tag:${account.id}`, index());
+              <Show
+                when={row.kind === "group"}
+                fallback={
+                  <button
+                    type="button"
+                    data-row={index()}
+                    class="truncate-cell block w-full rounded py-1 pr-2 pl-6 text-left text-xs uppercase tracking-wide"
+                    classList={{
+                      "bg-bg-selected text-text-strong": active(),
+                      "text-text-secondary hover:bg-bg-hover": !active(),
+                      "ring-1 ring-accent": cursor(),
+                    }}
+                    onClick={() => activate(index())}
+                  >
+                    {row.name}
+                  </button>
+                }
+              >
+                <button
+                  type="button"
+                  data-row={index()}
+                  class="mt-2 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left first:mt-0"
+                  classList={{
+                    "text-text-strong": expanded(),
+                    "text-text-dim hover:bg-bg-hover": !expanded(),
+                    "ring-1 ring-accent": cursor(),
                   }}
-                />
-
-                <Show when={expanded()}>
-                  <div class="ml-3 border-l border-border-soft pl-2">
-                    <For each={account.folders}>
-                      {(folder) => {
-                        const query = `path:"${folder.relative_path}/**"`;
-                        return (
-                          <button
-                            type="button"
-                            class="truncate-cell block w-full rounded px-2 py-1 text-left text-xs"
-                            classList={{
-                              "bg-bg-selected text-text-strong": isActive(query),
-                              "text-text-dim hover:bg-bg-hover": !isActive(query),
-                            }}
-                            title={folder.name}
-                            onClick={() => props.store.selectQuery(query)}
-                          >
-                            {folder.name}
-                          </button>
-                        );
-                      }}
-                    </For>
-                  </div>
-                </Show>
-              </div>
+                  onClick={() => activate(index())}
+                >
+                  <span class="shrink-0 text-text-dim">{expanded() ? "▾" : "▸"}</span>
+                  <span class="truncate-cell flex-1 uppercase tracking-widest">
+                    {row.name === ALL_ACCOUNTS ? "All accounts" : row.name}
+                  </span>
+                </button>
+              </Show>
             );
           }}
         </For>
@@ -110,45 +94,5 @@ export function Sidebar(props: { store: AppStore; onCompose: () => void; onSetti
         </button>
       </div>
     </nav>
-  );
-}
-
-function Row(props: {
-  label: string;
-  index: number;
-  active: boolean;
-  cursor: boolean;
-  marker?: string;
-  trailing?: string;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      data-row={props.index}
-      class="touch-target flex w-full items-center gap-2 rounded px-2 py-1.5 text-left uppercase tracking-wide"
-      classList={{
-        "bg-bg-selected text-text-strong": props.active,
-        "text-text-secondary hover:bg-bg-hover": !props.active,
-        "ring-1 ring-accent": props.cursor,
-      }}
-      onClick={props.onSelect}
-    >
-      <Show when={props.marker}>
-        <span class="shrink-0 text-text-dim">{props.marker}</span>
-      </Show>
-      <span class="truncate-cell flex-1">{props.label}</span>
-      <Show when={props.trailing}>
-        <span class="shrink-0 text-xs text-text-dim">{props.trailing}</span>
-      </Show>
-    </button>
-  );
-}
-
-function Section(props: { label: string }) {
-  return (
-    <div class="mt-4 mb-1 px-2 text-xs uppercase tracking-widest text-text-dim first:mt-0">
-      {props.label}
-    </div>
   );
 }
