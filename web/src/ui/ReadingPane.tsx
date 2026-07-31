@@ -73,10 +73,16 @@ function MessageView(props: {
   const cursor = () =>
     props.store.pane() === "detail" && props.store.messageIndex() === props.index;
 
+  const forcePlain = () => props.store.plainText[props.message.id] === true;
+
   const [body] = createResource(
     () =>
       open()
-        ? ([props.message.id, props.store.allowRemote(), props.store.settings().preferences.preferHtml] as const)
+        ? ([
+            props.message.id,
+            props.store.allowRemote(),
+            !forcePlain() && props.store.settings().preferences.preferHtml,
+          ] as const)
         : null,
     async (key) => {
       if (!key) return null;
@@ -157,6 +163,17 @@ function MessageView(props: {
                   nothing to measure, so it paints immediately instead of
                   waiting on a document load and a resize.
                 */}
+                <div class="mb-2 flex items-center gap-3 text-xs text-ink-3">
+                  <button
+                    type="button"
+                    class="rounded border border-rule px-2 py-0.5 hover:bg-neutral-bg"
+                    onClick={() => props.store.togglePlainText(props.message.id)}
+                    title="Toggle plain text (t)"
+                  >
+                    {loaded().format === "html" ? "as plain text (t)" : "as html (t)"}
+                  </button>
+                </div>
+
                 <Show
                   when={loaded().format === "html"}
                   fallback={
@@ -207,8 +224,16 @@ function BodyFrame(props: { html: string }) {
 
   const document = () => `<!doctype html>
 <html><head><meta charset="utf-8">
+<!--
+  "only light" is the hard opt-out. Plain "light" still leaves
+  prefers-color-scheme reporting dark, and engines with forced-dark
+  (WebKitGTK under a dark GTK theme, Chrome's auto dark) then darken the
+  canvas while leaving explicitly dark text untouched — which is exactly
+  the dark-on-dark, half-invisible message.
+-->
+<meta name="color-scheme" content="only light">
 <style>
-  :root { color-scheme: light; }
+  :root, html, body { color-scheme: only light; }
   body {
     margin: 0; padding: 12px 14px;
     background: #ffffff; color: #17242b;
@@ -216,6 +241,18 @@ function BodyFrame(props: { html: string }) {
     font-size: 13px; line-height: 1.55;
     word-wrap: break-word; overflow-wrap: anywhere;
   }
+  /*
+   * Last-resort contrast guard. A message that sets a dark background on a
+   * container but leaves its text to inherit ends up invisible on the white
+   * canvas; the reverse happens when an engine darkens the canvas. Anything
+   * that declares a background dark enough to matter gets a light foreground
+   * so the text is legible either way.
+   */
+  [bgcolor="#000000"], [bgcolor="#000"], [bgcolor="#111111"], [bgcolor="#1a1a1a"],
+  [bgcolor="#222222"], [bgcolor="#333333"] {
+    color: #f4f7f8;
+  }
+
   /* Senders assume a viewport far wider than this pane. */
   table { max-width: 100% !important; width: auto !important; }
   td, th { word-break: break-word; }

@@ -194,6 +194,15 @@ export function App() {
         store.setStatus("remote images loaded");
         break;
 
+      case "togglePlain": {
+        const message = threadMessages()[store.messageIndex()];
+        if (message) {
+          store.togglePlainText(message.id);
+          store.setStatus(store.plainText[message.id] ? "plain text" : "html");
+        }
+        break;
+      }
+
       case "archive":
         store.mark("archive");
         break;

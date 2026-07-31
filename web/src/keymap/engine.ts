@@ -31,6 +31,7 @@ export type Action =
   | { kind: "nextMessage" }
   | { kind: "prevMessage" }
   | { kind: "loadRemote" }
+  | { kind: "togglePlain" }
   | { kind: "enterCommand" }
   | { kind: "enterSearch" }
   | { kind: "nextAccount" }
@@ -86,6 +87,7 @@ export const DEFAULT_BINDINGS: Binding[] = [
   { keys: "zM", action: { kind: "foldAll" }, description: "fold all messages", panes: ["detail"] },
   { keys: "zR", action: { kind: "unfoldAll" }, description: "unfold all messages", panes: ["detail"] },
   { keys: "i", action: { kind: "loadRemote" }, description: "load remote images", panes: ["detail"] },
+  { keys: "t", action: { kind: "togglePlain" }, description: "html or plain text", panes: ["detail"] },
   { keys: "q", action: { kind: "closeRight" }, description: "close the pane", panes: ["detail"] },
 
   // Global

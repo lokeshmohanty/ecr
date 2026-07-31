@@ -89,6 +89,8 @@ export function createAppStore() {
   const [connected, setConnected] = createSignal(false);
   const [lastError, setLastError] = createSignal("");
   const [collapsed, setCollapsed] = createStore<Record<string, boolean>>({});
+  /** Messages the reader has forced to plain text, by id. */
+  const [plainText, setPlainText] = createStore<Record<string, boolean>>({});
   const [pinnedOpen, setPinnedOpen] = createSignal(true);
   const [expandedGroup, setExpandedGroup] = createSignal<string>(ALL_ACCOUNTS);
 
@@ -363,6 +365,10 @@ export function createAppStore() {
     }
   }
 
+  function togglePlainText(id: string) {
+    setPlainText(id, (v) => !v);
+  }
+
   function toggleCollapsed(id: string) {
     setCollapsed(id, (v) => !v);
   }
@@ -481,6 +487,8 @@ export function createAppStore() {
     sendingAccount,
     accountForTags,
     collapsed,
+    plainText,
+    togglePlainText,
     toggleCollapsed,
     setAllCollapsed,
     cycleAccount,

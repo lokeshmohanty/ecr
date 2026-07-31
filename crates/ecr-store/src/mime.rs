@@ -146,7 +146,68 @@ impl SanitizeContext {
     }
 }
 
+/// Rewrites a sender's dark-mode block so it can never match.
+///
+/// Messages are rendered on white regardless of the app theme, so a
+/// `prefers-color-scheme: dark` block would style light-on-dark text over a
+/// light canvas — invisible. Renaming the feature leaves the stylesheet
+/// otherwise intact rather than dropping rules the message needs.
+fn neutralize_dark_mode(css: &str) -> String {
+    let lower = css.to_ascii_lowercase();
+    let needle = "prefers-color-scheme";
+    let mut out = String::with_capacity(css.len());
+    let mut at = 0;
+
+    while let Some(found) = lower[at..].find(needle) {
+        let start = at + found;
+        let after = start + needle.len();
+
+        // Only the dark branch is neutralised; a light branch is what we want.
+        let value_end = lower[after..]
+            .find(')')
+            .map(|i| after + i)
+            .unwrap_or(lower.len());
+        let value = &lower[after..value_end];
+
+        out.push_str(&css[at..start]);
+        if value.contains("dark") {
+            out.push_str("ecr-neutralised-color-scheme");
+        } else {
+            out.push_str(&css[start..after]);
+        }
+        at = after;
+    }
+
+    out.push_str(&css[at..]);
+    out
+}
+
+/// Applies `f` to the contents of every `<style>` element.
+fn map_style_blocks(html: &str, f: impl Fn(&str) -> String) -> String {
+    let lower = html.to_ascii_lowercase();
+    let mut out = String::with_capacity(html.len());
+    let mut at = 0;
+
+    while let Some(found) = lower[at..].find("<style") {
+        let tag_start = at + found;
+        let Some(open_end) = lower[tag_start..].find('>').map(|i| tag_start + i + 1) else {
+            break;
+        };
+        let Some(close) = lower[open_end..].find("</style").map(|i| open_end + i) else {
+            break;
+        };
+
+        out.push_str(&html[at..open_end]);
+        out.push_str(&f(&html[open_end..close]));
+        at = close;
+    }
+
+    out.push_str(&html[at..]);
+    out
+}
+
 fn sanitize(html: &str, message: &ParsedMessage, ctx: &SanitizeContext) -> Body {
+    let html = &map_style_blocks(html, neutralize_dark_mode);
     let rewritten = rewrite_cid_references(html, message, ctx);
     let (stripped, blocked) = if ctx.allow_remote_resources {
         (rewritten, 0)
@@ -546,5 +607,70 @@ mod sanitizer_tests {
     fn a_javascript_url_does_not_survive() {
         let html = clean(r#"<a href="javascript:alert(1)">click</a>"#);
         assert!(!html.contains("javascript:"), "{html}");
+    }
+}
+
+#[cfg(test)]
+mod dark_mode_tests {
+    use super::*;
+
+    fn clean(html: &str) -> String {
+        let message = parse(
+            "x@y.z",
+            format!("Content-Type: text/html\r\n\r\n{html}").as_bytes(),
+        )
+        .unwrap();
+        message
+            .body(BodyFormat::Html, &SanitizeContext::new("/parts/", true))
+            .content
+    }
+
+    #[test]
+    fn a_dark_mode_block_is_neutralised_so_it_cannot_match() {
+        let html = clean(
+            "<style>@media (prefers-color-scheme: dark) { body { background: #111; } }</style><p>hi</p>",
+        );
+        assert!(!html.contains("prefers-color-scheme: dark"), "{html}");
+        assert!(html.contains("hi"), "{html}");
+    }
+
+    #[test]
+    fn spacing_and_quoting_variants_are_caught_too() {
+        for query in [
+            "@media(prefers-color-scheme:dark)",
+            "@media screen and (prefers-color-scheme: dark)",
+            "@media (prefers-color-scheme:DARK)",
+        ] {
+            let html = clean(&format!(
+                "<style>{query} {{ body {{ color: #fff; }} }}</style>"
+            ));
+            assert!(
+                !html.to_lowercase().contains("prefers-color-scheme:dark")
+                    && !html.to_lowercase().contains("prefers-color-scheme: dark"),
+                "{query} survived: {html}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_light_mode_block_is_left_alone() {
+        let html =
+            clean("<style>@media (prefers-color-scheme: light) { p { color: #222; } }</style>");
+        assert!(html.contains("prefers-color-scheme: light"), "{html}");
+    }
+
+    #[test]
+    fn ordinary_media_queries_are_untouched() {
+        let html = clean("<style>@media (max-width: 600px) { p { font-size: 12px; } }</style>");
+        assert!(html.contains("max-width: 600px"), "{html}");
+    }
+
+    #[test]
+    fn the_rest_of_a_stylesheet_survives_neutralisation() {
+        let html = clean(
+            "<style>p{color:#131517}@media (prefers-color-scheme: dark){p{color:#fff}}h1{margin:0}</style>",
+        );
+        assert!(html.contains("#131517"), "{html}");
+        assert!(html.contains("margin:0"), "{html}");
     }
 }

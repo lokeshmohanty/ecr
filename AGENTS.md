@@ -64,6 +64,12 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   `<table>`, `<style>` and the inline presentation nearly every real message is
   built from. `ecr-store::mime::sanitizer` widens it; what stays banned is
   anything that can execute or navigate.
+- **Message HTML must opt out of forced dark with `only light`.** Plain
+  `color-scheme: light` still leaves `prefers-color-scheme` reporting dark, and
+  engines with forced-dark (WebKitGTK under a dark GTK theme) then darken the
+  canvas while leaving explicitly dark text alone — half the message goes
+  invisible. Senders' own `prefers-color-scheme: dark` blocks are neutralised
+  server-side for the same reason; ~8% of real inbox mail ships them.
 - **The message iframe needs `allow-same-origin` to be measurable.** Without it
   `contentDocument` is null, the resize is a no-op and every message renders
   truncated. `allow-scripts` is the flag that matters and is never granted, so

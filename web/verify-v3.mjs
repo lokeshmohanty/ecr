@@ -6,7 +6,13 @@ const check = (n, ok, d = "") => { console.log(`  ${ok ? "ok  " : "FAIL"} ${n}${
 const browser = await chromium.launch({ executablePath: "/run/current-system/sw/bin/google-chrome-stable", args: ["--no-sandbox"] });
 const page = await browser.newPage({ viewport: { width: 1500, height: 940 } });
 page.on("pageerror", (e) => notes.push(e.message.slice(0, 120)));
-page.on("console", (m) => m.type() === "error" && notes.push(m.text().slice(0, 120)));
+page.on("console", (m) => {
+  if (m.type() !== "error") return;
+  // The layout sampling below fetches bodies directly; a message with no html
+  // part answers 404, which is this probe's noise rather than the app's.
+  if (m.text().includes("404")) return;
+  notes.push(m.text().slice(0, 120));
+});
 await page.addInitScript((b) => { try { localStorage.setItem("ecr.connection", JSON.stringify({ baseUrl: b, token: "" })); localStorage.removeItem("ecr.settings"); } catch {} }, url);
 
 await page.goto(url, { waitUntil: "networkidle" });
@@ -42,7 +48,42 @@ const monoFont = await page.evaluate(() => {
 check("labels and data use the mono face", monoFont.includes("Cascadia"), monoFont.slice(0, 40));
 const html = await page.frameLocator("iframe[title='message body']").first().locator("body").innerHTML({ timeout: 8000 }).catch(() => "");
 check("a body renders", html.length > 0, `${html.length} chars`);
-check("table layout survives sanitising", /<table|<td/i.test(html) || html.length < 400, "no table in this message");
+// Whether one arbitrary message has a table is luck; sample several so the
+// check means "the sanitiser keeps mail layout" rather than "this one did".
+const layout = await page.evaluate(async () => {
+  const page_ = await (await fetch("/api/v1/threads?q=tag:inbox&limit=12")).json();
+  let checked = 0;
+  let withTables = 0;
+
+  for (const item of page_.items) {
+    if (!item.newest_message) continue;
+    const body = await (
+      await fetch(`/api/v1/messages/${encodeURIComponent(item.newest_message)}/body`)
+    ).json();
+    if (body.format !== "html") continue;
+    checked++;
+    if (/<table|<td/i.test(body.content)) withTables++;
+  }
+  return { checked, withTables };
+});
+check(
+  "table layout survives sanitising",
+  layout.checked === 0 || layout.withTables > 0,
+  `${layout.withTables} of ${layout.checked} html messages kept their tables`,
+);
+
+const styles = await page.evaluate(async () => {
+  const page_ = await (await fetch("/api/v1/threads?q=tag:inbox&limit=12")).json();
+  for (const item of page_.items) {
+    if (!item.newest_message) continue;
+    const body = await (
+      await fetch(`/api/v1/messages/${encodeURIComponent(item.newest_message)}/body`)
+    ).json();
+    if (/prefers-color-scheme:\s*dark/i.test(body.content)) return "a dark block survived";
+  }
+  return "none";
+});
+check("no sender dark-mode block reaches the reader", styles === "none", styles);
 const frameW = await page.evaluate(() => {
   const f = document.querySelector("iframe[title='message body']");
   return f ? { outer: Math.round(f.getBoundingClientRect().width), inner: f.contentDocument?.body?.scrollWidth ?? 0 } : null;
