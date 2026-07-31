@@ -20,6 +20,10 @@ use tokio::sync::Mutex;
 pub struct Notmuch {
     paths: Arc<MailPaths>,
     write_lock: Mutex<()>,
+    /// Parsing a message dominates a body request, and a maildir file never
+    /// changes in place, so the parse is worth keeping.
+    parsed: crate::cache::FileCache<Arc<crate::mime::ParsedMessage>>,
+    files: crate::cache::FileCache<PathBuf>,
 }
 
 impl Notmuch {
@@ -27,6 +31,8 @@ impl Notmuch {
         Self {
             paths,
             write_lock: Mutex::new(()),
+            parsed: crate::cache::FileCache::new(256),
+            files: crate::cache::FileCache::new(2048),
         }
     }
 
@@ -151,21 +157,42 @@ impl Notmuch {
     }
 
     pub async fn message_file(&self, id: &MessageId) -> Result<PathBuf> {
+        // Resolving a message to its file is a subprocess; the mapping only
+        // changes when the message moves, which the mtime check catches.
+        if let Some(cached) = self.files.get(id.as_str(), None) {
+            if cached.is_file() {
+                return Ok(cached);
+            }
+        }
+
         let stdout = self
             .run(&["search", "--output=files", "--format=text", &id.query()])
             .await?;
 
-        stdout
+        let path = stdout
             .lines()
             .map(|l| PathBuf::from(l.trim()))
             .find(|p| p.is_file())
-            .ok_or_else(|| Error::MessageNotFound { id: id.to_string() })
+            .ok_or_else(|| Error::MessageNotFound { id: id.to_string() })?;
+
+        self.files.insert(id.0.clone(), None, path.clone());
+        Ok(path)
     }
 
-    pub async fn parsed(&self, id: &MessageId) -> Result<crate::mime::ParsedMessage> {
+    pub async fn parsed(&self, id: &MessageId) -> Result<Arc<crate::mime::ParsedMessage>> {
         let path = self.message_file(id).await?;
+        let modified = crate::cache::modified_at(&path);
+        let key = path.to_string_lossy().into_owned();
+
+        if let Some(cached) = self.parsed.get(&key, modified) {
+            return Ok(cached);
+        }
+
         let raw = tokio::fs::read(&path).await?;
-        crate::mime::parse(id.as_str(), &raw)
+        let parsed = Arc::new(crate::mime::parse(id.as_str(), &raw)?);
+
+        self.parsed.insert(key, modified, Arc::clone(&parsed));
+        Ok(parsed)
     }
 
     pub async fn message_with_parts(&self, id: &MessageId) -> Result<Message> {

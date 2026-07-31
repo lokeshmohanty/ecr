@@ -191,3 +191,83 @@ describe("position", () => {
     expect(position("abc\ndef", 5)).toEqual({ line: 2, column: 2 });
   });
 });
+
+describe("undo and redo", () => {
+  it("u undoes the last edit only", () => {
+    // x, x leaves "llo"; one undo steps back to "ello".
+    const after = type(normal("hello", 0), "xxu");
+    expect(after.text).toBe("ello");
+  });
+
+  it("u repeated walks back through history", () => {
+    const after = type(normal("hello", 0), "xxuu");
+    expect(after.text).toBe("hello");
+  });
+
+  it("u at the beginning of history does nothing", () => {
+    expect(type(normal("hello", 0), "uuu").text).toBe("hello");
+  });
+
+  it("undo restores the caret to where the edit happened", () => {
+    const after = type(normal("one two", 4), "dwu");
+    expect(after.text).toBe("one two");
+    expect(after.caret).toBe(4);
+  });
+
+  it("a whole insert session undoes as one step", () => {
+    let state = press(normal("x", 0), "i");
+    state = type(state, "abc");
+    state = press(state, "Escape");
+    expect(press(state, "u").text).toBe("x");
+  });
+});
+
+describe("counts", () => {
+  it("3j moves three lines", () => {
+    const state = type(normal("a\nb\nc\nd\ne", 0), "3j");
+    expect(position(state.text, state.caret).line).toBe(4);
+  });
+
+  it("2dd deletes two lines", () => {
+    expect(type(normal("a\nb\nc", 0), "2dd").text).toBe("c");
+  });
+
+  it("3x deletes three characters", () => {
+    expect(type(normal("abcdef", 0), "3x").text).toBe("def");
+  });
+
+  it("a count larger than the buffer clamps", () => {
+    const state = type(normal("a\nb", 0), "99j");
+    expect(position(state.text, state.caret).line).toBe(2);
+  });
+
+  it("0 alone is still a motion, not the start of a count", () => {
+    expect(press(normal("abc\ndef", 6), "0").caret).toBe(4);
+  });
+});
+
+describe("paste", () => {
+  it("inserts pasted text at the caret in insert mode", () => {
+    const state = handleKey(initialState("ab"), { key: "Insert", paste: "XY" });
+    expect(state.text).toBe("abXY");
+  });
+
+  it("multiline paste keeps its newlines", () => {
+    const state = handleKey(initialState(""), { key: "Insert", paste: "a\nb" });
+    expect(state.text).toBe("a\nb");
+  });
+});
+
+describe("word motions at the edges", () => {
+  it("w at the last word stops at the end rather than wrapping", () => {
+    expect(press(normal("one two", 4), "w").caret).toBe(7);
+  });
+
+  it("b at the first word stops at zero", () => {
+    expect(press(normal("one two", 1), "b").caret).toBe(0);
+  });
+
+  it("dw at the end of a line does not eat the newline", () => {
+    expect(type(normal("one\ntwo", 0), "dw").text).toBe("\ntwo");
+  });
+});

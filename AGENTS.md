@@ -60,6 +60,10 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
 - **Sandboxed iframes cannot send `Authorization` headers**, and relative URLs
   in a `srcdoc` frame resolve against the web origin. Part URLs are
   absolutized with a query-string token in the client.
+- **ammonia's default allowlist is written for comments, not mail.** It drops
+  `<table>`, `<style>` and the inline presentation nearly every real message is
+  built from. `ecr-store::mime::sanitizer` widens it; what stays banned is
+  anything that can execute or navigate.
 - **The message iframe needs `allow-same-origin` to be measurable.** Without it
   `contentDocument` is null, the resize is a no-op and every message renders
   truncated. `allow-scripts` is the flag that matters and is never granted, so

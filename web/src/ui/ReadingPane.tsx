@@ -21,16 +21,16 @@ export function ReadingPane(props: { store: AppStore }) {
       <Show
         when={thread()}
         fallback={
-          <div class="flex flex-1 items-center justify-center text-text-dim">
+          <div class="flex flex-1 items-center justify-center text-ink-3">
             select a thread to read
           </div>
         }
       >
         {(loaded) => (
           <>
-            <header class="shrink-0 border-b border-border px-4 py-3">
-              <h1 class="text-base text-text-strong">{loaded().subject || "(no subject)"}</h1>
-              <div class="text-xs text-text-dim">
+            <header class="shrink-0 border-b border-rule px-4 py-3">
+              <h1 class="text-base text-ink">{loaded().subject || "(no subject)"}</h1>
+              <div class="text-xs text-ink-3">
                 {loaded().messages.length} message{loaded().messages.length === 1 ? "" : "s"}
                 {" · "}
                 <kbd>J</kbd>/<kbd>K</kbd> message · <kbd>za</kbd> fold · <kbd>r</kbd> reply
@@ -90,27 +90,27 @@ function MessageView(props: {
   return (
     <article
       data-message={props.index}
-      class="border-b border-border"
-      classList={{ "bg-bg-hover/40": cursor() }}
+      class="border-b border-rule"
+      classList={{ "bg-neutral-bg/40": cursor() }}
     >
       <button
         type="button"
-        class="touch-target flex w-full items-baseline gap-3 px-4 py-3 text-left hover:bg-bg-hover"
+        class="touch-target flex w-full items-baseline gap-3 px-4 py-3 text-left hover:bg-neutral-bg"
         onClick={() => {
           props.store.setMessageIndex(props.index);
           props.store.toggleCollapsed(props.message.id);
         }}
       >
-        <span class="shrink-0 text-text-dim">{open() ? "▾" : "▸"}</span>
-        <span class="truncate-cell flex-1 text-text-strong">
+        <span class="shrink-0 text-ink-3">{open() ? "▾" : "▸"}</span>
+        <span class="truncate-cell flex-1 text-ink">
           {props.message.from.map((a) => a.name ?? a.email).join(", ")}
         </span>
-        <span class="shrink-0 text-xs text-text-dim">{props.message.date}</span>
+        <span class="shrink-0 text-xs text-ink-3">{props.message.date}</span>
       </button>
 
       <Show when={open()}>
         <div class="px-4 pb-4">
-          <dl class="mb-3 grid grid-cols-[3rem_minmax(0,1fr)] gap-x-2 text-xs text-text-dim">
+          <dl class="mb-3 grid grid-cols-[3rem_minmax(0,1fr)] gap-x-2 text-xs text-ink-3">
             <Recipients label="to" list={props.message.to} />
             <Recipients label="cc" list={props.message.cc} />
           </dl>
@@ -120,7 +120,7 @@ function MessageView(props: {
               <For each={attachments()}>
                 {(part) => (
                   <a
-                    class="touch-target rounded border border-border bg-bg-raised px-2 py-1 text-xs text-accent-dim hover:bg-bg-hover"
+                    class="touch-target rounded border border-rule bg-card px-2 py-1 text-xs text-proved hover:bg-neutral-bg"
                     href={props.store.api.partUrl(props.message.id, part.id)}
                     download={part.filename ?? undefined}
                   >
@@ -131,20 +131,20 @@ function MessageView(props: {
             </div>
           </Show>
 
-          <Show when={body()} fallback={<div class="text-text-dim">loading…</div>}>
+          <Show when={body()} fallback={<div class="text-ink-3">loading…</div>}>
             {(loaded) => (
               <>
                 <Show
                   when={loaded().remote_resources_blocked > 0 && !props.store.allowRemote()}
                 >
-                  <div class="mb-2 flex items-center gap-2 rounded border border-border bg-bg-raised px-2 py-1 text-xs">
-                    <span class="text-text-dim">
+                  <div class="mb-2 flex items-center gap-2 rounded border border-rule bg-card px-2 py-1 text-xs">
+                    <span class="text-ink-3">
                       {loaded().remote_resources_blocked} remote image
                       {loaded().remote_resources_blocked === 1 ? "" : "s"} blocked
                     </span>
                     <button
                       type="button"
-                      class="text-accent hover:underline"
+                      class="text-obligation hover:underline"
                       onClick={() => props.store.setAllowRemote(true)}
                     >
                       load (i)
@@ -152,14 +152,27 @@ function MessageView(props: {
                   </div>
                 </Show>
 
-                <BodyFrame
-                  html={absolutizePartUrls(
-                    loaded().content,
-                    props.store.api.baseUrl,
-                    props.store.connection().token,
-                  )}
-                  plain={loaded().format === "text"}
-                />
+                {/*
+                  Plain text needs no iframe: there is nothing to sandbox and
+                  nothing to measure, so it paints immediately instead of
+                  waiting on a document load and a resize.
+                */}
+                <Show
+                  when={loaded().format === "html"}
+                  fallback={
+                    <pre class="mono overflow-x-auto rounded border border-rule-soft bg-card p-3 text-[13px] leading-relaxed whitespace-pre-wrap text-ink">
+                      {loaded().content}
+                    </pre>
+                  }
+                >
+                  <BodyFrame
+                    html={absolutizePartUrls(
+                      loaded().content,
+                      props.store.api.baseUrl,
+                      props.store.connection().token,
+                    )}
+                  />
+                </Show>
               </>
             )}
           </Show>
@@ -189,7 +202,7 @@ function Recipients(props: { label: string; list: { name: string | null; email: 
  * background, and forcing a dark one produced dark-on-dark text in a large
  * share of messages.
  */
-function BodyFrame(props: { html: string; plain: boolean }) {
+function BodyFrame(props: { html: string }) {
   let frame: HTMLIFrameElement | undefined;
 
   const document = () => `<!doctype html>
@@ -197,17 +210,20 @@ function BodyFrame(props: { html: string; plain: boolean }) {
 <style>
   :root { color-scheme: light; }
   body {
-    margin: 0; padding: 0;
-    background: #ffffff; color: #1b2a5c;
-    font-family: ${props.plain ? '"Cascadia Code", ui-monospace, monospace' : "system-ui, -apple-system, Segoe UI, sans-serif"};
-    font-size: 13px; line-height: 1.6;
+    margin: 0; padding: 12px 14px;
+    background: #ffffff; color: #17242b;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 13px; line-height: 1.55;
     word-wrap: break-word; overflow-wrap: anywhere;
-    ${props.plain ? "white-space: pre-wrap;" : ""}
   }
-  a { color: #2e7de9; }
+  /* Senders assume a viewport far wider than this pane. */
+  table { max-width: 100% !important; width: auto !important; }
+  td, th { word-break: break-word; }
+  * { max-width: 100%; }
+  a { color: #4636a8; }
   blockquote {
     margin: 0 0 0 .5rem; padding-left: .75rem;
-    border-left: 2px solid #a8aecb; color: #587539;
+    border-left: 2px solid #c2d0d7; color: #0e6b5e;
   }
   img { max-width: 100%; height: auto; }
   pre { overflow-x: auto; }
@@ -254,7 +270,7 @@ function BodyFrame(props: { html: string; plain: boolean }) {
       ref={frame}
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
       srcdoc={document()}
-      class="w-full rounded border border-border-soft bg-white"
+      class="w-full rounded border border-rule-soft bg-white"
       style={{ height: "6rem" }}
       onLoad={fit}
       title="message body"

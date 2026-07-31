@@ -30,7 +30,7 @@ for (const width of WIDTHS) {
   await page.waitForTimeout(350);
 
   const report = await page.evaluate(() => {
-    const rows = [...document.querySelectorAll("[class*='row-grid'][class*='cursor-pointer'])".replace(")", ""))];
+    const rows = [...document.querySelectorAll("[class*='row-grid'][class*='cursor-pointer']")];
     let horizontal = 0;
     let vertical = 0;
     let clipped = 0;

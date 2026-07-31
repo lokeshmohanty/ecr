@@ -141,6 +141,15 @@ export function VimEditor(props: VimEditorProps) {
     );
   };
 
+  const onPaste = (event: ClipboardEvent) => {
+    const text = event.clipboardData?.getData("text");
+    if (!text) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    setState((current) => handleKey(current, { key: "Insert", paste: text }));
+  };
+
   const syncCaretFromClick = () => {
     if (!area) return;
     const caret = area.selectionStart;
@@ -155,17 +164,19 @@ export function VimEditor(props: VimEditorProps) {
     <div class="flex min-h-0 flex-1 flex-col">
       <textarea
         ref={area}
-        class="min-h-0 flex-1 resize-none rounded-none border-0 border-t border-border bg-bg-raised p-3 leading-relaxed outline-none"
+        class="min-h-0 flex-1 resize-none rounded-none border-0 border-t border-rule bg-card p-3 leading-relaxed outline-none"
         spellcheck={false}
         autocomplete="off"
         value={props.initial}
         onKeyDown={onKeyDown}
         onClick={syncCaretFromClick}
         onFocus={syncCaretFromClick}
+        onSelect={syncCaretFromClick}
+        onPaste={onPaste}
       />
 
       <Show when={matches().length > 0}>
-        <ul class="max-h-40 shrink-0 overflow-y-auto border-t border-border bg-bg-raised">
+        <ul class="max-h-40 shrink-0 overflow-y-auto border-t border-rule bg-card">
           <For each={matches()}>
             {(entry, index) => (
               <li>
@@ -173,8 +184,8 @@ export function VimEditor(props: VimEditorProps) {
                   type="button"
                   class="flex w-full items-baseline gap-3 px-3 py-1 text-left text-xs"
                   classList={{
-                    "bg-bg-selected text-text-strong": index() === highlight(),
-                    "hover:bg-bg-hover": index() !== highlight(),
+                    "bg-obligation-bg text-ink": index() === highlight(),
+                    "hover:bg-neutral-bg": index() !== highlight(),
                   }}
                   onMouseDown={(e) => {
                     e.preventDefault();
@@ -183,7 +194,7 @@ export function VimEditor(props: VimEditorProps) {
                 >
                   <span class="truncate-cell flex-1">{entry.name ?? entry.email}</span>
                   <Show when={entry.name}>
-                    <span class="shrink-0 text-text-dim">{entry.email}</span>
+                    <span class="shrink-0 text-ink-3">{entry.email}</span>
                   </Show>
                 </button>
               </li>
@@ -192,28 +203,28 @@ export function VimEditor(props: VimEditorProps) {
         </ul>
       </Show>
 
-      <div class="flex shrink-0 items-center gap-3 border-t border-border bg-bg-panel px-3 py-1 text-xs">
+      <div class="flex shrink-0 items-center gap-3 border-t border-rule bg-paper-2 px-3 py-1 text-xs">
         <span
           class="rounded px-1.5 py-0.5 font-semibold uppercase"
           classList={{
-            "bg-accent text-bg-raised": state().mode === "normal",
-            "bg-tag-unread text-bg-raised": state().mode === "insert",
+            "bg-obligation text-paper": state().mode === "normal",
+            "bg-proved text-paper": state().mode === "insert",
           }}
         >
           {state().mode}
         </span>
 
-        <span class="truncate-cell flex-1 text-text-dim">{props.label}</span>
+        <span class="truncate-cell flex-1 text-ink-3">{props.label}</span>
 
-        <span class="shrink-0 text-text-dim">
+        <span class="shrink-0 text-ink-3">
           {where().line}:{where().column}
         </span>
 
-        <span class="shrink-0 text-text-dim">
+        <span class="shrink-0 text-ink-3">
           <kbd>ZZ</kbd> {props.submitLabel ?? "send"} · <kbd>ZQ</kbd> discard
         </span>
 
-        {state().pending && <span class="shrink-0 text-accent">{state().pending}</span>}
+        {state().status && <span class="shrink-0 mono text-obligation">{state().status}</span>}
       </div>
     </div>
   );

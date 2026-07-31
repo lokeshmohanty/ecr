@@ -154,18 +154,91 @@ fn sanitize(html: &str, message: &ParsedMessage, ctx: &SanitizeContext) -> Body 
         strip_remote_resources(&rewritten)
     };
 
-    let cleaned = ammonia::Builder::default()
-        .add_generic_attributes(["style"])
-        .link_rel(Some("noopener noreferrer"))
-        .url_relative(ammonia::UrlRelative::PassThrough)
-        .clean(&stripped)
-        .to_string();
+    let cleaned = sanitizer().clean(&stripped).to_string();
 
     Body {
         format: BodyFormat::Html,
         content: cleaned,
         remote_resources_blocked: blocked,
     }
+}
+
+/// ammonia's default allowlist is written for user comments, not for mail.
+/// It drops `<table>`, `<style>`, width/height/align and the inline colours
+/// that almost every real message is built from, which is why messages came
+/// out as unstyled runs of text. Layout and presentation are allowed back in;
+/// what stays banned is anything that can execute or navigate on its own.
+fn sanitizer() -> ammonia::Builder<'static> {
+    let mut builder = ammonia::Builder::default();
+
+    builder
+        .add_tags([
+            "table",
+            "thead",
+            "tbody",
+            "tfoot",
+            "tr",
+            "td",
+            "th",
+            "caption",
+            "colgroup",
+            "col",
+            "center",
+            "font",
+            "style",
+            "span",
+            "div",
+            "section",
+            "article",
+            "header",
+            "footer",
+            "figure",
+            "figcaption",
+            "picture",
+            "source",
+            "map",
+            "area",
+            "big",
+            "small",
+            "s",
+            "strike",
+            "u",
+            "address",
+        ])
+        .add_generic_attributes([
+            "style",
+            "align",
+            "valign",
+            "width",
+            "height",
+            "bgcolor",
+            "color",
+            "background",
+            "border",
+            "cellpadding",
+            "cellspacing",
+            "colspan",
+            "rowspan",
+            "face",
+            "size",
+            "dir",
+            "lang",
+            "title",
+            "class",
+            "id",
+        ])
+        .add_tag_attributes("img", ["srcset", "sizes", "loading", "usemap"])
+        .add_tag_attributes("a", ["target"])
+        .add_tag_attributes("table", ["summary"])
+        // Keeping <style> means keeping its contents; ammonia strips the text
+        // of unknown tags otherwise, which leaves a stylesheet-shaped hole.
+        .clean_content_tags(std::collections::HashSet::from([
+            "script", "iframe", "object", "embed", "applet", "form", "title",
+        ]))
+        .link_rel(Some("noopener noreferrer"))
+        .url_relative(ammonia::UrlRelative::PassThrough);
+
+    builder
 }
 
 fn rewrite_cid_references(html: &str, message: &ParsedMessage, ctx: &SanitizeContext) -> String {
@@ -402,5 +475,76 @@ mod tests {
         let message = parse("mime1@example.com", truncated).unwrap();
 
         assert!(message.html().is_some(), "html body should survive");
+    }
+}
+
+#[cfg(test)]
+mod sanitizer_tests {
+    use super::*;
+
+    fn clean(html: &str) -> String {
+        let message = parse(
+            "x@y.z",
+            format!("Content-Type: text/html\r\n\r\n{html}").as_bytes(),
+        )
+        .unwrap();
+        message
+            .body(BodyFormat::Html, &SanitizeContext::new("/parts/", true))
+            .content
+    }
+
+    #[test]
+    fn keeps_the_table_layout_real_mail_is_built_from() {
+        let html = clean(
+            r##"<table width="600" cellpadding="0"><tr><td align="center" bgcolor="#ffffff">Hi</td></tr></table>"##,
+        );
+        assert!(html.contains("<table"), "{html}");
+        assert!(html.contains("<td"), "{html}");
+        assert!(html.contains("bgcolor"), "{html}");
+        assert!(html.contains("align"), "{html}");
+    }
+
+    #[test]
+    fn keeps_inline_styles_and_the_stylesheet() {
+        let html = clean(r##"<style>.a{color:red}</style><p style="color:#333">text</p>"##);
+        assert!(html.contains("color:red"), "{html}");
+        assert!(html.contains("color:#333"), "{html}");
+    }
+
+    #[test]
+    fn keeps_presentational_tags_older_senders_still_use() {
+        let html = clean(r#"<center><font face="Arial" size="3">Sale</font></center>"#);
+        assert!(html.contains("<center"), "{html}");
+        assert!(html.contains("<font"), "{html}");
+    }
+
+    #[test]
+    fn keeps_image_sizing_so_layout_does_not_collapse() {
+        let html = clean(r#"<img src="https://x/y.png" width="600" height="80" alt="banner">"#);
+        assert!(html.contains("width=\"600\""), "{html}");
+    }
+
+    #[test]
+    fn still_removes_anything_that_can_execute() {
+        let html = clean(
+            r#"<script>alert(1)</script><p onclick="steal()">x</p><iframe src="//evil"></iframe>"#,
+        );
+        assert!(!html.contains("<script"), "{html}");
+        assert!(!html.contains("alert(1)"), "{html}");
+        assert!(!html.contains("onclick"), "{html}");
+        assert!(!html.contains("<iframe"), "{html}");
+    }
+
+    #[test]
+    fn still_removes_forms_so_credentials_cannot_be_phished_inline() {
+        let html = clean(r#"<form action="//evil"><input name="password"></form>"#);
+        assert!(!html.contains("<form"), "{html}");
+        assert!(!html.contains("<input"), "{html}");
+    }
+
+    #[test]
+    fn a_javascript_url_does_not_survive() {
+        let html = clean(r#"<a href="javascript:alert(1)">click</a>"#);
+        assert!(!html.contains("javascript:"), "{html}");
     }
 }

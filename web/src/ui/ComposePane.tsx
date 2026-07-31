@@ -95,17 +95,17 @@ export function ComposePane(props: {
 
   return (
     <>
-      <header class="flex shrink-0 items-start gap-3 border-b border-border bg-bg-panel px-4 py-2">
+      <header class="flex shrink-0 items-start gap-3 border-b border-rule bg-paper-2 px-4 py-2">
         <div class="min-w-0 flex-1">
-          <h1 class="text-sm text-text-strong">{props.label}</h1>
-          <div class="text-xs text-text-dim">
+          <h1 class="text-sm text-ink">{props.label}</h1>
+          <div class="text-xs text-ink-3">
             from {account()?.address ?? "no account"} · <kbd>ZZ</kbd> send ·{" "}
             <kbd>ZQ</kbd> discard · <kbd>C-p</kbd> hide
           </div>
         </div>
         <button
           type="button"
-          class="shrink-0 rounded border border-border px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-hover"
+          class="shrink-0 rounded border border-rule px-2 py-0.5 text-xs text-ink-2 hover:bg-neutral-bg"
           onClick={props.onClose}
           title="Discard (ZQ)"
         >
@@ -114,13 +114,13 @@ export function ComposePane(props: {
       </header>
 
       <Show when={error()}>
-        <p class="shrink-0 border-b border-tag-urgent bg-bg-tag-urgent px-4 py-2 text-xs text-tag-urgent">
+        <p class="shrink-0 border-b border-blocking bg-blocking-bg px-4 py-2 text-xs text-blocking">
           {error()}
         </p>
       </Show>
 
       <Show when={sending()}>
-        <p class="shrink-0 border-b border-border px-4 py-2 text-xs text-text-dim">sending…</p>
+        <p class="shrink-0 border-b border-rule px-4 py-2 text-xs text-ink-3">sending…</p>
       </Show>
 
       <VimEditor

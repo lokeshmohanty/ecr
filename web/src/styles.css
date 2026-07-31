@@ -1,46 +1,51 @@
 @import "tailwindcss";
+
+/*
+ * Three type roles and the instrument-reading palette, shared verbatim with
+ * thesis-ui so the two read as one system. Display sets titles, the body face
+ * sets running text, and mono is the utility voice: labels, dates, counts, ids.
+ */
+@import "@fontsource-variable/space-grotesk/wght.css";
+@import "@fontsource-variable/nunito/wght.css";
+@import "@fontsource-variable/nunito/wght-italic.css";
 @import "@fontsource-variable/cascadia-code";
 
 @theme {
-  /*
-   * Tokyo Night Day — the light sibling of the palette the egui client used,
-   * so the identity carries over. Light is the default because HTML mail is
-   * overwhelmingly authored for a white background: forcing a dark canvas
-   * under it produced dark-on-dark text in a large share of real messages.
-   */
-  --color-bg-main: #e1e2e7;
-  --color-bg-panel: #d0d5e3;
-  --color-bg-raised: #ffffff;
-  --color-bg-hover: #c4c8da;
-  --color-bg-selected: #99a7df;
-  --color-bg-input: #ffffff;
-  --color-bg-tag: #cbd0e0;
-  --color-bg-tag-urgent: #f7d3dc;
+  /* Dark is the default here: a mail client is looked at all day. */
+  --color-paper: #0c151a;
+  --color-paper-2: #111d24;
+  --color-card: #14222a;
 
-  --color-accent: #2e7de9;
-  --color-accent-dim: #007197;
-  --color-text-primary: #3760bf;
-  --color-text-strong: #1b2a5c;
-  --color-text-secondary: #5a6ba8;
-  --color-text-dim: #848cb5;
-  --color-text-quoted: #587539;
-  --color-border: #a8aecb;
-  --color-border-soft: #c3c8dc;
+  --color-ink: #e6eef1;
+  --color-ink-2: #9fb2bb;
+  --color-ink-3: #708590;
 
-  --color-tag-unread: #587539;
-  --color-tag-urgent: #f52a65;
-  --color-tag-default: #9854f1;
-  --color-star: #b15c00;
+  --color-rule: #2a3d47;
+  --color-rule-soft: #1e2e37;
 
+  /* The three accents carry meaning, not decoration. */
+  --color-proved: #5fc9b6;
+  --color-proved-bg: #10312d;
+  --color-obligation: #a99bf5;
+  --color-obligation-bg: #241f47;
+  --color-blocking: #ef8377;
+  --color-blocking-bg: #3b1a17;
+  --color-neutral-bg: #1b2b33;
+
+  --font-display: "Space Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Nunito Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Cascadia Code Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* Tailwind does not derive this from --font-mono, and preflight styles
+     code/kbd/pre through it — without this every code block falls back. */
   --default-mono-font-family: var(--font-mono);
-  --font-sans: var(--font-mono);
+  --font-sans: var(--font-body);
 }
 
 :root {
   --row-height: 3.5rem;
   --date-column: 7.5rem;
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 @media (max-width: 768px) {
@@ -58,12 +63,37 @@ body,
 
 body {
   margin: 0;
-  background: var(--color-bg-main);
-  color: var(--color-text-primary);
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
+}
+
+/* The utility voice: anything that is a value rather than a sentence. */
+.mono,
+kbd,
+time,
+.label {
+  font-family: var(--font-mono);
+}
+
+.label {
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.015em;
 }
 
 /*
@@ -73,7 +103,7 @@ body {
  */
 .row-grid {
   display: grid;
-  grid-template-columns: 1.25rem minmax(0, 1fr) var(--date-column);
+  grid-template-columns: 3px 1fr var(--date-column);
   column-gap: 0.75rem;
   align-items: baseline;
 }
@@ -83,6 +113,25 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The margin tape: a rule whose colour is the state of the row beside it. */
+.tape {
+  align-self: stretch;
+  border-radius: 2px;
+  background: transparent;
+}
+
+.tape-unread {
+  background: var(--color-obligation);
+}
+
+.tape-flagged {
+  background: var(--color-proved);
+}
+
+.tape-marked {
+  background: var(--color-blocking);
 }
 
 .scroll-y {
@@ -96,7 +145,7 @@ body {
 }
 
 .scroll-y::-webkit-scrollbar-thumb {
-  background: var(--color-border);
+  background: var(--color-rule);
   border-radius: 0.25rem;
 }
 
@@ -104,7 +153,6 @@ body {
   background: transparent;
 }
 
-/* The pane holding keyboard focus gets a visible edge rather than a glow. */
 .pane {
   min-height: 0;
   min-width: 0;
@@ -114,14 +162,12 @@ body {
 }
 
 .pane-focused {
-  border-left-color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent) 4%, transparent);
+  border-left-color: var(--color-obligation);
 }
 
 kbd {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--color-accent);
+  font-size: 0.72rem;
+  color: var(--color-obligation);
 }
 
 button {
@@ -134,15 +180,21 @@ input,
 textarea {
   font-family: inherit;
   font-size: inherit;
-  background: var(--color-bg-input);
-  color: var(--color-text-strong);
-  border: 1px solid var(--color-border);
+  background: var(--color-paper-2);
+  color: var(--color-ink);
+  border: 1px solid var(--color-rule);
   outline: none;
 }
 
 input:focus,
 textarea:focus {
-  border-color: var(--color-accent);
+  border-color: var(--color-obligation);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-obligation);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 @media (max-width: 768px) {

@@ -4,13 +4,13 @@ import { ALL_ACCOUNTS } from "../state/views";
 
 export function TopBar(props: { store: AppStore; onSync: () => void; onSettings: () => void }) {
   return (
-    <header class="flex items-center gap-3 border-b border-border bg-bg-panel px-3 py-2">
-      <span class="hidden shrink-0 font-semibold tracking-widest text-accent sm:block">
+    <header class="flex items-center gap-3 border-b border-rule bg-paper-2 px-3 py-2">
+      <span class="hidden shrink-0 font-semibold tracking-widest text-obligation sm:block">
         ECR
       </span>
 
-      <div class="flex min-w-0 flex-1 items-center gap-2 rounded border border-border bg-bg-input px-2 py-1">
-        <span class="text-text-dim">query:</span>
+      <div class="flex min-w-0 flex-1 items-center gap-2 rounded border border-rule bg-paper-2 px-2 py-1">
+        <span class="text-ink-3">query:</span>
         <input
           class="w-full border-0 bg-transparent p-0 outline-none"
           value={props.store.query()}
@@ -25,7 +25,7 @@ export function TopBar(props: { store: AppStore; onSync: () => void; onSettings:
 
       <button
         type="button"
-        class="touch-target shrink-0 rounded px-2 py-1 uppercase text-text-secondary hover:bg-bg-hover disabled:opacity-50"
+        class="touch-target shrink-0 rounded px-2 py-1 uppercase text-ink-2 hover:bg-neutral-bg disabled:opacity-50"
         disabled={props.store.syncing()}
         onClick={props.onSync}
         title="Sync (s)"
@@ -35,7 +35,7 @@ export function TopBar(props: { store: AppStore; onSync: () => void; onSettings:
 
       <button
         type="button"
-        class="touch-target shrink-0 rounded px-2 py-1 text-text-secondary hover:bg-bg-hover"
+        class="touch-target shrink-0 rounded px-2 py-1 text-ink-2 hover:bg-neutral-bg"
         onClick={props.onSettings}
         title="Settings (,)"
         aria-label="Settings"
@@ -70,25 +70,24 @@ export function StatusBar(props: { store: AppStore }) {
   ];
 
   return (
-    <footer class="flex items-center gap-3 border-t border-border bg-bg-panel px-3 py-1 text-xs">
+    <footer class="flex items-center gap-3 border-t border-rule bg-paper-2 px-3 py-1 text-xs">
       <span
         class="shrink-0 rounded px-1.5 py-0.5 font-semibold uppercase"
         classList={{
-          "bg-accent text-bg-raised": props.store.mode() === "normal",
-          "bg-tag-unread text-bg-raised": props.store.mode() === "insert",
-          "bg-tag-default text-bg-raised":
-            props.store.mode() === "command" || props.store.mode() === "search",
+          "bg-obligation text-paper": props.store.mode() === "normal",
+          "bg-proved text-paper": props.store.mode() === "insert",
+          "bg-neutral-bg text-ink": props.store.mode() === "command" || props.store.mode() === "search",
         }}
       >
         {props.store.mode()}
       </span>
 
-      <span class="shrink-0 rounded border border-border px-1.5 py-0.5 uppercase text-text-dim">
+      <span class="shrink-0 rounded border border-rule px-1.5 py-0.5 uppercase text-ink-3">
         {props.store.pane()}
       </span>
 
       <span
-        class="shrink-0 rounded bg-bg-tag px-1.5 py-0.5 text-text-secondary"
+        class="shrink-0 rounded bg-neutral-bg px-1.5 py-0.5 text-ink-2"
         title="account this view is scoped to"
       >
         {accountName(props.store)}
@@ -97,32 +96,32 @@ export function StatusBar(props: { store: AppStore }) {
       <span class="hidden min-w-0 flex-1 gap-3 md:flex">
         <For each={hints}>
           {([key, label]) => (
-            <span class="shrink-0 text-text-dim">
+            <span class="shrink-0 text-ink-3">
               <kbd>{key}</kbd>:{label}
             </span>
           )}
         </For>
       </span>
 
-      <span class="truncate-cell flex-1 text-text-secondary md:flex-none md:text-right">
+      <span class="truncate-cell flex-1 text-ink-2 md:flex-none md:text-right">
         {props.store.status()}
       </span>
 
       <Show when={markCount() > 0}>
-        <span class="shrink-0 rounded bg-bg-tag-urgent px-1.5 py-0.5 text-tag-urgent">
+        <span class="shrink-0 rounded bg-blocking-bg px-1.5 py-0.5 text-blocking">
           {markCount()} marked
         </span>
       </Show>
 
       <Show when={props.store.pendingKeys()}>
-        <span class="shrink-0 text-accent">{props.store.pendingKeys()}</span>
+        <span class="shrink-0 text-obligation">{props.store.pendingKeys()}</span>
       </Show>
 
       <span
         class="shrink-0"
         classList={{
-          "text-tag-unread": props.store.connected(),
-          "text-tag-urgent": !props.store.connected(),
+          "text-proved": props.store.connected(),
+          "text-blocking": !props.store.connected(),
         }}
         title={props.store.connected() ? "connected" : "disconnected"}
       >
@@ -143,12 +142,12 @@ export function Help(props: {
       onClick={props.onClose}
     >
       <div
-        class="max-h-full w-full max-w-lg overflow-y-auto rounded border border-border bg-bg-panel p-4"
+        class="max-h-full w-full max-w-lg overflow-y-auto rounded border border-rule bg-paper-2 p-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 class="mb-1 uppercase tracking-widest text-text-dim">Keybindings</h2>
-        <p class="mb-3 text-xs text-text-dim">
-          active in the <span class="text-accent">{props.pane}</span> pane · <kbd>h</kbd>/
+        <h2 class="mb-1 uppercase tracking-widest text-ink-3">Keybindings</h2>
+        <p class="mb-3 text-xs text-ink-3">
+          active in the <span class="text-obligation">{props.pane}</span> pane · <kbd>h</kbd>/
           <kbd>l</kbd> move between panes
         </p>
         <dl class="grid grid-cols-[6rem_minmax(0,1fr)] gap-y-1">
@@ -158,12 +157,12 @@ export function Help(props: {
                 <dt>
                   <kbd>{binding.keys}</kbd>
                 </dt>
-                <dd class="text-text-secondary">{binding.description}</dd>
+                <dd class="text-ink-2">{binding.description}</dd>
               </>
             )}
           </For>
         </dl>
-        <p class="mt-4 text-xs text-text-dim">Escape or click outside to close.</p>
+        <p class="mt-4 text-xs text-ink-3">Escape or click outside to close.</p>
       </div>
     </div>
   );
@@ -176,7 +175,7 @@ export function ConnectionSetup(props: { store: AppStore }) {
   return (
     <div class="flex h-full items-center justify-center p-6">
       <form
-        class="w-full max-w-md rounded border border-border bg-bg-panel p-5"
+        class="w-full max-w-md rounded border border-rule bg-paper-2 p-5"
         onSubmit={(e) => {
           e.preventDefault();
           props.store.setConnection({
@@ -185,14 +184,14 @@ export function ConnectionSetup(props: { store: AppStore }) {
           });
         }}
       >
-        <h1 class="mb-1 text-base text-accent">Connect to ecr-server</h1>
-        <p class="mb-4 text-xs text-text-dim">
+        <h1 class="mb-1 text-base text-obligation">Connect to ecr-server</h1>
+        <p class="mb-4 text-xs text-ink-3">
           Issue a token on the server with{" "}
           <code>ecr-server token new &lt;name&gt;</code>.
         </p>
 
         <label class="mb-3 block">
-          <span class="text-xs uppercase text-text-dim">Server URL</span>
+          <span class="text-xs uppercase text-ink-3">Server URL</span>
           <input
             ref={urlInput}
             class="touch-target mt-1 w-full rounded px-2 py-1.5"
@@ -202,7 +201,7 @@ export function ConnectionSetup(props: { store: AppStore }) {
         </label>
 
         <label class="mb-4 block">
-          <span class="text-xs uppercase text-text-dim">Device token</span>
+          <span class="text-xs uppercase text-ink-3">Device token</span>
           <input
             ref={tokenInput}
             type="password"
@@ -213,13 +212,13 @@ export function ConnectionSetup(props: { store: AppStore }) {
 
         <button
           type="submit"
-          class="touch-target w-full rounded bg-accent px-3 py-2 font-semibold text-bg-raised"
+          class="touch-target w-full rounded bg-obligation px-3 py-2 font-semibold text-paper"
         >
           Connect
         </button>
 
         <Show when={props.store.status()}>
-          <p class="mt-3 text-xs text-tag-urgent">{props.store.status()}</p>
+          <p class="mt-3 text-xs text-blocking">{props.store.status()}</p>
         </Show>
       </form>
     </div>

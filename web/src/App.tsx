@@ -49,12 +49,7 @@ export function App() {
     // Ctrl chords always reach the app, even mid-edit, so focus can leave an
     // open composer without discarding it.
     if (event.ctrlKey && !event.metaKey && !event.altKey) {
-      const outcome = keymap.handle(
-        { key: event.key, ctrl: true },
-        store.mode(),
-        false,
-        store.pane(),
-      );
+      const outcome = keymap.handle({ key: event.key, ctrl: true }, "normal", false, store.pane());
       if (outcome.type === "action") {
         event.preventDefault();
         void dispatch(outcome.action);
@@ -355,7 +350,7 @@ export function App() {
                           fallback={
                             <button
                               type="button"
-                              class="flex shrink-0 items-center gap-2 border-t border-accent bg-bg-panel px-4 py-1.5 text-xs text-accent"
+                              class="flex shrink-0 items-center gap-2 border-t border-obligation bg-paper-2 px-4 py-1.5 text-xs text-obligation"
                               onClick={() => store.setPinnedOpen(true)}
                             >
                               ▴ {right.label} minimised — <kbd>C-p</kbd> to show
@@ -363,7 +358,7 @@ export function App() {
                           }
                         >
                           <div
-                            class="flex shrink-0 flex-col border-t-2 border-accent"
+                            class="flex shrink-0 flex-col border-t-2 border-obligation"
                             style={{ height: "45%" }}
                           >
                             <ComposePane

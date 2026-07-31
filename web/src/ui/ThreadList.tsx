@@ -52,14 +52,14 @@ export function ThreadList(props: { store: AppStore }) {
 
   return (
     <section
-      class="pane h-full border-r border-border"
+      class="pane h-full border-r border-rule"
       classList={{ "pane-focused": focused() }}
       onClick={() => props.store.setPane("list")}
     >
-      <header class="row-grid shrink-0 border-b border-border bg-bg-panel px-3 py-2 text-xs uppercase tracking-wide text-text-dim">
+      <header class="row-grid shrink-0 border-b border-rule bg-paper-2 px-3 py-2 text-xs uppercase tracking-wide text-ink-3">
         <span />
-        <span class="truncate-cell">{props.store.query()}</span>
-        <span class="text-right">
+        <span class="truncate-cell mono">{props.store.query()}</span>
+        <span class="mono text-right">
           {items().length}/{props.store.threads()?.total ?? 0}
         </span>
       </header>
@@ -75,22 +75,22 @@ export function ThreadList(props: { store: AppStore }) {
             <div class="flex h-full items-center justify-center p-6 text-center">
               <Show
                 when={!props.store.threads.loading}
-                fallback={<span class="text-text-dim">loading…</span>}
+                fallback={<span class="text-ink-3">loading…</span>}
               >
                 <Show
                   when={props.store.lastError()}
-                  fallback={<span class="text-text-dim">no matching threads</span>}
+                  fallback={<span class="text-ink-3">no matching threads</span>}
                 >
                   {(error) => (
                     <div class="max-w-sm">
-                      <p class="mb-2 text-tag-urgent">cannot reach the server</p>
-                      <p class="mb-3 text-xs break-words text-text-dim">{error()}</p>
-                      <p class="mb-3 text-xs text-text-dim">
+                      <p class="mb-2 text-blocking">cannot reach the server</p>
+                      <p class="mb-3 text-xs break-words text-ink-3">{error()}</p>
+                      <p class="mb-3 text-xs text-ink-3">
                         {props.store.connection().baseUrl || "no server url configured"}
                       </p>
                       <button
                         type="button"
-                        class="touch-target rounded border border-border px-3 py-1.5 text-accent hover:bg-bg-hover"
+                        class="touch-target rounded border border-rule px-3 py-1.5 text-obligation hover:bg-neutral-bg"
                         onClick={() => props.store.bumpRevision()}
                       >
                         retry
@@ -138,11 +138,11 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
 
   return (
     <div
-      class="row-grid touch-target cursor-pointer border-b border-border/60 px-3 py-2"
+      class="row-grid touch-target cursor-pointer border-b border-rule-soft px-3 py-2"
       style={{ height: `${ROW_HEIGHT}px` }}
       classList={{
-        "bg-bg-selected text-text-strong": selected(),
-        "hover:bg-bg-hover": !selected(),
+        "bg-obligation-bg text-ink": selected(),
+        "hover:bg-neutral-bg": !selected(),
       }}
       onClick={() => {
         props.store.setSelected(props.index);
@@ -151,31 +151,36 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
         props.store.setMessageIndex(0);
       }}
     >
-      <span class="text-xs" classList={{ "text-star": flagged() }}>
-        <Show when={badges()} fallback={flagged() ? "★" : unread() ? "●" : ""}>
-          <span class="text-tag-urgent">{badges()}</span>
-        </Show>
-      </span>
+      {/* The margin tape: the row's state as a rule rather than a badge. */}
+      <span
+        class="tape"
+        classList={{
+          "tape-marked": badges() !== "",
+          "tape-unread": badges() === "" && unread(),
+          "tape-flagged": badges() === "" && !unread() && flagged(),
+        }}
+        title={badges() || (unread() ? "unread" : flagged() ? "flagged" : "")}
+      />
 
       <div class="min-w-0">
         <div
           class="truncate-cell"
           classList={{
-            "text-text-strong font-semibold": unread(),
-            "text-text-secondary": !unread(),
+            "text-ink font-semibold": unread(),
+            "text-ink-2": !unread(),
           }}
         >
           {props.thread.authors.join(", ") || "(no sender)"}
         </div>
-        <div class="truncate-cell text-text-dim">
+        <div class="truncate-cell text-ink-3">
           {props.thread.subject || "(no subject)"}
         </div>
       </div>
 
-      <div class="text-right text-xs text-text-dim">
+      <div class="mono text-right text-xs text-ink-3">
         <div>{props.thread.date_relative}</div>
         <Show when={props.thread.total > 1}>
-          <div class="text-accent-dim">({props.thread.total})</div>
+          <div class="text-proved">({props.thread.total})</div>
         </Show>
       </div>
     </div>

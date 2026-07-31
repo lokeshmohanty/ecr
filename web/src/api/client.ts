@@ -148,9 +148,50 @@ export class Api {
     return this.request(`/api/v1/messages/${encodeURIComponent(id)}`);
   }
 
-  body(id: string, html: boolean, remote: boolean): Promise<Body> {
-    const params = new URLSearchParams({ html: String(html), remote: String(remote) });
-    return this.request(`/api/v1/messages/${encodeURIComponent(id)}/body?${params}`);
+  /**
+   * Bodies are cached in memory. A message's content never changes — a new
+   * message is a new file — so revisiting one should not cost a round trip.
+   * This is what makes walking a list with j/k feel instant on the way back.
+   */
+  private bodies = new Map<string, Body>();
+
+  async body(id: string, html: boolean, remote: boolean): Promise<Body> {
+    const key = `${id}|${html}|${remote}`;
+    const cached = this.bodies.get(key);
+    if (cached) return cached;
+
+    const body = await this.request<Body>(
+      `/api/v1/messages/${encodeURIComponent(id)}/body?` +
+        new URLSearchParams({ html: String(html), remote: String(remote) }),
+    );
+
+    // Bounded so a long session cannot grow without limit.
+    if (this.bodies.size > 300) {
+      const oldest = this.bodies.keys().next().value;
+      if (oldest) this.bodies.delete(oldest);
+    }
+    this.bodies.set(key, body);
+    return body;
+  }
+
+  private threads_ = new Map<string, Thread>();
+
+  async threadCached(id: string): Promise<Thread> {
+    const cached = this.threads_.get(id);
+    if (cached) return cached;
+
+    const thread = await this.thread(id);
+    if (this.threads_.size > 200) {
+      const oldest = this.threads_.keys().next().value;
+      if (oldest) this.threads_.delete(oldest);
+    }
+    this.threads_.set(id, thread);
+    return thread;
+  }
+
+  /** Tagging changes a thread, so its cached copy has to go. */
+  invalidate(): void {
+    this.threads_.clear();
   }
 
   tag(ops: TagOp[]): Promise<Revision> {

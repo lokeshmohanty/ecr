@@ -1,58 +1,33 @@
 import { chromium } from "playwright";
 
-const [webUrl, serverUrl, token] = process.argv.slice(2);
+const [url] = process.argv.slice(2);
 const browser = await chromium.launch({
   executablePath: "/run/current-system/sw/bin/google-chrome-stable",
   args: ["--no-sandbox"],
 });
-const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
+const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 
-await page.addInitScript(
-  ([url, tok]) => {
-    try {
-      localStorage.setItem("ecr.connection", JSON.stringify({ baseUrl: url, token: tok }));
-    } catch {}
-  },
-  [serverUrl, token],
-);
+await page.addInitScript((base) => {
+  try {
+    localStorage.setItem("ecr.connection", JSON.stringify({ baseUrl: base, token: "" }));
+    localStorage.removeItem("ecr.settings");
+  } catch {}
+}, url);
 
-await page.goto(webUrl, { waitUntil: "networkidle" });
-await page.waitForTimeout(2000);
+await page.goto(url, { waitUntil: "networkidle" });
+await page.waitForSelector("[class*='row-grid'][class*='cursor-pointer']", { timeout: 20000 });
+await page.waitForTimeout(1500);
 
-const geometry = await page.evaluate(() => {
-  const describe = (el) => {
-    if (!el) return null;
-    const r = el.getBoundingClientRect();
-    const s = getComputedStyle(el);
-    return {
-      tag: el.tagName,
-      cls: el.className.toString().slice(0, 70),
-      w: Math.round(r.width),
-      h: Math.round(r.height),
-      display: s.display,
-      minHeight: s.minHeight,
-      overflowY: s.overflowY,
-      children: el.children.length,
-    };
-  };
+const rowClasses = () =>
+  page.evaluate(() =>
+    [...document.querySelectorAll("[class*='row-grid'][class*='cursor-pointer']")]
+      .slice(0, 4)
+      .map((r) => r.className),
+  );
 
-  const main = document.querySelector("main");
-  const section = main?.querySelector("section");
-  const scroller = section?.querySelector(".scroll-y");
-  const inner = scroller?.firstElementChild;
-
-  return {
-    main: describe(main),
-    mainCols: main ? getComputedStyle(main).gridTemplateColumns : null,
-    mainRows: main ? getComputedStyle(main).gridTemplateRows : null,
-    listCell: describe(main?.children[1]),
-    section: describe(section),
-    scroller: describe(scroller),
-    inner: describe(inner),
-    innerHeightStyle: inner?.getAttribute("style"),
-  };
-});
-
-console.log(JSON.stringify(geometry, null, 2));
+console.log("before:", JSON.stringify(await rowClasses(), null, 1));
+await page.keyboard.press("j");
+await page.waitForTimeout(700);
+console.log("after j:", JSON.stringify(await rowClasses(), null, 1));
 
 await browser.close();

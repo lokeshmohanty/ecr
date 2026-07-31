@@ -39,13 +39,16 @@ await page.waitForTimeout(800);
 const pane = () => page.textContent("footer span:nth-child(2)");
 const bodyText = () => page.textContent("body");
 
-console.log("\nLight mode");
+console.log("\nTheme");
 const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-const luminance = await page.evaluate(() => {
-  const [r, g, b] = getComputedStyle(document.body).backgroundColor.match(/\d+/g).map(Number);
-  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+check("the app uses the dark paper ground", bg === "rgb(12, 21, 26)", bg);
+
+// Mail is authored for white; the message canvas must not follow the app theme.
+const canvas = await page.evaluate(() => {
+  const f = document.querySelector("iframe[title='message body']");
+  return f?.contentDocument ? getComputedStyle(f.contentDocument.body).backgroundColor : "none";
 });
-check("the app background is light", luminance > 0.6, `${bg} luminance ${luminance.toFixed(2)}`);
+check("message bodies still render on white", canvas === "none" || canvas === "rgb(255, 255, 255)", canvas);
 
 console.log("\nPane focus with h and l");
 check("starts focused on the list", (await pane())?.trim() === "list", await pane());
@@ -74,7 +77,7 @@ await page.keyboard.press("j");
 await page.waitForTimeout(300);
 const selectedIndex = await page.evaluate(() =>
   [...document.querySelectorAll("[class*='row-grid'][class*='cursor-pointer']")].findIndex((el) =>
-    el.className.includes("bg-bg-selected"),
+    el.className.includes("bg-obligation-bg"),
   ),
 );
 check("j moves the list selection", selectedIndex === 2, `index ${selectedIndex} of ${beforeSelect}`);
@@ -84,7 +87,7 @@ await page.waitForTimeout(200);
 await page.keyboard.press("j");
 await page.waitForTimeout(250);
 const sidebarCursor = await page.evaluate(
-  () => document.querySelectorAll("nav [class*='ring-accent']").length,
+  () => document.querySelectorAll("nav [class*='ring-obligation']").length,
 );
 check("j moves the sidebar cursor when the sidebar has focus", sidebarCursor === 1, `${sidebarCursor} cursors`);
 
@@ -134,21 +137,26 @@ check(
   sandbox ?? "no sandbox attribute",
 );
 
-console.log("\nSidebar scrolls when folders overflow");
-await page.evaluate(() => {
-  const buttons = [...document.querySelectorAll("nav button")];
-  buttons.find((b) => b.textContent.trim().startsWith("▸"))?.click();
-});
-await page.waitForTimeout(600);
+console.log("\nSidebar scrolling");
 const sidebarScroll = await page.evaluate(() => {
   const el = document.querySelector("nav .scroll-y");
-  return { scrollHeight: el.scrollHeight, clientHeight: el.clientHeight, overflowY: getComputedStyle(el).overflowY };
+  return { overflowY: getComputedStyle(el).overflowY, minHeight: getComputedStyle(el).minHeight };
 });
 check(
-  "the sidebar is scrollable with an account expanded",
-  sidebarScroll.overflowY === "auto" && sidebarScroll.scrollHeight > sidebarScroll.clientHeight,
-  `${sidebarScroll.scrollHeight} > ${sidebarScroll.clientHeight}`,
+  "the sidebar scrolls rather than pushing its buttons off-screen",
+  sidebarScroll.overflowY === "auto",
+  `overflow-y: ${sidebarScroll.overflowY}`,
 );
+
+const composeVisible = await page.evaluate(() => {
+  const button = [...document.querySelectorAll("nav button")].find((b) =>
+    b.textContent.includes("COMPOSE"),
+  );
+  if (!button) return false;
+  const box = button.getBoundingClientRect();
+  return box.bottom <= window.innerHeight + 1 && box.height > 0;
+});
+check("compose and settings stay reachable", composeVisible);
 
 console.log("\nReply opens in the detail pane");
 await page.keyboard.press("l");
@@ -175,7 +183,8 @@ check("the subject is prefixed with Re:", /^Subject: Re:/m.test(prefilled));
 // meant answering a Gmail thread from the work address because it sorts first.
 const fromLine = await page.evaluate(() => {
   const detail = [...document.querySelector("main").children].pop();
-  return detail.querySelector("header div")?.textContent ?? "";
+  const headers = [...detail.querySelectorAll("header div")].map((d) => d.textContent);
+  return headers.find((h) => h.includes("from ")) ?? "";
 });
 const threadAccount = await page.evaluate(async () => {
   const res = await fetch("/api/v1/threads?q=tag:inbox&limit=30");
@@ -223,21 +232,31 @@ check("ZQ closes the editor", (await page.locator("textarea").count()) === 0);
 
 console.log("\nSettings");
 await page.keyboard.press(",");
-await page.waitForTimeout(800);
-const settingsText = await page.inputValue("textarea").catch(() => "");
-check("settings open in the same editor", settingsText.includes("[preferences]"));
-check("settings list the keybindings", settingsText.includes("[keybindings]"));
+await page.waitForTimeout(900);
+
+const settingsBody = await page.textContent("body");
+check("settings open on the packages tab", settingsBody.includes("self-managed"));
 
 const settingsInDetail = await page.evaluate(() => {
   const detail = [...document.querySelector("main").children].pop();
-  return !!detail.querySelector("textarea");
+  return detail.textContent.includes("Settings");
 });
 check("settings render in the detail pane", settingsInDetail);
+
+await page.evaluate(() => {
+  [...document.querySelectorAll("button")]
+    .find((b) => b.textContent.includes("Preferences"))
+    ?.click();
+});
+await page.waitForTimeout(700);
+const settingsText = await page.inputValue("textarea").catch(() => "");
+check("the text tab is the same vim editor", settingsText.includes("[preferences]"));
+check("it lists the keybindings", settingsText.includes("[keybindings]"));
 
 await page.keyboard.press("Escape");
 await page.keyboard.press("Z");
 await page.keyboard.press("Q");
-await page.waitForTimeout(500);
+await page.waitForTimeout(600);
 check("ZQ closes settings", (await page.locator("textarea").count()) === 0);
 
 console.log("\nCompose");

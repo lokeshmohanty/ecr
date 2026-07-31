@@ -1,4 +1,5 @@
 pub mod address;
+pub mod cache;
 pub mod compose;
 pub mod discovery;
 pub mod doctor;

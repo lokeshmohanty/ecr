@@ -122,12 +122,12 @@ export function Palette(props: { store: AppStore }) {
   return (
     <Show when={active()}>
       <div class="absolute inset-x-0 top-0 z-30 flex justify-center px-4 pt-16">
-        <div class="w-full max-w-2xl overflow-hidden rounded border border-accent bg-bg-raised shadow-2xl">
+        <div class="w-full max-w-2xl overflow-hidden rounded border border-obligation bg-card shadow-2xl">
           <div class="flex items-center gap-2 px-3 py-2">
-            <span class="text-accent">{prefix()}</span>
+            <span class="text-obligation">{prefix()}</span>
             <input
               ref={input}
-              class="w-full border-0 bg-transparent p-0 text-text-strong outline-none"
+              class="w-full border-0 bg-transparent p-0 text-ink outline-none"
               placeholder={searching() ? "notmuch query, e.g. tag:unread and from:alice" : "command"}
               value={props.store.palette()}
               onInput={(e) => props.store.setPalette(e.currentTarget.value)}
@@ -136,7 +136,7 @@ export function Palette(props: { store: AppStore }) {
           </div>
 
           <Show when={suggestions().length > 0}>
-            <ul class="max-h-72 overflow-y-auto border-t border-border-soft">
+            <ul class="max-h-72 overflow-y-auto border-t border-rule-soft">
               <For each={suggestions()}>
                 {(suggestion, index) => (
                   <li>
@@ -144,8 +144,8 @@ export function Palette(props: { store: AppStore }) {
                       type="button"
                       class="flex w-full items-baseline gap-3 px-3 py-1.5 text-left"
                       classList={{
-                        "bg-bg-selected text-text-strong": index() === highlight(),
-                        "hover:bg-bg-hover": index() !== highlight(),
+                        "bg-obligation-bg text-ink": index() === highlight(),
+                        "hover:bg-neutral-bg": index() !== highlight(),
                       }}
                       onMouseEnter={() => setHighlight(index())}
                       onClick={() => {
@@ -154,13 +154,13 @@ export function Palette(props: { store: AppStore }) {
                       }}
                     >
                       <span class="truncate-cell flex-1">{suggestion.label}</span>
-                      <span class="shrink-0 text-xs text-text-dim">{suggestion.detail}</span>
+                      <span class="shrink-0 text-xs text-ink-3">{suggestion.detail}</span>
                     </button>
                   </li>
                 )}
               </For>
             </ul>
-            <div class="border-t border-border-soft px-3 py-1 text-xs text-text-dim">
+            <div class="border-t border-rule-soft px-3 py-1 text-xs text-ink-3">
               <kbd>Tab</kbd> complete · <kbd>↑↓</kbd> choose · <kbd>Enter</kbd> run
             </div>
           </Show>

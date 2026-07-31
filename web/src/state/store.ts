@@ -61,6 +61,9 @@ export const DEFAULT_VIEWS: View[] = [
 
 export const PANES: Pane[] = ["sidebar", "list", "detail"];
 
+/** How long the cursor must rest before the thread under it is opened. */
+export const FOLLOW_DELAY = 140;
+
 export function createAppStore() {
   const [connection, setConnectionSignal] = createSignal<Connection>(loadConnection());
   const api = new Api(connection());
@@ -143,7 +146,7 @@ export function createAppStore() {
 
   const [thread] = createResource(
     () => [openThread(), revision(), connection().baseUrl] as const,
-    async ([id, , baseUrl]) => (id && baseUrl ? await api.thread(id).catch(() => null) : null),
+    async ([id, , baseUrl]) => (id && baseUrl ? await api.threadCached(id).catch(() => null) : null),
   );
 
   function setConnection(next: Connection) {
@@ -161,6 +164,7 @@ export function createAppStore() {
   }
 
   function bumpRevision() {
+    api.invalidate();
     setRevision((r) => r + 1);
   }
 
@@ -172,13 +176,19 @@ export function createAppStore() {
     return items()[selected()];
   }
 
+  let followTimer: number | undefined;
+
   function move(delta: number) {
     const total = items().length;
     if (total === 0) return;
 
     const next = Math.min(Math.max(selected() + delta, 0), total - 1);
     setSelected(next);
-    followSelection(next);
+
+    // Holding j would otherwise open every row it passes over. Waiting for the
+    // cursor to settle turns a burst of requests into one.
+    if (followTimer !== undefined) clearTimeout(followTimer);
+    followTimer = window.setTimeout(() => followSelection(selected()), FOLLOW_DELAY);
   }
 
   /**
