@@ -30,5 +30,8 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test-setup.ts"],
+    // Both runners answer to *.spec.ts. vitest owns the unit tests under src/;
+    // e2e/ belongs to Playwright, which needs its own runtime to collect them.
+    include: ["src/**/*.{test,spec}.{ts,tsx}"],
   },
 });

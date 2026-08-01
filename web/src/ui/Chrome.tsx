@@ -121,9 +121,25 @@ export function StatusBar(props: { store: AppStore }) {
         </For>
       </span>
 
-      <span class="truncate-cell flex-1 text-ink-2 md:flex-none md:text-right">
-        {props.store.status()}
-      </span>
+      {/*
+        A bad line in settings.toml outlives the transient status: it is still
+        wrong until someone edits the file, so it stays put rather than being
+        overwritten by the next thing that happened.
+      */}
+      <Show
+        when={props.store.settingsProblem()}
+        fallback={
+          <span class="truncate-cell flex-1 text-ink-2 md:flex-none md:text-right">
+            {props.store.status()}
+          </span>
+        }
+      >
+        {(problem) => (
+          <span class="truncate-cell flex-1 text-blocking" title={problem()}>
+            settings: {problem()}
+          </span>
+        )}
+      </Show>
 
       <Show when={markCount() > 0}>
         <span class="shrink-0 rounded bg-blocking-bg px-1.5 py-0.5 text-blocking">

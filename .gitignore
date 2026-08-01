@@ -28,6 +28,11 @@ screenshots/visual/diff/
 # be committed. The verifiers that touch real mail all write here.
 screenshots/live/
 
+# Playwright's own per-run output. The specs are committed; traces are not.
+web/test-results/
+web/playwright-report/
+web/blob-report/
+
 # Local scratch
 /screenshot*.png
 /tmp.json
