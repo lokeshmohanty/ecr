@@ -107,8 +107,9 @@ await page.keyboard.type("tag:sent");
 await page.keyboard.press("Enter");
 await page.waitForTimeout(3000);
 
-// The query must be exactly what was typed. Pre-filling the palette with the
-// current query made the next keystroke append, producing `tag:inboxtag:sent`.
+// The query must be exactly what was typed. The palette is pre-filled with the
+// current query, so this is also the regression test for `tag:inboxtag:sent` —
+// typing must replace the prefill, not append to it.
 const activeQuery = await page.inputValue("header input");
 check("search replaces the query rather than appending", activeQuery === "tag:sent", activeQuery);
 
@@ -121,8 +122,17 @@ check(
 
 await page.keyboard.press("/");
 await page.waitForTimeout(300);
-const palettePrefill = await page.inputValue("div[class*='border-accent'] input").catch(() => "x");
-check("the palette opens empty", palettePrefill === "", JSON.stringify(palettePrefill));
+const palettePrefill = await page.inputValue("input[data-palette]").catch(() => "x");
+check(
+  "the palette opens on the current query",
+  palettePrefill === "tag:sent",
+  JSON.stringify(palettePrefill),
+);
+const prefillSelected = await page.evaluate(() => {
+  const el = document.activeElement;
+  return el && el.selectionStart === 0 && el.selectionEnd === el.value.length;
+});
+check("with it selected, so a keystroke replaces it", prefillSelected);
 await page.keyboard.press("Escape");
 
 await page.keyboard.press("/");

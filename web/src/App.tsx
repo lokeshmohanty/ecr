@@ -304,10 +304,11 @@ export function App() {
         store.setMode("command");
         break;
       case "enterSearch":
-        // Starts empty, like vim's `/`. Pre-filling with the current query
-        // means the next keystroke appends to it instead of replacing it.
+        // Prefilled with the mailbox's own query so it can be refined rather
+        // than retyped. The palette selects it on open, so the first keystroke
+        // still replaces — that selection is what makes prefilling safe.
         store.setMode("search");
-        store.setPalette("");
+        store.setPalette(store.query());
         break;
       case "help":
         setShowHelp(true);

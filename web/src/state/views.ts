@@ -48,16 +48,38 @@ export function viewQuery(name: string, account: string): string | null {
   return template ? scopeQuery(template.query, account) : null;
 }
 
+/**
+ * Sent mail is what you sent, not what a hook happened to tag. Matching on the
+ * From address catches mail sent from any client, and mail filed anywhere.
+ * Without a known address there is nothing better than the tag.
+ */
+function sentQuery(account: string, addresses: string[]): string {
+  if (addresses.length === 0) return scopeQuery("tag:sent", account);
+  return addresses.map((a) => `from:${a}`).join(" or ");
+}
+
 export function buildTree(accounts: AccountLike[]): ViewGroup[] {
-  const group = (account: string, address: string | null): ViewGroup => ({
+  const addressOf = (a: AccountLike) => a.address?.trim() ?? "";
+  const everyAddress = accounts.map(addressOf).filter(Boolean);
+
+  const group = (account: string, addresses: string[]): ViewGroup => ({
     account,
-    address,
-    views: VIEW_TEMPLATES.map((v) => ({ name: v.name, query: scopeQuery(v.query, account) })),
+    address: addresses[0] ?? null,
+    views: VIEW_TEMPLATES.map((v) => ({
+      name: v.name,
+      query:
+        v.name === "SENT"
+          ? sentQuery(account, addresses)
+          : scopeQuery(v.query, account),
+    })),
   });
 
   return [
-    group(ALL_ACCOUNTS, null),
-    ...accounts.map((a) => group(a.id, a.address ?? null)),
+    group(ALL_ACCOUNTS, everyAddress),
+    ...accounts.map((a) => {
+      const address = addressOf(a);
+      return group(a.id, address ? [address] : []);
+    }),
   ];
 }
 

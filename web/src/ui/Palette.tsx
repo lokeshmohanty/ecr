@@ -54,7 +54,13 @@ export function Palette(props: { store: AppStore }) {
   );
 
   createEffect(() => {
-    if (active()) queueMicrotask(() => input?.focus());
+    if (!active()) return;
+    queueMicrotask(() => {
+      input?.focus();
+      // Selected, not just placed: typing replaces the prefilled query, while
+      // End or an arrow key keeps it to edit.
+      input?.select();
+    });
   });
 
   createEffect(() => {
@@ -127,6 +133,7 @@ export function Palette(props: { store: AppStore }) {
             <span class="text-obligation">{prefix()}</span>
             <input
               ref={input}
+              data-palette
               aria-label={searching() ? "search query" : "command"}
               class="w-full border-0 bg-transparent p-0 text-ink outline-none"
               placeholder={searching() ? "notmuch query, e.g. tag:unread and from:alice" : "command"}

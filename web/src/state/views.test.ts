@@ -116,3 +116,35 @@ describe("which account a query belongs to", () => {
     expect(accountLabel("tag:mainframe", ACCOUNTS)).toBe(ALL_ACCOUNTS);
   });
 });
+
+describe("the sent view", () => {
+  it("matches what you sent, not what a hook happened to tag", () => {
+    const main = buildTree(ACCOUNTS).find((g) => g.account === "main")!;
+    expect(main.views.find((v) => v.name === "SENT")!.query).toBe(
+      "from:alice@example.com",
+    );
+  });
+
+  it("combines every address for the all-accounts group", () => {
+    const all = buildTree(ACCOUNTS)[0]!;
+    expect(all.views.find((v) => v.name === "SENT")!.query).toBe(
+      "from:alice@example.org or from:alice@example.com or from:alice.personal@example.com",
+    );
+  });
+
+  it("falls back to the tag when an account has no address", () => {
+    const tree = buildTree([{ id: "orphan" }]);
+    const orphan = tree.find((g) => g.account === "orphan")!;
+    expect(orphan.views.find((v) => v.name === "SENT")!.query).toBe("(tag:sent) and (tag:orphan)");
+  });
+
+  it("falls back for all-accounts when no address is known", () => {
+    const all = buildTree([{ id: "orphan" }])[0]!;
+    expect(all.views.find((v) => v.name === "SENT")!.query).toBe("tag:sent");
+  });
+
+  it("leaves the other views alone", () => {
+    const main = buildTree(ACCOUNTS).find((g) => g.account === "main")!;
+    expect(main.views.find((v) => v.name === "INBOX")!.query).toBe("(tag:inbox) and (tag:main)");
+  });
+});
