@@ -1,0 +1,49 @@
+/*
+ * The compile-time defaults. Tailwind generates every utility from this block
+ * as `var(--color-*)` rather than a literal, so overriding these properties on
+ * the document element at runtime restyles the whole app without touching a
+ * single component. That is the entire theming mechanism — see state/theme.ts.
+ */
+@theme {
+  /* Dark is the default here: a mail client is looked at all day. */
+  --color-paper: #0c151a;
+  --color-paper-2: #111d24;
+  --color-card: #14222a;
+
+  --color-ink: #e6eef1;
+  --color-ink-2: #9fb2bb;
+  --color-ink-3: #7d919b;
+
+  --color-rule: #2a3d47;
+  --color-rule-soft: #1e2e37;
+
+  /* The three accents carry meaning, not decoration. */
+  --color-proved: #5fc9b6;
+  --color-proved-bg: #10312d;
+  --color-obligation: #a99bf5;
+  --color-obligation-bg: #241f47;
+  --color-blocking: #ef8377;
+  --color-blocking-bg: #3b1a17;
+  --color-neutral-bg: #1b2b33;
+
+  --font-display: "Space Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Nunito Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Cascadia Code Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* Tailwind does not derive this from --font-mono, and preflight styles
+     code/kbd/pre through it — without this every code block falls back. */
+  --default-mono-font-family: var(--font-mono);
+  --font-sans: var(--font-body);
+}
+
+:root {
+  /* Wide enough for the longest adaptive form, "04 Apr 09:15". */
+  --date-column: 8.5rem;
+  color-scheme: dark;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --date-column: 6rem;
+  }
+}

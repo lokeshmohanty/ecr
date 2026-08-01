@@ -1,0 +1,21 @@
+# Solarized Light — the same accents on the light ground.
+
+name = "Solarized Light"
+color_scheme = "light"
+
+[colors]
+paper = "#fdf6e3"
+paper_2 = "#f5eed9"
+card = "#eee8d5"
+ink = "#002b36"
+ink_2 = "#586e75"
+ink_3 = "#657b83"
+rule = "#ddd6c1"
+rule_soft = "#eee8d5"
+proved = "#859900"
+proved_bg = "#e6e7c8"
+obligation = "#268bd2"
+obligation_bg = "#d7e5ef"
+blocking = "#dc322f"
+blocking_bg = "#f4dbd4"
+neutral_bg = "#eee8d5"

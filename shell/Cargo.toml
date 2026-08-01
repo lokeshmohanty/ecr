@@ -1,13 +1,22 @@
 [package]
-name = "ecr-shell"
+name = "ecr-desktop"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
 description = "Desktop and Android shell for the ecr web client"
+publish = false
 
 [lib]
-name = "ecr_shell_lib"
+name = "ecr_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "ecr-desktop"
+path = "src/main.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -17,3 +26,6 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"

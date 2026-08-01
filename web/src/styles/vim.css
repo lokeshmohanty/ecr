@@ -1,0 +1,51 @@
+/*
+ * Normal and visual mode are painted by a mirror layer under the textarea: a
+ * textarea has no caret shape and shows only one selection, so a block cursor
+ * and a visual range cannot both be drawn with it. The textarea keeps the text
+ * in insert mode, where the native caret is the line cursor.
+ *
+ * Both layers must wrap identically or the block drifts off its character, so
+ * every metric that affects line breaking lives in one class.
+ */
+.vim-face {
+  font: inherit;
+  font-size: 0.9rem;
+  tab-size: 2;
+}
+
+/*
+ * Transparent here rather than with a utility class: the bare `textarea` rule
+ * in base.css is unlayered and so outranks Tailwind's layered `bg-transparent`,
+ * which left an opaque field painted over the mirror.
+ */
+.vim-area {
+  caret-color: var(--color-obligation);
+  color: var(--color-ink);
+  background: transparent;
+  border: 0;
+}
+
+/* Outside insert mode the mirror below is what shows the text. */
+.vim-area.vim-painted {
+  caret-color: transparent;
+  color: transparent;
+}
+
+.vim-area.vim-painted::selection {
+  background: transparent;
+}
+
+.vim-mirror {
+  color: var(--color-ink);
+}
+
+.vim-cursor {
+  background: var(--color-obligation);
+  color: var(--color-paper);
+  border-radius: 1px;
+}
+
+.vim-selection {
+  background: var(--color-obligation-bg);
+  color: var(--color-ink);
+}

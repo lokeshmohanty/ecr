@@ -1,15 +1,28 @@
 [workspace]
 resolver = "2"
-members = ["crates/ecr-core", "crates/ecr-store", "crates/ecr-server", "shell"]
+members = [
+    "crates/ecr-core",
+    "crates/ecr-store",
+    "crates/ecr-server",
+    "crates/ecr-cli",
+    "shell",
+]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-license = "MIT"
+license = "MIT OR Apache-2.0"
+authors = ["Lokesh Mohanty <lokeshmohanty@users.noreply.github.com>"]
+repository = "https://github.com/lokeshmohanty/ecr"
+homepage = "https://github.com/lokeshmohanty/ecr"
+rust-version = "1.88"
+keywords = ["email", "notmuch", "maildir", "mail"]
+categories = ["email", "command-line-utilities"]
 
 [workspace.dependencies]
-ecr-core = { path = "crates/ecr-core" }
-ecr-store = { path = "crates/ecr-store" }
+ecr-core = { path = "crates/ecr-core", version = "0.1.0" }
+ecr-store = { path = "crates/ecr-store", version = "0.1.0" }
+ecr-server = { path = "crates/ecr-server", version = "0.1.0" }
 
 anyhow = "1"
 thiserror = "2"

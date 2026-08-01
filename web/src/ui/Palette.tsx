@@ -44,14 +44,33 @@ export function Palette(props: { store: AppStore }) {
   let input: HTMLInputElement | undefined;
   const [highlight, setHighlight] = createSignal(0);
 
-  const active = () => props.store.mode() === "command" || props.store.mode() === "search";
-  const searching = () => props.store.mode() === "search";
-  const prefix = () => (searching() ? "/" : ":");
+  const mode = () => props.store.mode();
+  const active = () => mode() === "command" || mode() === "search" || mode() === "tag";
+  const searching = () => mode() === "search";
+  const tagging = () => mode() === "tag";
+  const prefix = () => (searching() ? "/" : tagging() ? "tag" : ":");
 
   /** `/` is a notmuch query prompt, so it completes tags and search prefixes. */
-  const suggestions = createMemo(() =>
-    searching() ? suggestQuery(props.store.palette(), props.store.allTags() ?? []) : [],
-  );
+  const suggestions = createMemo(() => {
+    if (searching()) return suggestQuery(props.store.palette(), props.store.allTags() ?? []);
+    if (!tagging()) return [];
+
+    // The prompt takes `+work -inbox`, so completion works on the last word.
+    const typed = props.store.palette();
+    const word = typed.split(/[\s,]+/).at(-1) ?? "";
+    const sign = word.startsWith("-") ? "-" : word.startsWith("+") ? "+" : "";
+    const stem = word.slice(sign.length).toLowerCase();
+    const head = typed.slice(0, typed.length - word.length);
+
+    return (props.store.allTags() ?? [])
+      .filter((tag) => tag.toLowerCase().startsWith(stem))
+      .slice(0, 30)
+      .map((tag) => ({
+        value: `${head}${sign || "+"}${tag}`,
+        label: `${sign === "-" ? "-" : "+"}${tag}`,
+        detail: sign === "-" ? "remove" : "add",
+      }));
+  });
 
   createEffect(() => {
     if (!active()) return;
@@ -76,10 +95,12 @@ export function Palette(props: { store: AppStore }) {
 
   const submit = () => {
     const chosen = suggestions()[highlight()];
-    const value = searching() && chosen ? chosen.value : props.store.palette();
+    const value = (searching() || tagging()) && chosen ? chosen.value : props.store.palette();
 
     if (searching()) {
       apply(value);
+    } else if (tagging()) {
+      props.store.stageTags(value);
     } else {
       const result = runCommand(value);
       if (result.query) apply(result.query);
@@ -134,9 +155,15 @@ export function Palette(props: { store: AppStore }) {
             <input
               ref={input}
               data-palette
-              aria-label={searching() ? "search query" : "command"}
+              aria-label={searching() ? "search query" : tagging() ? "tags" : "command"}
               class="w-full border-0 bg-transparent p-0 text-ink outline-none"
-              placeholder={searching() ? "notmuch query, e.g. tag:unread and from:alice" : "command"}
+              placeholder={
+                searching()
+                  ? "notmuch query, e.g. tag:unread and from:alice"
+                  : tagging()
+                    ? "+work -inbox — staged on the selection, x applies"
+                    : "command"
+              }
               value={props.store.palette()}
               onInput={(e) => props.store.setPalette(e.currentTarget.value)}
               onKeyDown={onKeyDown}

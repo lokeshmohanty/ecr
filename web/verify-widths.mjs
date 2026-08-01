@@ -3,13 +3,14 @@
  * including the desktop window's default and a narrow split.
  */
 import { chromium } from "playwright";
+import { executablePath } from "./browser.mjs";
 
 const [url] = process.argv.slice(2);
 const WIDTHS = [1920, 1440, 1280, 1024, 950, 820, 768, 600, 480, 390, 360, 320];
 const failures = [];
 
 const browser = await chromium.launch({
-  executablePath: "/run/current-system/sw/bin/google-chrome-stable",
+  executablePath,
   args: ["--no-sandbox"],
 });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -73,7 +74,7 @@ for (const width of WIDTHS) {
 
 await page.setViewportSize({ width: 950, height: 1000 });
 await page.waitForTimeout(400);
-await page.screenshot({ path: "screenshots/width-950.png" });
+await page.screenshot({ path: "screenshots/live/width-950.png" });
 
 await browser.close();
 console.log(failures.length === 0 ? "\nLAYOUT HOLDS AT EVERY WIDTH" : `\nFAILED AT: ${failures.join(", ")}`);

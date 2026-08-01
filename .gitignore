@@ -23,6 +23,11 @@ fixtures/maildir/.notmuch/
 screenshots/visual/current/
 screenshots/visual/diff/
 
+# Anything driven against real mail. These frames show a real inbox — and, in
+# the composer's address completion, other people's addresses. They must never
+# be committed. The verifiers that touch real mail all write here.
+screenshots/live/
+
 # Local scratch
 /screenshot*.png
 /tmp.json

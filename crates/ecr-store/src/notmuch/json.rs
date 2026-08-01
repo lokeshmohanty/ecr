@@ -28,12 +28,14 @@ pub struct SearchItem {
 
 impl SearchItem {
     pub fn into_summary(self) -> ThreadSummary {
+        // Slot 0 is the matched messages and slot 1 the unmatched ones. Taking
+        // the first non-null of either could name a message the query excluded.
         let newest_message = self
             .query
             .into_iter()
-            .flatten()
             .next()
-            .map(|q| MessageId(q.trim_start_matches("id:").to_string()));
+            .flatten()
+            .and_then(|q| newest_of(&q));
 
         ThreadSummary {
             id: ThreadId(self.thread),
@@ -47,6 +49,20 @@ impl SearchItem {
             newest_message,
         }
     }
+}
+
+/// notmuch's `query[0]` is a query naming every matched message, not one id:
+/// `id:msg3@example.com id:msg4@example.com`. Stripping only the leading `id:`
+/// left the rest embedded in the value, which became a query matching nothing —
+/// and `notmuch tag --batch` ignores such a line without failing, so tagging any
+/// thread with more than one message silently did nothing at all. The ids are in
+/// date order, so the newest is the last.
+fn newest_of(query: &str) -> Option<MessageId> {
+    query
+        .split_whitespace()
+        .filter_map(|token| token.strip_prefix("id:"))
+        .rfind(|id| !id.is_empty())
+        .map(|id| MessageId(id.trim_matches('"').to_string()))
 }
 
 fn split_authors(raw: &str) -> Vec<String> {
@@ -213,6 +229,82 @@ mod tests {
         let items: Vec<SearchItem> = serde_json::from_str(LIVE_SEARCH).unwrap();
         let summary = items.into_iter().next().unwrap().into_summary();
         assert!(!summary.newest_message.unwrap().as_str().starts_with("id:"));
+    }
+
+    #[test]
+    fn a_thread_of_several_messages_yields_the_newest_id_alone() {
+        // notmuch names every matched message in one query string. Taking the
+        // whole string as an id produced a batch line that matched nothing.
+        let raw = r#"[{
+          "thread": "0000000000000003",
+          "timestamp": 1775048400,
+          "date_relative": "April 01",
+          "matched": 2,
+          "total": 2,
+          "authors": "bob@example.com, charlie@example.com",
+          "subject": "Completely different topic",
+          "query": ["id:msg3@example.com id:msg4@example.com", null],
+          "tags": ["inbox"]
+        }]"#;
+
+        let items: Vec<SearchItem> = serde_json::from_str(raw).unwrap();
+        let summary = items.into_iter().next().unwrap().into_summary();
+
+        assert_eq!(
+            summary.newest_message.as_ref().map(|m| m.as_str()),
+            Some("msg4@example.com"),
+        );
+    }
+
+    #[test]
+    fn an_id_is_never_left_holding_a_space() {
+        let raw = r#"[{
+          "thread": "t",
+          "timestamp": 1,
+          "date_relative": "now",
+          "matched": 3,
+          "total": 3,
+          "authors": "a",
+          "subject": "s",
+          "query": ["id:a@x id:b@x id:c@x", null],
+          "tags": []
+        }]"#;
+
+        let items: Vec<SearchItem> = serde_json::from_str(raw).unwrap();
+        let id = items
+            .into_iter()
+            .next()
+            .unwrap()
+            .into_summary()
+            .newest_message;
+
+        let id = id.unwrap();
+        assert!(!id.as_str().contains(' '), "{}", id.as_str());
+        assert_eq!(id.as_str(), "c@x");
+    }
+
+    #[test]
+    fn a_thread_with_no_matched_messages_has_no_id() {
+        let raw = r#"[{
+          "thread": "t",
+          "timestamp": 1,
+          "date_relative": "now",
+          "matched": 0,
+          "total": 1,
+          "authors": "a",
+          "subject": "s",
+          "query": [null, "id:a@x"],
+          "tags": []
+        }]"#;
+
+        let items: Vec<SearchItem> = serde_json::from_str(raw).unwrap();
+        assert!(items
+            .into_iter()
+            .next()
+            .unwrap()
+            .into_summary()
+            .newest_message
+            .is_none());
     }
 
     #[test]

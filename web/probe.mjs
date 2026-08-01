@@ -1,8 +1,9 @@
 import { chromium } from "playwright";
+import { executablePath } from "./browser.mjs";
 
 const [url] = process.argv.slice(2);
 const browser = await chromium.launch({
-  executablePath: "/run/current-system/sw/bin/google-chrome-stable",
+  executablePath,
   args: ["--no-sandbox"],
 });
 const page = await browser.newPage({ viewport: { width: 1400, height: 800 } });

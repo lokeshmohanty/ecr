@@ -67,6 +67,14 @@ export function App() {
       return;
     }
 
+    // A range being drawn is abandoned by Escape. The keymap reports Escape in
+    // normal mode as ignored, so it never reaches the cancelled branch below.
+    if (event.key === "Escape" && store.visualAnchor() !== null) {
+      event.preventDefault();
+      store.clearVisual();
+      return;
+    }
+
     const outcome = keymap.handle(
       { key: event.key, ctrl: event.ctrlKey, alt: event.altKey, meta: event.metaKey },
       store.mode(),
@@ -81,6 +89,7 @@ export function App() {
       if (showHelp()) setShowHelp(false);
       store.setMode("normal");
       store.setPalette("");
+      store.clearVisual();
       if (isEditing(event.target)) (event.target as HTMLElement).blur();
       return;
     }
@@ -133,12 +142,12 @@ export function App() {
       case "next":
         if (pane === "sidebar") store.moveSidebar(1);
         else if (pane === "list") store.move(1);
-        else store.setMessageIndex(Math.min(store.messageIndex() + 1, threadMessages().length - 1));
+        else store.focusMessage(1);
         break;
       case "prev":
         if (pane === "sidebar") store.moveSidebar(-1);
         else if (pane === "list") store.move(-1);
-        else store.setMessageIndex(Math.max(store.messageIndex() - 1, 0));
+        else store.focusMessage(-1);
         break;
       case "first":
         if (pane === "sidebar") store.setSidebarIndex(0);
@@ -175,19 +184,38 @@ export function App() {
         break;
 
       case "nextMessage":
-        store.setMessageIndex(Math.min(store.messageIndex() + 1, threadMessages().length - 1));
+        store.focusMessage(1);
         break;
       case "prevMessage":
-        store.setMessageIndex(Math.max(store.messageIndex() - 1, 0));
+        store.focusMessage(-1);
         break;
+
+      case "enterView": {
+        // The cursor goes into the message under the conversation cursor, so
+        // that message has to be showing.
+        const messages = threadMessages();
+        const message = messages[store.messageIndex()];
+        if (!message) break;
+
+        if (!store.messageOpen(message.id, store.messageIndex() === messages.length - 1)) {
+          store.toggleCollapsed(message.id, false);
+        }
+        store.setPane("detail");
+        setMobilePane("detail");
+        store.setViewing(true);
+        break;
+      }
 
       case "toggleFold": {
         if (pane === "sidebar") {
           store.activateSidebar();
           break;
         }
-        const message = threadMessages()[store.messageIndex()];
-        if (message) store.toggleCollapsed(message.id);
+        const messages = threadMessages();
+        const message = messages[store.messageIndex()];
+        if (message) {
+          store.toggleCollapsed(message.id, store.messageIndex() === messages.length - 1);
+        }
         break;
       }
       case "foldAll":
@@ -216,25 +244,43 @@ export function App() {
         break;
       case "toggleRead": {
         const thread = store.current();
-        if (thread) {
-          const unread = thread.tags.includes("unread");
-          await store.applyNow(unread ? [] : ["unread"], unread ? ["unread"] : []);
-        }
+        if (!thread) break;
+
+        const unread = thread.tags.includes("unread");
+        const count = await store.applyNow(
+          unread ? [] : ["unread"],
+          unread ? ["unread"] : [],
+        );
+        if (count > 0) store.setStatus(`${count} marked ${unread ? "read" : "unread"}`);
         break;
       }
       case "toggleFlag": {
         const thread = store.current();
-        if (thread) {
-          const flagged = thread.tags.includes("flagged");
-          await store.applyNow(flagged ? [] : ["flagged"], flagged ? ["flagged"] : []);
-        }
+        if (!thread) break;
+
+        const flagged = thread.tags.includes("flagged");
+        const count = await store.applyNow(
+          flagged ? [] : ["flagged"],
+          flagged ? ["flagged"] : [],
+        );
+        if (count > 0) store.setStatus(`${count} ${flagged ? "unflagged" : "flagged"}`);
         break;
       }
       case "executeMarks":
         await store.executeMarks();
         break;
       case "clearMarks":
-        store.clearMarks();
+        store.clearSelection();
+        break;
+      case "toggleSelect":
+        store.toggleSelect();
+        break;
+      case "visualSelect":
+        store.startVisual();
+        break;
+      case "tagPrompt":
+        store.setMode("tag");
+        store.setPalette("");
         break;
       case "sync":
         await store.sync();
@@ -384,7 +430,7 @@ export function App() {
                               class="flex shrink-0 items-center gap-2 border-t border-obligation bg-paper-2 px-4 py-1.5 text-xs text-obligation"
                               onClick={() => store.setPinnedOpen(true)}
                             >
-                              ▴ {right.label} minimised — <kbd>C-p</kbd> to show
+                              ▴ {right.label} minimised — <kbd>C-b</kbd> to show
                             </button>
                           }
                         >
@@ -436,6 +482,7 @@ function replyDraft(message: Message, all: boolean, original: string): Draft {
     body: `\n\n${replyAttribution(message.date, message.from[0]?.email ?? null)}\n${quoted}\n`,
     in_reply_to: message.id,
     references: [...message.references, message.id],
+    attachments: [],
   };
 }
 
@@ -453,6 +500,7 @@ function forwardDraft(message: Message, original: string): Draft {
       `To: ${message.to.map((a) => a.email).join(", ")}\n\n${original.trim()}\n`,
     in_reply_to: null,
     references: [],
+    attachments: [],
   };
 }
 

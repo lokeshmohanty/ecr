@@ -4,19 +4,27 @@ import { ALL_ACCOUNTS } from "../state/views";
 
 export function TopBar(props: { store: AppStore; onSync: () => void; onSettings: () => void }) {
   return (
-    <header class="flex items-center gap-3 border-b border-rule bg-paper-2 px-3 py-2">
-      <span class="hidden shrink-0 font-semibold tracking-widest text-obligation sm:block">
+    // The desktop window has no title bar, so this is the only thing left to
+    // drag it by. The attribute is inert everywhere else.
+    <header
+      data-tauri-drag-region
+      class="flex items-center gap-3 border-b border-rule bg-paper-2 px-3 py-2"
+    >
+      <span
+        data-tauri-drag-region
+        class="hidden shrink-0 font-semibold tracking-widest text-obligation sm:block"
+      >
         ECR
       </span>
 
-      <div class="flex min-w-0 flex-1 items-center gap-2 rounded border border-rule bg-paper-2 px-2 py-1">
-        <label for="ecr-query" class="text-ink-3">
+      <div class="flex min-w-0 flex-1 items-center gap-2.5 rounded border border-rule bg-paper-2 px-3 py-1.5">
+        <label for="ecr-query" class="shrink-0 text-ink-3">
           query:
         </label>
         <input
           id="ecr-query"
           aria-label="notmuch query"
-          class="w-full border-0 bg-transparent p-0 outline-none"
+          class="w-full border-0 bg-transparent py-0.5 pr-1 pl-0 outline-none"
           value={props.store.query()}
           onChange={(e) => {
             props.store.setQuery(e.currentTarget.value);
@@ -86,8 +94,14 @@ export function StatusBar(props: { store: AppStore }) {
         {props.store.mode()}
       </span>
 
-      <span class="shrink-0 rounded border border-rule px-1.5 py-0.5 uppercase text-ink-3">
-        {props.store.pane()}
+      <span
+        class="shrink-0 rounded border px-1.5 py-0.5 uppercase"
+        classList={{
+          "border-obligation text-obligation": props.store.viewing(),
+          "border-rule text-ink-3": !props.store.viewing(),
+        }}
+      >
+        {props.store.viewing() ? "view" : props.store.pane()}
       </span>
 
       <span

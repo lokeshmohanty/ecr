@@ -1,6 +1,32 @@
 use crate::message::{Address, Message};
 use serde::{Deserialize, Serialize};
 
+/// A file travelling with a draft, base64 in the same request that sends it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Attachment {
+    pub filename: String,
+    pub content_type: String,
+    pub data_b64: String,
+}
+
+/// What every mail provider in practice refuses beyond, before encoding.
+pub const MAX_ATTACHMENT_BYTES: usize = 25 * 1024 * 1024;
+
+impl Attachment {
+    /// Decoded size, from the encoded length: base64 is 4 characters per 3
+    /// bytes, so this needs no decoding to check a total against the cap.
+    pub fn approximate_bytes(&self) -> usize {
+        let padding = self
+            .data_b64
+            .bytes()
+            .rev()
+            .take_while(|b| *b == b'=')
+            .count();
+        self.data_b64.len() / 4 * 3 - padding.min(2)
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Draft {
@@ -11,6 +37,7 @@ pub struct Draft {
     pub body: String,
     pub in_reply_to: Option<String>,
     pub references: Vec<String>,
+    pub attachments: Vec<Attachment>,
 }
 
 impl Draft {
@@ -30,6 +57,24 @@ impl Draft {
         if self.subject.contains('\n') || self.subject.contains('\r') {
             return Err("a subject cannot contain a line break");
         }
+
+        let mut total = 0;
+        for attachment in &self.attachments {
+            if attachment.filename.trim().is_empty() {
+                return Err("an attachment needs a filename");
+            }
+            // The filename and content type both reach MIME headers.
+            if attachment.filename.contains(['\n', '\r'])
+                || attachment.content_type.contains(['\n', '\r'])
+            {
+                return Err("an attachment name cannot contain a line break");
+            }
+            total += attachment.approximate_bytes();
+        }
+        if total > MAX_ATTACHMENT_BYTES {
+            return Err("attachments exceed the 25MB limit");
+        }
+
         Ok(())
     }
 
@@ -63,6 +108,7 @@ impl Draft {
             body: quote(message),
             in_reply_to: Some(message.id.0.clone()),
             references,
+            attachments: Vec::new(),
         }
     }
 
@@ -75,6 +121,7 @@ impl Draft {
             body: forwarded(message),
             in_reply_to: None,
             references: Vec::new(),
+            attachments: Vec::new(),
         }
     }
 }
@@ -147,6 +194,67 @@ mod tests {
             parts: Vec::new(),
             excluded: false,
         }
+    }
+
+    fn attachment(name: &str, bytes: usize) -> Attachment {
+        Attachment {
+            filename: name.to_string(),
+            content_type: "application/octet-stream".to_string(),
+            data_b64: "A".repeat(bytes.div_ceil(3) * 4),
+        }
+    }
+
+    fn sendable(attachments: Vec<Attachment>) -> Draft {
+        Draft {
+            to: vec!["someone@example.com".to_string()],
+            attachments,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn an_attachment_without_a_filename_is_refused() {
+        let draft = sendable(vec![attachment("  ", 10)]);
+        assert!(draft.is_sendable().is_err());
+    }
+
+    #[test]
+    fn a_filename_with_a_line_break_is_refused() {
+        let draft = sendable(vec![attachment("a\r\nBcc: victim@example.com", 10)]);
+        assert!(draft.is_sendable().is_err());
+    }
+
+    #[test]
+    fn attachments_over_the_cap_are_refused() {
+        let draft = sendable(vec![attachment("big.bin", MAX_ATTACHMENT_BYTES + 1024)]);
+        assert_eq!(
+            draft.is_sendable(),
+            Err("attachments exceed the 25MB limit")
+        );
+    }
+
+    #[test]
+    fn attachments_under_the_cap_are_allowed() {
+        let draft = sendable(vec![attachment("small.bin", 1024)]);
+        assert!(draft.is_sendable().is_ok());
+    }
+
+    #[test]
+    fn the_cap_is_on_the_total_rather_than_each_file() {
+        let half = MAX_ATTACHMENT_BYTES / 2 + 1024;
+        let draft = sendable(vec![attachment("a.bin", half), attachment("b.bin", half)]);
+        assert!(draft.is_sendable().is_err());
+    }
+
+    #[test]
+    fn the_decoded_size_is_read_from_the_encoded_length() {
+        let payload = Attachment {
+            filename: "x".to_string(),
+            content_type: "text/plain".to_string(),
+            // 6 bytes encode to 8 characters with no padding.
+            data_b64: "AAAAAAAA".to_string(),
+        };
+        assert_eq!(payload.approximate_bytes(), 6);
     }
 
     #[test]

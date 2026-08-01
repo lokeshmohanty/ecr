@@ -16,6 +16,12 @@ Android ─┘   bearer token                       │             maildir
 - [api.md](api.md) — the HTTP surface
 - [operations.md](operations.md) — running the server, tokens, doctor, troubleshooting
 - [development.md](development.md) — building, testing, verifying
+- [releasing.md](releasing.md) — how a release is cut, and what CI produces
+
+Outside `docs/`: [README](../README.md) for installation and the roadmap,
+[CONTRIBUTING](../CONTRIBUTING.md) for conventions, [SECURITY](../SECURITY.md)
+for the threat model, and [THIRD-PARTY](../THIRD-PARTY.md) for every
+dependency's licence.
 
 ## Quick start
 
@@ -56,6 +62,7 @@ mail configuration in the wrong places and had no way to say so.
 |---|---|
 | `ecr-core`, `ecr-store` | complete: search, threading, MIME, tagging, sync, send |
 | `ecr-server` | complete: REST, SSE, bearer auth, maildir watcher |
+| `ecr-cli` (`ecr`) | doctor, serve, tokens and help; init, web, qr, oauth and the background lifecycle are declared but not yet implemented |
 | `web` | complete: read, search, tag, mark queue, compose, mobile layout |
 | `shell` (Tauri desktop) | builds; external-`$EDITOR` command wired |
 | Android | not built — see [operations.md](operations.md#android) |

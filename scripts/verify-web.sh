@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end verification: builds a throwaway maildir, starts ecr-server and a
+# End-to-end verification: builds a throwaway maildir, starts the server and a
 # static server for web/dist, then drives the real client in Chrome.
 set -uo pipefail
 
@@ -19,7 +19,7 @@ cd "$ROOT"
 
 # A server left over from an earlier run holds the port with a stale token
 # store, which shows up as a confusing 401 rather than a bind failure.
-pkill -f "ecr-server .*serve --bind 127.0.0.1:$API_PORT" 2>/dev/null
+pkill -f "target/debug/ecr .*serve --bind 127.0.0.1:$API_PORT" 2>/dev/null
 pkill -f "listen($WEB_PORT" 2>/dev/null
 for port in "$API_PORT" "$WEB_PORT"; do
   pid=$(ss -tlnp 2>/dev/null | grep ":$port " | grep -oP 'pid=\K[0-9]+' | head -1)
@@ -28,14 +28,14 @@ done
 sleep 1
 
 "$ROOT/scripts/demo-env.sh" "$DEMO" > /dev/null
-cargo build -q -p ecr-server || exit 1
+cargo build -q -p ecr-cli || exit 1
 (cd web && pnpm exec vite build > /dev/null 2>&1) || exit 1
 
 TOKEN=$(HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config \
-  ./target/debug/ecr-server --tokens "$DEMO/tokens.toml" token new verify 2>/dev/null)
+  ./target/debug/ecr --tokens "$DEMO/tokens.toml" token new verify 2>/dev/null)
 
 HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config \
-  ./target/debug/ecr-server --tokens "$DEMO/tokens.toml" \
+  ./target/debug/ecr --tokens "$DEMO/tokens.toml" \
   serve --bind "127.0.0.1:$API_PORT" > "$DEMO/server.log" 2>&1 &
 SRV=$!
 

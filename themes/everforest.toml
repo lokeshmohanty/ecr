@@ -1,0 +1,22 @@
+# Everforest — the dark medium variant. Green-tinted and deliberately low
+# contrast, for long sessions.
+
+name = "Everforest"
+color_scheme = "dark"
+
+[colors]
+paper = "#2d353b"
+paper_2 = "#272e33"
+card = "#343f44"
+ink = "#d3c6aa"
+ink_2 = "#9da9a0"
+ink_3 = "#859289"
+rule = "#3d484d"
+rule_soft = "#343f44"
+proved = "#a7c080"
+proved_bg = "#333f33"
+obligation = "#7fbbb3"
+obligation_bg = "#2f3f42"
+blocking = "#e67e80"
+blocking_bg = "#43343a"
+neutral_bg = "#3d484d"

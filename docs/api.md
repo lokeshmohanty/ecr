@@ -18,10 +18,18 @@ unauthenticated and logs a warning.
 | GET | `/messages/{id}/parts/{n}` | Raw part bytes with content-type and disposition |
 | POST | `/tags` | `{ ops: [{ id, add, remove }] }` → new revision |
 | POST | `/sync` | `{ accounts: [] }` → `SyncReport`. Empty means all |
-| POST | `/send` | `{ account, to, cc, bcc, subject, body, in_reply_to, references }` |
+| POST | `/send` | `{ account, to, cc, bcc, subject, body, in_reply_to, references, attachments }` |
 | GET | `/config` | `{ path, raw }`. An absent settings file is `raw: ""`, not a `404` |
 | PUT | `/config` | `{ raw }`. Written only if it parses; `422 invalid_toml` carries `line` and `column` |
+| GET | `/themes` | `{ dir, presets: [{ path, name, builtin }] }`. Seeds the shipped presets on first call |
+| GET | `/theme?path=` | `{ path, raw }`. `path` is relative to the config dir; a missing file is a `404` |
+| PUT | `/theme` | `{ path, raw }`. Same `422 invalid_toml` as `/config` |
 | GET | `/events` | SSE. Accepts `?access_token=` because EventSource cannot set headers |
+
+`path` on the theme routes is user input from `settings.toml`, so it is resolved
+through `MailPaths::resolve_relative`: absolute paths, any `..` component and
+anything that is not a `.toml` file are `400`, never clamped. A theme therefore
+cannot name a file outside `~/.config/ecr/`.
 
 ## Server-sent events
 
@@ -53,7 +61,7 @@ error           { detail }
 ## Examples
 
 ```bash
-TOKEN=$(cargo run -q -p ecr-server -- token new laptop)
+TOKEN=$(cargo run -q -p ecr-cli -- token new laptop)
 
 curl -s localhost:8383/api/v1/health | jq '.checks[] | select(.status != "ok")'
 

@@ -1,5 +1,6 @@
 /** The second round of interaction work, against real mail. */
 import { chromium } from "playwright";
+import { executablePath } from "./browser.mjs";
 
 const [url] = process.argv.slice(2);
 const failures = [];
@@ -11,7 +12,7 @@ function check(name, ok, detail = "") {
 }
 
 const browser = await chromium.launch({
-  executablePath: "/run/current-system/sw/bin/google-chrome-stable",
+  executablePath,
   args: ["--no-sandbox"],
 });
 const page = await browser.newPage({ viewport: { width: 1500, height: 940 } });
@@ -54,7 +55,9 @@ check("moving again opens the next thread", second !== first, second.slice(0, 44
 console.log("\nAccount-scoped views");
 const sidebarText = await page.textContent("nav");
 check("the sidebar offers an all-accounts group", sidebarText.toLowerCase().includes("all accounts"));
-for (const account of ["main", "work", "personal", "team"]) {
+const health = await fetch(`${url}/api/v1/health`).then((r) => r.json());
+check("the server reports at least one account", health.accounts.length > 0);
+for (const account of health.accounts.map((a) => a.id)) {
   check(`the sidebar has a ${account} group`, sidebarText.includes(account));
 }
 
@@ -179,7 +182,7 @@ const addressList = await page.evaluate(() => {
 });
 check("recipient suggestions appear", addressList.includes("@"), addressList.slice(0, 60));
 
-await page.screenshot({ path: "screenshots/v2-compose.png" });
+await page.screenshot({ path: "screenshots/live/v2-compose.png" });
 
 console.log("\nSettings");
 await page.keyboard.press("Escape");
@@ -210,7 +213,7 @@ await page.waitForTimeout(700);
 const afterEnable = await page.evaluate(() => document.querySelectorAll("textarea").length);
 check("switching to ecr-managed reveals its config", afterEnable === 1, `${afterEnable} fields`);
 
-await page.screenshot({ path: "screenshots/v2-settings.png" });
+await page.screenshot({ path: "screenshots/live/v2-settings.png" });
 
 check("no page errors throughout", notes.length === 0, notes.slice(0, 2).join(" | "));
 

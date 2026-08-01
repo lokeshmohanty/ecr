@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest something ecr should do
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The [roadmap](https://github.com/lokeshmohanty/ecr#roadmap) lists what is
+        planned and, at the bottom, what is deliberately not. Worth a look first.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >
+        What are you trying to do that ecr makes hard? Describe the situation
+        rather than the feature — the best solution is often not the one that
+        first comes to mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you have in mind
+      description: Optional. If you already have a shape for it, describe it.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do instead today
+      description: Optional. Workarounds are useful evidence about the real cost.

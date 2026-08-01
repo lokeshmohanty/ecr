@@ -16,10 +16,12 @@ pnpm, `hurl`, `sqlite`, and the WebKitGTK closure Tauri needs.
 ```bash
 just install        # web dependencies
 just doctor         # verify the mail setup — do this first
-just test           # 210 Rust tests
-just test-web       # 66 web tests + tsc
+just test           # 275 Rust tests
+just test-web       # 424 web tests + tsc
 just verify         # 22 checks in a real browser
-just check          # fmt, lint, both test suites, and verify
+just check          # fmt, lint, both suites, browser, visual and UX verification
+just deny           # licences, bans, sources, advisories
+just licenses       # re-audit every dependency licence
 
 just serve          # run the server
 just dev            # web client with hot reload
@@ -69,6 +71,12 @@ On NixOS Playwright's bundled chromium fails on `libnspr4.so`; the script
 launches `/run/current-system/sw/bin/google-chrome-stable` instead.
 
 ## Fixtures
+
+Every fixture is synthetic and every address is `@example.com` per RFC 2606. No
+real message is committed, and neither is any screenshot taken against real mail
+— the verifiers that drive real mail write to the gitignored `screenshots/live/`,
+because the composer's address completion puts other people's addresses on
+screen. A new verifier that touches real mail must write there too.
 
 - `fixtures/maildir/cur/*.eml` — plain threading fixtures
 - `fixtures/mime/*.eml` — nested multipart with an inline PNG and a PDF, an

@@ -3,6 +3,13 @@ name = "ecr-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Wire types shared by the ecr mail server and its clients"
 
 [dependencies]
 serde = { workspace = true }

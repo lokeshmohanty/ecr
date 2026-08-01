@@ -328,12 +328,12 @@ mod tests {
 
     #[test]
     fn address_display_prefers_the_name() {
-        let named = Address::new(Some("Lokesh".into()), "a@b.c");
+        let named = Address::new(Some("Alice".into()), "a@b.c");
         let bare = Address::new(None, "a@b.c");
 
-        assert_eq!(named.display(), "Lokesh");
+        assert_eq!(named.display(), "Alice");
         assert_eq!(bare.display(), "a@b.c");
-        assert_eq!(named.to_string(), "Lokesh <a@b.c>");
+        assert_eq!(named.to_string(), "Alice <a@b.c>");
         assert_eq!(bare.to_string(), "a@b.c");
     }
 
@@ -379,8 +379,7 @@ mod tests {
     fn thread_account_comes_from_the_account_tag() {
         let s = summary(&["inbox", "team"]);
         assert_eq!(
-            s.account(&["main", "work", "personal", "team"])
-                .as_deref(),
+            s.account(&["main", "work", "personal", "team"]).as_deref(),
             Some("team")
         );
         assert_eq!(summary(&["inbox"]).account(&["main"]), None);

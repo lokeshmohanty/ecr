@@ -16,11 +16,11 @@ pid=$(ss -tlnp 2>/dev/null | grep ":$PORT " | grep -oP 'pid=\K[0-9]+' | head -1)
 sleep 0.5
 
 "$ROOT/scripts/demo-env.sh" "$DEMO" > /dev/null || exit 1
-cargo build -q -p ecr-server || exit 1
+cargo build -q -p ecr-cli || exit 1
 pnpm --dir web build > /dev/null 2>&1 || exit 1
 
 HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config RUST_LOG=warn \
-  ./target/debug/ecr-server serve --bind "127.0.0.1:$PORT" --no-watch \
+  ./target/debug/ecr serve --bind "127.0.0.1:$PORT" --no-watch \
   > /tmp/ecr-visual-server.log 2>&1 &
 SRV=$!
 

@@ -2,7 +2,7 @@ use crate::error::{Error, Result};
 use crate::parse::{MbsyncConfig, MsmtpConfig, NotmuchConfig};
 use crate::settings::ServerSettings;
 use ecr_core::doctor::{ConfigKind, ConfigSource, ResolvedConfig};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct Candidate {
@@ -210,6 +210,51 @@ impl MailPaths {
         self.ecr_config_dir.join("settings.toml")
     }
 
+    /// Where the shipped presets are seeded and the user's own themes live.
+    pub fn themes_dir(&self) -> PathBuf {
+        self.ecr_config_dir.join("themes")
+    }
+
+    /// Resolves a path written in settings.toml against ecr's own directory.
+    ///
+    /// The link is user input that arrives over HTTP, so this is a boundary, not
+    /// a convenience: anything that could climb out of `ecr_config_dir` or name a
+    /// file ecr has no business reading is rejected rather than clamped. The
+    /// check is lexical because the target need not exist yet — a theme can be
+    /// pointed at before it is written.
+    pub fn resolve_relative(&self, rel: &str) -> Result<PathBuf> {
+        let unsafe_path = |reason| Error::UnsafePath {
+            path: rel.to_string(),
+            reason,
+        };
+
+        if rel.trim().is_empty() {
+            return Err(unsafe_path("it is empty"));
+        }
+
+        let candidate = Path::new(rel);
+        if candidate.is_absolute() {
+            return Err(unsafe_path("it is absolute"));
+        }
+
+        for part in candidate.components() {
+            match part {
+                Component::Normal(_) => {}
+                Component::CurDir => {}
+                Component::ParentDir => return Err(unsafe_path("it climbs above the config dir")),
+                Component::RootDir | Component::Prefix(_) => {
+                    return Err(unsafe_path("it is absolute"));
+                }
+            }
+        }
+
+        if candidate.extension().and_then(|e| e.to_str()) != Some("toml") {
+            return Err(unsafe_path("it is not a .toml file"));
+        }
+
+        Ok(self.ecr_config_dir.join(candidate))
+    }
+
     pub fn xapian_dir(&self) -> PathBuf {
         self.database_path.join(".notmuch").join("xapian")
     }
@@ -339,5 +384,53 @@ mod tests {
             paths.maildir_root,
             PathBuf::from("/home/someone/.local/share/Mail")
         );
+    }
+
+    fn rooted_paths(home: &Path) -> MailPaths {
+        write(
+            &home.join(".config/notmuch/default/config"),
+            "[database]\npath=/srv/Mail\n",
+        );
+        MailPaths::with(&Env::rooted_at(home), &ServerSettings::default()).unwrap()
+    }
+
+    #[test]
+    fn a_relative_theme_resolves_inside_the_config_dir() {
+        let home = tempfile::tempdir().unwrap();
+        let paths = rooted_paths(home.path());
+
+        assert_eq!(
+            paths.resolve_relative("themes/nord.toml").unwrap(),
+            home.path().join(".config/ecr/themes/nord.toml")
+        );
+    }
+
+    #[test]
+    fn a_relative_path_cannot_climb_out_of_the_config_dir() {
+        let home = tempfile::tempdir().unwrap();
+        let paths = rooted_paths(home.path());
+
+        for attempt in [
+            "../../../etc/passwd.toml",
+            "themes/../../secrets.toml",
+            "/etc/passwd.toml",
+            "themes/../../../../../../etc/shadow.toml",
+        ] {
+            assert!(
+                paths.resolve_relative(attempt).is_err(),
+                "{attempt} was accepted"
+            );
+        }
+    }
+
+    #[test]
+    fn only_toml_files_resolve() {
+        let home = tempfile::tempdir().unwrap();
+        let paths = rooted_paths(home.path());
+
+        assert!(paths.resolve_relative("themes/nord.conf").is_err());
+        assert!(paths.resolve_relative("../.ssh/id_rsa").is_err());
+        assert!(paths.resolve_relative("").is_err());
+        assert!(paths.resolve_relative("   ").is_err());
     }
 }

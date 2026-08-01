@@ -1,0 +1,28 @@
+# ecr Dark — the default palette.
+#
+# Every colour below is a role, not a decoration. Change one and every part of
+# the client that means that thing changes with it. Copy this file to make your
+# own; `theme` in settings.toml decides which one loads.
+
+name = "ecr Dark"
+
+# Drives the browser's own form controls and scrollbars, and tells message HTML
+# which way to render. Must match the palette or half the UI fights the rest.
+color_scheme = "dark"
+
+[colors]
+paper = "#0c151a"       # app background
+paper_2 = "#111d24"     # sidebar and header
+card = "#14222a"        # raised surfaces
+ink = "#e6eef1"         # primary text
+ink_2 = "#9fb2bb"       # secondary text
+ink_3 = "#7d919b"       # labels, dates, counts
+rule = "#2a3d47"        # borders
+rule_soft = "#1e2e37"   # quieter borders
+proved = "#5fc9b6"      # flagged, selected, confirmed
+proved_bg = "#10312d"
+obligation = "#a99bf5"  # unread, focus, the accent
+obligation_bg = "#241f47"
+blocking = "#ef8377"    # staged writes, destructive actions
+blocking_bg = "#3b1a17"
+neutral_bg = "#1b2b33"  # hover

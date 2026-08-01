@@ -14,6 +14,7 @@ pub mod parse;
 pub mod paths;
 pub mod settings;
 pub mod store;
+pub mod themes;
 pub mod tools;
 
 pub use error::{Error, Result};

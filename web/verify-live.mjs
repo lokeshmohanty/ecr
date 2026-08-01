@@ -4,10 +4,15 @@
  * Usage: node verify-live.mjs <url> [token]
  */
 import { chromium } from "playwright";
+import { executablePath } from "./browser.mjs";
 
 const [url, token = ""] = process.argv.slice(2);
 const failures = [];
 const notes = [];
+
+// These frames show real mail. They go to a gitignored directory so a live run
+// can never leave someone's inbox in the repository.
+const shot = (name) => `screenshots/live/${name}`;
 
 function check(name, ok, detail = "") {
   console.log(`  ${ok ? "ok  " : "FAIL"} ${name}${detail ? ` — ${detail}` : ""}`);
@@ -15,7 +20,7 @@ function check(name, ok, detail = "") {
 }
 
 const browser = await chromium.launch({
-  executablePath: "/run/current-system/sw/bin/google-chrome-stable",
+  executablePath,
   args: ["--no-sandbox"],
 });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -143,12 +148,19 @@ await page.waitForTimeout(2500);
 
 console.log("\nAccounts");
 await page.keyboard.press("Escape");
-const accountNames = ["main", "work", "personal", "team"];
+const health = await fetch(`${url}/api/v1/health`, {
+  headers: token ? { Authorization: `Bearer ${token}` } : {},
+}).then((r) => r.json());
+const accountNames = health.accounts.map((a) => a.id);
 const sidebar = await page.textContent("nav").catch(() => "");
 const found = accountNames.filter((a) => sidebar.includes(a));
-check("every account is listed", found.length === accountNames.length, found.join(", "));
+check(
+  "every account the server reports is listed",
+  accountNames.length > 0 && found.length === accountNames.length,
+  `${found.length}/${accountNames.length}`,
+);
 
-await page.screenshot({ path: "screenshots/live-desktop.png" });
+await page.screenshot({ path: shot("live-desktop.png") });
 
 await page.setViewportSize({ width: 390, height: 844 });
 await page.waitForTimeout(700);
@@ -156,7 +168,7 @@ const mobileOverflow = await page.evaluate(
   () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
 );
 check("no horizontal overflow on mobile", mobileOverflow <= 0, `${mobileOverflow}px`);
-await page.screenshot({ path: "screenshots/live-mobile.png" });
+await page.screenshot({ path: shot("live-mobile.png") });
 
 await browser.close();
 

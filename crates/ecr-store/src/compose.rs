@@ -1,3 +1,6 @@
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine as _;
+
 use crate::error::{Error, Result};
 use ecr_core::account::Account;
 use ecr_core::compose::Draft;
@@ -33,6 +36,22 @@ pub fn build(account: &Account, draft: &Draft) -> Result<Vec<u8>> {
         builder = builder.references(references(&draft.references));
     }
 
+    for attachment in &draft.attachments {
+        let bytes = STANDARD
+            .decode(attachment.data_b64.as_bytes())
+            .map_err(|e| Error::InvalidDraft {
+                reason: format!("attachment {}: {e}", attachment.filename),
+            })?;
+
+        let content_type = if attachment.content_type.trim().is_empty() {
+            "application/octet-stream"
+        } else {
+            attachment.content_type.as_str()
+        };
+
+        builder = builder.attachment(content_type, attachment.filename.as_str(), bytes);
+    }
+
     builder.write_to_vec().map_err(|e| Error::InvalidDraft {
         reason: e.to_string(),
     })
@@ -53,13 +72,14 @@ fn references(list: &[String]) -> Vec<String> {
 mod tests {
     use super::*;
     use ecr_core::account::AccountId;
+    use ecr_core::compose::Attachment;
 
     fn account() -> Account {
         Account {
             id: AccountId::from("main"),
-            display_name: "Lokesh".to_string(),
+            display_name: "Alice".to_string(),
             maildir_path: "/tmp/Mail/main".into(),
-            address: Some("lokesh@example.com".to_string()),
+            address: Some("alice@example.com".to_string()),
             mbsync_channel: Some("main".to_string()),
             msmtp_account: Some("main".to_string()),
             folders: Vec::new(),
@@ -84,7 +104,7 @@ mod tests {
         let raw = built(&draft());
 
         assert!(raw.contains("From:"), "{raw}");
-        assert!(raw.contains("lokesh@example.com"), "{raw}");
+        assert!(raw.contains("alice@example.com"), "{raw}");
         assert!(raw.contains("To:"), "{raw}");
         assert!(raw.contains("someone@example.com"), "{raw}");
         assert!(raw.contains("Subject: Hello"), "{raw}");
@@ -152,6 +172,75 @@ mod tests {
 
         let err = build(&account, &draft()).unwrap_err();
         assert!(err.to_string().contains("no address"), "{err}");
+    }
+
+    #[test]
+    fn an_attachment_becomes_a_mime_part() {
+        let draft = Draft {
+            attachments: vec![Attachment {
+                filename: "notes.txt".to_string(),
+                content_type: "text/plain".to_string(),
+                data_b64: STANDARD.encode("hello attachment"),
+            }],
+            ..draft()
+        };
+        let raw = built(&draft);
+
+        assert!(raw.contains("multipart/mixed"), "{raw}");
+        assert!(raw.contains("notes.txt"), "{raw}");
+        assert!(raw.contains("attachment"), "{raw}");
+        assert!(raw.contains("Hi there."), "the body survives: {raw}");
+    }
+
+    #[test]
+    fn several_attachments_all_travel() {
+        let file = |name: &str| Attachment {
+            filename: name.to_string(),
+            content_type: "application/pdf".to_string(),
+            data_b64: STANDARD.encode("%PDF-1.4"),
+        };
+        let draft = Draft {
+            attachments: vec![file("one.pdf"), file("two.pdf")],
+            ..draft()
+        };
+        let raw = built(&draft);
+
+        assert!(raw.contains("one.pdf"), "{raw}");
+        assert!(raw.contains("two.pdf"), "{raw}");
+    }
+
+    #[test]
+    fn a_message_with_no_attachments_stays_a_plain_body() {
+        let raw = built(&draft());
+        assert!(!raw.contains("multipart"), "{raw}");
+    }
+
+    #[test]
+    fn an_empty_content_type_falls_back_rather_than_producing_a_broken_header() {
+        let draft = Draft {
+            attachments: vec![Attachment {
+                filename: "blob.bin".to_string(),
+                content_type: String::new(),
+                data_b64: STANDARD.encode([0u8, 1, 2, 3]),
+            }],
+            ..draft()
+        };
+        assert!(built(&draft).contains("application/octet-stream"));
+    }
+
+    #[test]
+    fn undecodable_base64_is_refused_rather_than_sent_as_rubbish() {
+        let draft = Draft {
+            attachments: vec![Attachment {
+                filename: "bad.bin".to_string(),
+                content_type: "application/octet-stream".to_string(),
+                data_b64: "not!valid!base64".to_string(),
+            }],
+            ..draft()
+        };
+
+        let err = build(&account(), &draft).unwrap_err();
+        assert!(err.to_string().contains("bad.bin"), "{err}");
     }
 
     #[test]

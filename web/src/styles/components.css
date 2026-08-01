@@ -1,0 +1,79 @@
+/*
+ * The author/date collision in the egui client came from computing widths by
+ * hand. Here the date is a fixed track and the author cell is allowed to
+ * shrink, which is what `min-width: 0` unlocks inside a grid or flex child.
+ */
+.row-grid {
+  display: grid;
+  grid-template-columns: 3px 1fr var(--date-column);
+  column-gap: 0.75rem;
+  align-items: baseline;
+}
+
+.truncate-cell {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The margin tape: a rule whose colour is the state of the row beside it. */
+.tape {
+  align-self: stretch;
+  border-radius: 2px;
+  background: transparent;
+}
+
+.tape-unread {
+  background: var(--color-obligation);
+}
+
+.tape-flagged {
+  background: var(--color-proved);
+}
+
+.tape-marked {
+  background: var(--color-blocking);
+}
+
+/* Picked with Space or covered by a v range, but nothing staged on it yet. */
+.tape-selected {
+  background: var(--color-proved);
+}
+
+.scroll-y {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+}
+
+.scroll-y::-webkit-scrollbar {
+  width: 0.5rem;
+}
+
+.scroll-y::-webkit-scrollbar-thumb {
+  background: var(--color-rule);
+  border-radius: 0.25rem;
+}
+
+.scroll-y::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pane {
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 2px solid transparent;
+}
+
+.pane-focused {
+  border-left-color: var(--color-obligation);
+}
+
+@media (max-width: 768px) {
+  .touch-target {
+    min-height: 44px;
+  }
+}

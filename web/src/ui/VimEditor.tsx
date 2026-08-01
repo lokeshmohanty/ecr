@@ -1,11 +1,20 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import { handleKey, initialState, lineStart, position, type EditorState } from "../keymap/vim";
+import {
+  handleKey,
+  handlesCtrl,
+  initialState,
+  lineStart,
+  position,
+  selectionSpan,
+  type EditorState,
+} from "../keymap/vim";
 import {
   currentRecipientFragment,
   rankAddresses,
   replaceRecipientFragment,
   type AddressEntry,
 } from "../state/suggest";
+import { overlayRuns } from "./overlay";
 
 export interface VimEditorProps {
   initial: string;
@@ -14,23 +23,47 @@ export interface VimEditorProps {
   onSubmit: (text: string) => void;
   onCancel: () => void;
   onModeChange?: (mode: EditorState["mode"]) => void;
+  /** Every keystroke, so a host can keep a draft in step. */
+  onChange?: (text: string) => void;
+  /** Tab and Shift-Tab out of this surface. */
+  onNextField?: () => void;
+  onPreviousField?: () => void;
+  /** An ex command the editor does not own, e.g. `attach`. */
+  onCommand?: (command: string) => void;
+  onPasteFiles?: (files: File[]) => void;
   submitLabel?: string;
   /** Enables To/Cc/Bcc completion. */
   addressBook?: AddressEntry[];
   startMode?: EditorState["mode"];
+  /** Header fields: one line, no status bar, Enter leaves. */
+  singleLine?: boolean;
+  /** Which surface holds the keyboard when several are on screen at once. */
+  focused?: boolean;
 }
 
 /**
  * A textarea driven entirely by the pure vim engine. The textarea keeps native
- * rendering, scrolling and selection, but every keystroke goes through
- * `handleKey` so the modal grammar is the same one the tests exercise.
+ * rendering, scrolling and IME, but every keystroke goes through `handleKey` so
+ * the modal grammar is the same one the tests exercise.
+ *
+ * Normal and visual mode paint through a mirror layer rather than the
+ * textarea's own selection: a textarea shows one selection and has no caret
+ * shape, so a block cursor *and* a visual range cannot both be drawn with it.
+ * Insert mode hands rendering back to the textarea, where the native caret is
+ * the line cursor and composition works as it should.
  */
 export function VimEditor(props: VimEditorProps) {
   let area: HTMLTextAreaElement | undefined;
+  let mirror: HTMLDivElement | undefined;
+
   const [state, setState] = createSignal<EditorState>(
-    initialState(props.initial, props.startMode ?? "normal"),
+    initialState(props.initial, props.startMode ?? "normal", props.singleLine ?? false),
   );
   const [highlight, setHighlight] = createSignal(0);
+
+  // A block cursor in a field that does not hold the keyboard would read as
+  // several cursors at once, so an unfocused surface renders as plain text.
+  const painted = () => state().mode !== "insert" && props.focused !== false;
 
   /** The recipient being typed, if the caret is on a To/Cc/Bcc line. */
   const recipient = createMemo(() => {
@@ -80,38 +113,76 @@ export function VimEditor(props: VimEditorProps) {
   // textarea is unfocused, every keystroke falls through to the app, and the
   // editor looks inert.
   onMount(() => {
-    // Focus only. The selection is the effect's job — setting it here as a
-    // collapsed range overrode the block cursor on the first paint.
-    area?.focus({ preventScroll: true });
+    if (props.focused !== false) area?.focus({ preventScroll: true });
   });
 
-  // Keep the DOM caret in step with the model after every change.
+  // Several surfaces are mounted at once in the composer; only one may hold
+  // the keyboard, and Tab moving between them is what decides which.
+  createEffect(() => {
+    if (props.focused) area?.focus({ preventScroll: true });
+  });
+
+  const runs = createMemo(() => {
+    const current = state();
+    if (!painted()) return [];
+    const span = current.mode === "visual" ? selectionSpan(current) : null;
+    return overlayRuns(current.text, current.caret, span);
+  });
+
+  // Keep the DOM caret in step with the model after every change. The selection
+  // stays collapsed: the block is the mirror's job now.
   createEffect(() => {
     const current = state();
     if (!area) return;
     if (area.value !== current.text) area.value = current.text;
-
-    // A block cursor in normal mode. A textarea has no caret-shape, so the
-    // character under the caret is selected instead — the selection highlight
-    // is the block, and it collapses back to a bar in insert mode.
-    if (current.mode === "normal" && current.caret < current.text.length) {
-      area.setSelectionRange(current.caret, current.caret + 1);
-    } else {
-      area.setSelectionRange(current.caret, current.caret);
-    }
+    area.setSelectionRange(current.caret, current.caret);
+    if (mirror) mirror.scrollTop = area.scrollTop;
 
     props.onModeChange?.(current.mode);
   });
 
+  // Side channels the engine cannot act on itself.
   createEffect(() => {
     const current = state();
+
     if (current.submit) props.onSubmit(current.text);
     else if (current.cancel) props.onCancel();
+
+    if (current.clipboard !== null) {
+      const text = current.clipboard;
+      void navigator.clipboard?.writeText(text).catch(() => {});
+      setState((s) => ({ ...s, clipboard: null }));
+    }
+    if (current.command !== null) {
+      const command = current.command;
+      props.onCommand?.(command);
+      setState((s) => ({ ...s, command: null }));
+    }
+    if (current.next) {
+      props.onNextField?.();
+      setState((s) => ({ ...s, next: false }));
+    }
+    if (current.previous) {
+      props.onPreviousField?.();
+      setState((s) => ({ ...s, previous: false }));
+    }
   });
 
+  createEffect(() => props.onChange?.(state().text));
+
   const onKeyDown = (event: KeyboardEvent) => {
-    // Chords stay with the browser and the OS.
-    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.metaKey || event.altKey) return;
+
+    // Ctrl chords are the app's unless the editor claims them, which is what
+    // lets C-c C-c finish a message from inside an insert session while C-b
+    // still hides the pane.
+    if (event.ctrlKey) {
+      if (!handlesCtrl(state(), event.key)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setState((current) => handleKey(current, { key: event.key, ctrl: true }));
+      return;
+    }
 
     // Recipient completion claims the keys that drive it, but only while a
     // suggestion list is actually on screen.
@@ -146,12 +217,28 @@ export function VimEditor(props: VimEditorProps) {
         ctrl: event.ctrlKey,
         alt: event.altKey,
         meta: event.metaKey,
+        shift: event.shiftKey,
       }),
     );
   };
 
   const onPaste = (event: ClipboardEvent) => {
-    const text = event.clipboardData?.getData("text");
+    const data = event.clipboardData;
+    if (!data) return;
+
+    const files = [...data.items]
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null);
+
+    if (files.length > 0 && props.onPasteFiles) {
+      event.preventDefault();
+      event.stopPropagation();
+      props.onPasteFiles(files);
+      return;
+    }
+
+    const text = data.getData("text");
     if (!text) return;
 
     event.preventDefault();
@@ -169,20 +256,62 @@ export function VimEditor(props: VimEditorProps) {
 
   const where = () => position(state().text, state().caret);
 
+  // Both layers must wrap identically, so every metric that affects line
+  // breaking is set in one place and applied to each.
+  const typography = `vim-face leading-relaxed whitespace-pre-wrap break-words ${
+    props.singleLine ? "px-2 py-0.5" : "p-3"
+  }`;
+
   return (
-    <div class="flex min-h-0 flex-1 flex-col">
-      <textarea
-        ref={area}
-        aria-label={props.label}
-        class="vim-area min-h-0 flex-1 resize-none rounded-none border-0 border-t border-rule bg-card p-3 leading-relaxed outline-none"
-        classList={{ "vim-normal": state().mode === "normal" }}
-        spellcheck={false}
-        autocomplete="off"
-        value={props.initial}
-        onKeyDown={onKeyDown}
-        onClick={syncCaretFromClick}
-        onPaste={onPaste}
-      />
+    <div
+      class="flex flex-col"
+      classList={{ "min-h-0 flex-1": !props.singleLine, "shrink-0": props.singleLine }}
+    >
+      <div
+        class="relative"
+        classList={{
+          "min-h-0 flex-1 border-t border-rule": !props.singleLine,
+          "h-7": props.singleLine,
+        }}
+      >
+        {/*
+          Painted only outside insert mode, so nothing can drift out of step
+          with the textarea while text is being typed into it.
+        */}
+        <Show when={painted()}>
+          <div
+            ref={mirror}
+            aria-hidden="true"
+            class={`vim-mirror pointer-events-none absolute inset-0 overflow-hidden ${typography}`}
+          >
+            <For each={runs()}>
+              {(run) => (
+                <Show when={run.kind !== "plain"} fallback={run.text}>
+                  <span class={run.kind === "cursor" ? "vim-cursor" : "vim-selection"}>
+                    {run.text}
+                  </span>
+                </Show>
+              )}
+            </For>
+          </div>
+        </Show>
+
+        <textarea
+          ref={area}
+          aria-label={props.label}
+          rows={props.singleLine ? 1 : undefined}
+          class={`vim-area relative h-full w-full resize-none rounded-none border-0 bg-transparent outline-none ${typography}`}
+          classList={{ "vim-painted": painted(), "overflow-hidden": props.singleLine }}
+          spellcheck={false}
+          autocomplete="off"
+          onKeyDown={onKeyDown}
+          onClick={syncCaretFromClick}
+          onScroll={() => {
+            if (mirror && area) mirror.scrollTop = area.scrollTop;
+          }}
+          onPaste={onPaste}
+        />
+      </div>
 
       <Show when={matches().length > 0}>
         <ul class="max-h-40 shrink-0 overflow-y-auto border-t border-rule bg-card">
@@ -212,29 +341,32 @@ export function VimEditor(props: VimEditorProps) {
         </ul>
       </Show>
 
-      <div class="flex shrink-0 items-center gap-3 border-t border-rule bg-paper-2 px-3 py-1 text-xs">
-        <span
-          class="rounded px-1.5 py-0.5 font-semibold uppercase"
-          classList={{
-            "bg-obligation text-paper": state().mode === "normal",
-            "bg-proved text-paper": state().mode === "insert",
-          }}
-        >
-          {state().mode}
-        </span>
+      <Show when={!props.singleLine}>
+        <div class="flex shrink-0 items-center gap-3 border-t border-rule bg-paper-2 px-3 py-1 text-xs">
+          <span
+            class="rounded px-1.5 py-0.5 font-semibold uppercase"
+            classList={{
+              "bg-obligation text-paper": state().mode === "normal",
+              "bg-proved text-paper": state().mode === "insert",
+              "bg-blocking text-paper": state().mode === "visual",
+            }}
+          >
+            {state().mode}
+          </span>
 
-        <span class="truncate-cell flex-1 text-ink-3">{props.label}</span>
+          <span class="truncate-cell flex-1 text-ink-3">{props.label}</span>
 
-        <span class="shrink-0 text-ink-3">
-          {where().line}:{where().column}
-        </span>
+          <span class="shrink-0 text-ink-3">
+            {where().line}:{where().column}
+          </span>
 
-        <span class="shrink-0 text-ink-3">
-          <kbd>ZZ</kbd> {props.submitLabel ?? "send"} · <kbd>ZQ</kbd> discard
-        </span>
+          <span class="shrink-0 text-ink-3">
+            <kbd>ZZ</kbd> {props.submitLabel ?? "send"} · <kbd>ZQ</kbd> discard
+          </span>
 
-        {state().status && <span class="shrink-0 mono text-obligation">{state().status}</span>}
-      </div>
+          {state().status && <span class="shrink-0 mono text-obligation">{state().status}</span>}
+        </div>
+      </Show>
     </div>
   );
 }

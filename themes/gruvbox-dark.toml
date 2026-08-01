@@ -1,0 +1,21 @@
+# Gruvbox Dark — medium contrast.
+
+name = "Gruvbox Dark"
+color_scheme = "dark"
+
+[colors]
+paper = "#282828"
+paper_2 = "#1d2021"
+card = "#32302f"
+ink = "#ebdbb2"
+ink_2 = "#d5c4a1"
+ink_3 = "#a89984"
+rule = "#504945"
+rule_soft = "#3c3836"
+proved = "#b8bb26"
+proved_bg = "#32361a"
+obligation = "#83a598"
+obligation_bg = "#2b3a37"
+blocking = "#fb4934"
+blocking_bg = "#42201d"
+neutral_bg = "#3c3836"

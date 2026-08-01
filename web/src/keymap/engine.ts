@@ -1,4 +1,4 @@
-export type Mode = "normal" | "insert" | "command" | "search";
+export type Mode = "normal" | "insert" | "command" | "search" | "tag";
 
 /** Which pane owns the keyboard. `h`/`l` move between them. */
 export type Pane = "sidebar" | "list" | "detail";
@@ -15,6 +15,9 @@ export type Action =
   | { kind: "mark"; tag: string }
   | { kind: "executeMarks" }
   | { kind: "clearMarks" }
+  | { kind: "toggleSelect" }
+  | { kind: "visualSelect" }
+  | { kind: "tagPrompt" }
   | { kind: "toggleRead" }
   | { kind: "toggleFlag" }
   | { kind: "archive" }
@@ -23,6 +26,7 @@ export type Action =
   | { kind: "reply"; all: boolean }
   | { kind: "forward" }
   | { kind: "sync" }
+  | { kind: "enterView" }
   | { kind: "toggleFold" }
   | { kind: "foldAll" }
   | { kind: "unfoldAll" }
@@ -76,8 +80,12 @@ export const DEFAULT_BINDINGS: Binding[] = [
   { keys: "d", action: { kind: "delete" }, description: "mark delete", panes: ["list"] },
   { keys: "u", action: { kind: "toggleRead" }, description: "toggle read", panes: ["list"] },
   { keys: "f", action: { kind: "toggleFlag" }, description: "toggle flag", panes: ["list"] },
-  { keys: "x", action: { kind: "executeMarks" }, description: "execute marks", panes: ["list"] },
-  { keys: "X", action: { kind: "clearMarks" }, description: "clear marks", panes: ["list"] },
+  { keys: "x", action: { kind: "executeMarks" }, description: "apply what is staged", panes: ["list"] },
+  { keys: "X", action: { kind: "clearMarks" }, description: "clear the selection", panes: ["list"] },
+  { keys: " ", action: { kind: "toggleSelect" }, description: "select this row", panes: ["list"] },
+  { keys: "v", action: { kind: "visualSelect" }, description: "select a range", panes: ["list"] },
+  { keys: "V", action: { kind: "visualSelect" }, description: "select a range", panes: ["list"] },
+  { keys: "t", action: { kind: "tagPrompt" }, description: "stage any tag", panes: ["list"] },
 
   // Detail. Reading is scrolling, so j/k move the page and the conversation is
   // walked with a chord — the same split vim makes between a buffer and a list.
@@ -87,12 +95,10 @@ export const DEFAULT_BINDINGS: Binding[] = [
   { keys: "C-y", action: { kind: "scrollUp" }, description: "scroll up a line", panes: ["detail"] },
   { keys: "C-d", action: { kind: "scrollDown", half: true }, description: "scroll down half a screen", panes: ["detail"] },
   { keys: "C-u", action: { kind: "scrollUp", half: true }, description: "scroll up half a screen", panes: ["detail"] },
-  { keys: "C-j", action: { kind: "nextMessage" }, description: "next message in thread", panes: ["detail"] },
-  { keys: "C-k", action: { kind: "prevMessage" }, description: "previous message in thread", panes: ["detail"] },
-  { keys: "C-n", action: { kind: "nextMessage" }, description: "next message in thread", panes: ["detail"] },
-  { keys: "C-p", action: { kind: "prevMessage" }, description: "previous message in thread", panes: ["detail"] },
   { keys: "J", action: { kind: "nextMessage" }, description: "next message in thread", panes: ["detail"] },
   { keys: "K", action: { kind: "prevMessage" }, description: "previous message in thread", panes: ["detail"] },
+  { keys: "Enter", action: { kind: "enterView" }, description: "put a cursor in the message", panes: ["detail"] },
+  { keys: "v", action: { kind: "enterView" }, description: "put a cursor in the message", panes: ["detail"] },
   { keys: "za", action: { kind: "toggleFold" }, description: "fold message", panes: ["detail"] },
   { keys: "zM", action: { kind: "foldAll" }, description: "fold all messages", panes: ["detail"] },
   { keys: "zR", action: { kind: "unfoldAll" }, description: "unfold all messages", panes: ["detail"] },
@@ -100,7 +106,14 @@ export const DEFAULT_BINDINGS: Binding[] = [
   { keys: "t", action: { kind: "togglePlain" }, description: "html or plain text", panes: ["detail"] },
   { keys: "q", action: { kind: "closeRight" }, description: "close the pane", panes: ["detail"] },
 
-  // Global
+  // Global. Walking the conversation is not detail-pane work: following the
+  // selection puts the thread on screen while the cursor is still in the list,
+  // and that is exactly when the next message is wanted.
+  { keys: "C-j", action: { kind: "nextMessage" }, description: "next message in thread" },
+  { keys: "C-k", action: { kind: "prevMessage" }, description: "previous message in thread" },
+  { keys: "C-n", action: { kind: "nextMessage" }, description: "next message in thread" },
+  { keys: "C-p", action: { kind: "prevMessage" }, description: "previous message in thread" },
+
   { keys: "c", action: { kind: "compose" }, description: "compose" },
   { keys: "r", action: { kind: "reply", all: false }, description: "reply" },
   { keys: "R", action: { kind: "reply", all: true }, description: "reply all" },

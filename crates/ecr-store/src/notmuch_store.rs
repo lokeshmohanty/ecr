@@ -65,6 +65,10 @@ impl MailStore for NotmuchStore {
         self.notmuch.count(query).await
     }
 
+    async fn count_batch(&self, queries: &[String]) -> Result<Vec<u64>> {
+        self.notmuch.count_batch(queries).await
+    }
+
     async fn thread(&self, id: &ThreadId) -> Result<Thread> {
         self.notmuch.thread(id).await
     }

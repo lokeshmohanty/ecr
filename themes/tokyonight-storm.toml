@@ -1,0 +1,21 @@
+# Tokyo Night Storm — the same hues on a lighter, bluer ground.
+
+name = "Tokyo Night Storm"
+color_scheme = "dark"
+
+[colors]
+paper = "#24283b"
+paper_2 = "#1f2335"
+card = "#2f334d"
+ink = "#c0caf5"
+ink_2 = "#a9b1d6"
+ink_3 = "#787c99"
+rule = "#3b4261"
+rule_soft = "#2c3049"
+proved = "#9ece6a"
+proved_bg = "#26331f"
+obligation = "#7aa2f7"
+obligation_bg = "#2a3253"
+blocking = "#f7768e"
+blocking_bg = "#3b2330"
+neutral_bg = "#343a55"

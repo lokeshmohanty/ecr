@@ -4,6 +4,7 @@
  * fills its column.
  */
 import { chromium } from "playwright";
+import { executablePath } from "./browser.mjs";
 
 const [url] = process.argv.slice(2);
 const failures = [];
@@ -15,7 +16,7 @@ function check(name, ok, detail = "") {
 }
 
 const browser = await chromium.launch({
-  executablePath: "/run/current-system/sw/bin/google-chrome-stable",
+  executablePath,
   args: ["--no-sandbox"],
 });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -271,7 +272,7 @@ await page.waitForTimeout(400);
 
 check("no page errors throughout", notes.length === 0, notes.slice(0, 2).join(" | "));
 
-await page.screenshot({ path: "screenshots/features.png" });
+await page.screenshot({ path: "screenshots/live/features.png" });
 await browser.close();
 
 console.log(failures.length === 0 ? "\nALL FEATURE CHECKS PASSED" : `\n${failures.length} FAILED: ${failures.join(", ")}`);

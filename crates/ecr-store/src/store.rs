@@ -43,6 +43,10 @@ pub trait MailStore: Send + Sync {
 
     fn count(&self, query: &Query) -> impl Future<Output = Result<usize>> + Send;
 
+    /// One count per query, in the order asked. The sidebar wants a number for
+    /// every row at once, and one process answers all of them.
+    fn count_batch(&self, queries: &[String]) -> impl Future<Output = Result<Vec<u64>>> + Send;
+
     fn thread(&self, id: &ThreadId) -> impl Future<Output = Result<Thread>> + Send;
 
     fn message(&self, id: &MessageId) -> impl Future<Output = Result<Message>> + Send;

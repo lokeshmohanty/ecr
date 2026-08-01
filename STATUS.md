@@ -2,14 +2,22 @@
 
 Volatile state. Durable knowledge belongs in `docs/`.
 
-## Where things stand (2026-07-30)
+## Where things stand (2026-08-01)
 
 The revamp is complete through the desktop shell. Server, store and web client
 are done and verified end to end against a real browser.
 
-- 210 Rust tests, 66 web tests, 22 browser checks — all green
-- `ecr-server doctor` is healthy against the live setup: four accounts
-  (work, main, personal, team), all with valid OAuth tokens
+The editing model is now vim throughout: one grammar drives the composer, the
+settings file and — read-only — the message being read. Compose is labelled
+rows rather than a header buffer, drafts carry attachments, and the list
+selects before it acts.
+
+- 275 Rust tests, 424 web tests, 22 + 30 browser checks, 23 visual states
+- Two silent write bugs are gone: `za` on a collapsed message did nothing, and
+  tagging any thread of more than one message wrote a notmuch batch line that
+  matched nothing and failed without a word (`newest_of` in `notmuch/json.rs`)
+- `ecr doctor` is healthy against the live setup: four accounts
+  all with valid OAuth tokens
 - The live database holds ~45,865 messages, ~23,174 in the inbox
 - `./scripts/verify-live.sh` reads real mail read-only: all four accounts
   resolve with their addresses, a 50-thread page of the 23k inbox returns in
@@ -30,4 +38,19 @@ are done and verified end to end against a real browser.
 
 Run `./scripts/verify-web.sh` after any UI change. Three real bugs — an empty
 thread list, a broken inline image and a stuck help overlay — got through unit
-tests and were caught only by driving the browser.
+tests and were caught only by driving the browser. Four more since: the mirror
+layer under the editor was invisible because an unlayered `textarea` rule
+outranked a Tailwind utility, the reading cursor could not paint because Solid
+hands a `ref` an element whose `ownerDocument` is still an inert template
+document, and both silent write bugs above.
+
+`scripts/visual.sh` sometimes loses its server mid-run; starting the server and
+running `node web/visual.mjs` in one shell invocation is reliable. Worth
+tracking down — it is the harness, not the app.
+
+## Not yet done
+
+- **Vim gaps left deliberately.** Macros (`q`/`@`), marks (`` m ``/`` ` ``) and
+  `:s///` are out of the engine. Everything else in daily use is in.
+- **The reading cursor is per-message.** It attaches to the message the
+  conversation cursor is on; `C-j` to the next one and press Enter again.

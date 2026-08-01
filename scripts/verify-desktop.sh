@@ -16,10 +16,10 @@ cleanup() {
 trap cleanup EXIT
 
 pnpm --dir web build > /dev/null 2>&1 || { echo "web build failed"; exit 1; }
-cargo build -q -p ecr-server -p ecr-shell || { echo "cargo build failed"; exit 1; }
+cargo build -q -p ecr-cli -p ecr-desktop || { echo "cargo build failed"; exit 1; }
 
 RUST_LOG="ecr_server=info,tower_http=debug" \
-  ./target/debug/ecr-server serve --bind "127.0.0.1:$PORT" --read-only --no-watch \
+  ./target/debug/ecr serve --bind "127.0.0.1:$PORT" --read-only --no-watch \
   > /tmp/ecr-desktop-server.log 2>&1 &
 SRV=$!
 
@@ -28,7 +28,7 @@ for _ in $(seq 1 60); do
   sleep 0.5
 done
 
-ECR_SERVER_URL="http://127.0.0.1:$PORT" ./target/debug/ecr-shell \
+ECR_SERVER_URL="http://127.0.0.1:$PORT" ./target/debug/ecr-desktop \
   > /tmp/ecr-desktop-app.log 2>&1 &
 APP=$!
 

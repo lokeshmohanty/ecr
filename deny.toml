@@ -1,0 +1,40 @@
+[graph]
+all-features = true
+
+[licenses]
+# ecr is MIT OR Apache-2.0. Everything here is a licence we can ship under that.
+# The list is deliberately closed: a new licence appearing in the tree fails CI
+# and forces a decision rather than a silent obligation.
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+confidence-threshold = 0.9
+
+# MPL-2.0 is file-level copyleft. We consume these unmodified from the registry,
+# which is why they are allowed above; modifying one means publishing the change
+# under MPL-2.0. See THIRD-PARTY.md.
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[advisories]
+yanked = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

@@ -1,0 +1,21 @@
+# Nord — the arctic palette.
+
+name = "Nord"
+color_scheme = "dark"
+
+[colors]
+paper = "#2e3440"
+paper_2 = "#292e39"
+card = "#3b4252"
+ink = "#eceff4"
+ink_2 = "#d8dee9"
+ink_3 = "#8994a5"
+rule = "#434c5e"
+rule_soft = "#3b4252"
+proved = "#a3be8c"
+proved_bg = "#333d33"
+obligation = "#88c0d0"
+obligation_bg = "#2f3f47"
+blocking = "#bf616a"
+blocking_bg = "#3f2b2f"
+neutral_bg = "#3b4252"

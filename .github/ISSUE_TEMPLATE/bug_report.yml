@@ -1,0 +1,65 @@
+name: Bug report
+description: Something behaves differently from how it is documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Most reports about "no mail appears" are answered by `ecr doctor`.
+        Please run it before filing — it resolves every config path and says
+        which one it chose and why.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: ecr doctor
+      description: >
+        Output of `ecr doctor`. Redact freely — it prints account ids and
+        addresses. The parts that matter are which config each tool resolved to
+        and which checks are not ok.
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "`ecr --version`, or the commit if you built from source"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: client
+    attributes:
+      label: Client
+      options:
+        - Browser
+        - Desktop (Tauri)
+        - Android
+        - Not a client problem — server or CLI
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: "OS and version. For browser bugs, the browser and version too"
+    validations:
+      required: true
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Console errors
+      description: For a UI bug, anything in the browser console.
+      render: text

@@ -1,0 +1,21 @@
+# Tokyo Night — the "night" variant.
+
+name = "Tokyo Night"
+color_scheme = "dark"
+
+[colors]
+paper = "#1a1b26"
+paper_2 = "#16161e"
+card = "#1f2335"
+ink = "#c0caf5"
+ink_2 = "#9aa5ce"
+ink_3 = "#565f89"
+rule = "#292e42"
+rule_soft = "#20232f"
+proved = "#9ece6a"
+proved_bg = "#1e2b1c"
+obligation = "#7aa2f7"
+obligation_bg = "#1f2740"
+blocking = "#f7768e"
+blocking_bg = "#2f1b23"
+neutral_bg = "#292e42"

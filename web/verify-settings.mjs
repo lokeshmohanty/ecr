@@ -1,5 +1,6 @@
 /** The settings file: edited in the browser, written on the server, read back. */
 import { chromium } from "playwright";
+import { executablePath } from "./browser.mjs";
 
 const [url] = process.argv.slice(2);
 const failures = [];
@@ -10,7 +11,7 @@ const check = (n, ok, d = "") => {
 };
 
 const browser = await chromium.launch({
-  executablePath: "/run/current-system/sw/bin/google-chrome-stable",
+  executablePath,
   args: ["--no-sandbox"],
 });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });

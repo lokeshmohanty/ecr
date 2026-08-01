@@ -43,6 +43,12 @@ pub enum Error {
     #[error("cannot send this draft: {reason}")]
     InvalidDraft { reason: String },
 
+    #[error("{path:?} is not a file ecr will read: {reason}")]
+    UnsafePath {
+        path: String,
+        reason: &'static str,
+    },
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }

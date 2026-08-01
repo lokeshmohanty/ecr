@@ -7,10 +7,27 @@ configs invoke — this setup uses `oauthman` for Gmail/Outlook XOAUTH2, and bot
 sync and send fail without it. The Nix dev shell provides the first three;
 `oauthman` comes from `~/.local/bin`.
 
+## The command
+
+Everything is one binary, `ecr`, built from `crates/ecr-cli`. `just` recipes
+run it out of the workspace; `cargo run -p ecr-cli -- <args>` is the long form.
+
+```
+ecr doctor              check the mail setup
+ecr serve               run the server
+ecr token new|list|revoke
+ecr help [topic]        worked examples: start, phone, accounts, trouble
+```
+
+`ecr init`, `ecr web`, `ecr qr`, `ecr oauth`, `ecr logs` and the background
+lifecycle (`stop`, `status`, `restart`) are declared but not yet implemented;
+each says so and names what to use meanwhile. The desktop client is a separate
+binary, `ecr-desktop`, built from `shell/`.
+
 ## Start here
 
 ```bash
-cargo run -p ecr-server -- doctor
+ecr doctor
 ```
 
 It reports which config each tool resolved to and via which step, the maildir
@@ -23,9 +40,9 @@ start unless this is healthy.
 ## Tokens
 
 ```bash
-ecr-server token new phone --qr   # prints the token once, plus a pairing QR
-ecr-server token list
-ecr-server token revoke phone
+ecr token new phone --qr   # prints the token once, plus a pairing QR
+ecr token list
+ecr token revoke phone
 ```
 
 Tokens are stored as SHA-256 digests in `~/.config/ecr/tokens.toml` (mode 0600).
@@ -34,7 +51,7 @@ The plaintext is shown exactly once. With no tokens the API is unauthenticated.
 ## Running
 
 ```bash
-ecr-server serve --bind 127.0.0.1:8383
+ecr serve --bind 127.0.0.1:8383
 ```
 
 | Flag | Effect |
@@ -48,7 +65,7 @@ ecr-server serve --bind 127.0.0.1:8383
 
 ## The client is served by the server
 
-`ecr-server` serves the built web client at `/` alongside the API. Opening
+`ecr serve` serves the built web client at `/` alongside the API. Opening
 `http://127.0.0.1:8383` gives you the whole app: same origin, so CORS never
 applies and the client defaults its API base to wherever it was loaded from.
 
@@ -85,17 +102,52 @@ TLS and a reverse proxy in front — this is a mail store.
 
 ## Android
 
-Not built. The web client is a working PWA-shaped app and can be added to the
-home screen today. A Tauri Android build needs the Android SDK and NDK in the
-dev shell (`androidenv.composeAndroidPackages`) plus `tauri android init`,
-which is a large opt-in closure; `bundle.android.minSdkVersion` is already set
-to 28 in `shell/tauri.conf.json`.
+An APK is built by CI on every tagged release and attached to it. Sideload it;
+there is no Play Store listing.
+
+It is a **client only**. `ecr-server` shells out to `notmuch`, `mbsync` and
+`msmtp`, none of which exist on Android, so the app points at a server you run
+elsewhere — over Tailscale, typically. Pair it with `ecr token new phone --qr`.
+
+If the release APK is unsigned — which it is until the signing secrets are set,
+and the release notes say which — Android will refuse to upgrade it in place from
+a later signed build. Uninstall first in that case. See
+[releasing.md](releasing.md#android).
+
+Building one locally needs the Android SDK and NDK, which are deliberately not
+in the dev shell: it is a large closure and nothing else needs it.
+
+```bash
+cargo tauri android init
+cargo tauri android build --apk
+```
+
+`bundle.android.minSdkVersion` is set to 28 in `shell/tauri.conf.json`.
+
+The web client is also a working PWA and can be added to the home screen today.
+
+## iOS
+
+Not built. CI compiles the iOS target on every push to catch bitrot, but the
+output is unsigned and cannot be installed. Shipping one needs an Apple Developer
+account, a distribution certificate and a provisioning profile. See
+[releasing.md](releasing.md#ios).
+
+## Installing a release
+
+| Method | Command |
+|---|---|
+| Nix | `nix profile install github:lokeshmohanty/ecr` |
+| NixOS module | `services.ecr.enable = true;` — see the [README](../README.md#nix--nixos) |
+| Debian/Ubuntu | `sudo apt install ./ecr_amd64.deb` |
+| Generic Linux | untar the release tarball; `bin/ecr` finds `share/ecr/web` beside it |
+| From source | `cargo install ecr-cli` — builds the binary only, not the web client |
 
 ## Troubleshooting
 
 | Symptom | Check |
 |---|---|
-| Server refuses to start | `ecr-server doctor` — it names the failure and a fix |
+| Server refuses to start | `ecr doctor` — it names the failure and a fix |
 | Empty inbox, no error | The query. `/api/v1/threads?q=*` should return everything |
 | `503` responses | A binary is missing from the service's `PATH`; pin absolute paths in `server.toml` |
 | Sync fails with an auth error | `oauthman status <account>`; the token may need reauthorizing |

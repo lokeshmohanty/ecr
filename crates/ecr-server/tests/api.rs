@@ -518,6 +518,280 @@ async fn a_rejected_settings_file_does_not_replace_the_good_one() {
 }
 
 #[tokio::test]
+async fn counts_answer_every_query_in_the_order_asked() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let response = server
+        .post(
+            "/api/v1/counts",
+            serde_json::json!({
+                "queries": ["tag:inbox", "tag:__nothing_matches_this__", "*"]
+            }),
+        )
+        .await;
+    assert_eq!(response.status(), 200);
+
+    let body: serde_json::Value = response.json().await.expect("json");
+    let counts = body["counts"].as_array().expect("counts");
+    assert_eq!(counts.len(), 3, "{body}");
+
+    let inbox = counts[0].as_u64().expect("a number");
+    let nothing = counts[1].as_u64().expect("a number");
+    let all = counts[2].as_u64().expect("a number");
+
+    assert!(inbox > 0, "the fixture inbox is not empty: {body}");
+    assert_eq!(nothing, 0, "{body}");
+    assert!(all >= inbox, "{body}");
+}
+
+#[tokio::test]
+async fn a_count_matches_the_threads_the_same_query_returns() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let counted: serde_json::Value = server
+        .post(
+            "/api/v1/counts",
+            serde_json::json!({ "queries": ["tag:inbox"] }),
+        )
+        .await
+        .json()
+        .await
+        .expect("json");
+
+    // count is messages, so compare against the message total the list reports
+    // rather than the number of threads.
+    let listed: serde_json::Value = server
+        .get("/api/v1/threads?q=tag:inbox&limit=500")
+        .await
+        .json()
+        .await
+        .expect("json");
+
+    let total: u64 = listed["items"]
+        .as_array()
+        .expect("items")
+        .iter()
+        .map(|t| t["total"].as_u64().unwrap_or(0))
+        .sum();
+
+    assert_eq!(counted["counts"][0].as_u64(), Some(total), "{counted}");
+}
+
+#[tokio::test]
+async fn an_empty_query_list_is_answered_with_an_empty_list() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let body: serde_json::Value = server
+        .post("/api/v1/counts", serde_json::json!({ "queries": [] }))
+        .await
+        .json()
+        .await
+        .expect("json");
+
+    assert_eq!(body["counts"].as_array().map(Vec::len), Some(0));
+}
+
+#[tokio::test]
+async fn a_blank_query_counts_nothing_rather_than_everything() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let body: serde_json::Value = server
+        .post(
+            "/api/v1/counts",
+            serde_json::json!({ "queries": ["", "   "] }),
+        )
+        .await
+        .json()
+        .await
+        .expect("json");
+
+    assert_eq!(body["counts"][0].as_u64(), Some(0), "{body}");
+    assert_eq!(body["counts"][1].as_u64(), Some(0), "{body}");
+}
+
+#[tokio::test]
+async fn too_many_queries_are_refused_rather_than_run() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let queries: Vec<String> = (0..201).map(|i| format!("tag:t{i}")).collect();
+    let response = server
+        .post("/api/v1/counts", serde_json::json!({ "queries": queries }))
+        .await;
+
+    assert_eq!(response.status(), 400);
+}
+
+#[tokio::test]
+async fn counts_are_protected_by_the_same_token_as_everything_else() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    assert_eq!(server.anonymous("/api/v1/counts").await.status(), 401);
+}
+
+#[tokio::test]
+async fn the_shipped_presets_appear_on_first_listing() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let body: serde_json::Value = server
+        .get("/api/v1/themes")
+        .await
+        .json()
+        .await
+        .expect("json");
+
+    let presets = body["presets"].as_array().expect("presets");
+    assert_eq!(presets.len(), 10, "{body}");
+
+    let paths: Vec<&str> = presets.iter().filter_map(|p| p["path"].as_str()).collect();
+    assert!(paths.contains(&"themes/ecr-dark.toml"), "{paths:?}");
+    assert!(paths.contains(&"themes/tokyonight.toml"), "{paths:?}");
+    assert!(presets.iter().all(|p| p["builtin"] == true), "{body}");
+}
+
+#[tokio::test]
+async fn a_theme_reads_back_the_file_its_link_names() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    server.get("/api/v1/themes").await;
+
+    let body: serde_json::Value = server
+        .get("/api/v1/theme?path=themes/nord.toml")
+        .await
+        .json()
+        .await
+        .expect("json");
+
+    assert!(body["raw"].as_str().expect("raw").contains("#2e3440"), "{body}");
+}
+
+#[tokio::test]
+async fn a_theme_link_cannot_read_outside_the_config_dir() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    for attempt in [
+        "../../../etc/passwd.toml",
+        "themes/../../../secrets.toml",
+        "/etc/passwd.toml",
+        "themes/nord.conf",
+    ] {
+        let response = server
+            .get(&format!("/api/v1/theme?path={attempt}"))
+            .await;
+        assert_eq!(response.status(), 400, "{attempt} was not rejected");
+    }
+}
+
+#[tokio::test]
+async fn a_theme_write_cannot_escape_the_config_dir() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let response = server
+        .put(
+            "/api/v1/theme",
+            serde_json::json!({ "path": "../../../tmp/pwned.toml", "raw": "name = \"x\"\n" }),
+        )
+        .await;
+    assert_eq!(response.status(), 400);
+    assert!(!std::path::Path::new("/tmp/pwned.toml").exists());
+}
+
+#[tokio::test]
+async fn an_edited_theme_survives_a_write_and_a_read() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let raw = "name = \"Mine\"\ncolor_scheme = \"light\"\n\n[colors]\npaper = \"#ffffff\"\n";
+    let response = server
+        .put(
+            "/api/v1/theme",
+            serde_json::json!({ "path": "themes/mine.toml", "raw": raw }),
+        )
+        .await;
+    assert_eq!(response.status(), 200);
+
+    let body: serde_json::Value = server
+        .get("/api/v1/theme?path=themes/mine.toml")
+        .await
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(body["raw"], raw);
+
+    let listing: serde_json::Value = server
+        .get("/api/v1/themes")
+        .await
+        .json()
+        .await
+        .expect("json");
+    let mine = listing["presets"]
+        .as_array()
+        .expect("presets")
+        .iter()
+        .find(|p| p["path"] == "themes/mine.toml")
+        .expect("the written theme is listed");
+    assert_eq!(mine["name"], "Mine");
+    assert_eq!(mine["builtin"], false);
+}
+
+#[tokio::test]
+async fn a_theme_that_is_not_toml_is_rejected_with_its_line() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let response = server
+        .put(
+            "/api/v1/theme",
+            serde_json::json!({ "path": "themes/bad.toml", "raw": "name =\n" }),
+        )
+        .await;
+    assert_eq!(response.status(), 422);
+
+    let body: serde_json::Value = response.json().await.expect("json");
+    assert_eq!(body["line"], 1, "{body}");
+}
+
+#[tokio::test]
+async fn a_missing_theme_is_a_not_found_rather_than_an_empty_palette() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let response = server.get("/api/v1/theme?path=themes/nope.toml").await;
+    assert_eq!(response.status(), 404);
+}
+
+#[tokio::test]
+async fn themes_are_protected_by_the_same_token_as_everything_else() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    assert_eq!(server.anonymous("/api/v1/themes").await.status(), 401);
+}
+
+#[tokio::test]
 async fn settings_are_protected_by_the_same_token_as_everything_else() {
     let Some(server) = Server::start().await else {
         return;

@@ -96,6 +96,13 @@ export interface SyncReport {
   warnings: string[];
 }
 
+export interface Attachment {
+  filename: string;
+  content_type: string;
+  /** Base64, travelling in the same request that sends the draft. */
+  data_b64: string;
+}
+
 export interface Draft {
   to: string[];
   cc: string[];
@@ -104,6 +111,7 @@ export interface Draft {
   body: string;
   in_reply_to: string | null;
   references: string[];
+  attachments: Attachment[];
 }
 
 export interface Check {
@@ -119,6 +127,18 @@ export interface Doctor {
   database_path: string | null;
   accounts: Account[];
   checks: Check[];
+}
+
+export interface ThemeEntry {
+  /** The value that goes in settings.toml, relative to the config dir. */
+  path: string;
+  name: string;
+  builtin: boolean;
+}
+
+export interface ThemeListing {
+  dir: string;
+  presets: ThemeEntry[];
 }
 
 export type ServerEvent =

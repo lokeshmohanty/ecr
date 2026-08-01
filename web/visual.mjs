@@ -9,6 +9,7 @@
  *   node visual.mjs <url> --approve  accept what is rendered as the new baseline
  */
 import { chromium } from "playwright";
+import { executablePath } from "./browser.mjs";
 import { PNG } from "pngjs";
 import pixelmatch from "pixelmatch";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -212,10 +213,78 @@ const STATES = [
       await page.waitForTimeout(1800);
     },
   },
+  {
+    name: "19-view-cursor",
+    description: "a block cursor reading inside the message",
+    async setup(page) {
+      await press(page, "Enter");
+      await page.waitForTimeout(1800);
+      await press(page, "l");
+      await press(page, "Enter");
+      await page.waitForTimeout(500);
+      await press(page, "w");
+      await press(page, "w");
+      await page.waitForTimeout(300);
+    },
+  },
+  {
+    name: "20-view-selection",
+    description: "a visual selection inside the message",
+    async setup(page) {
+      await press(page, "Enter");
+      await page.waitForTimeout(1800);
+      await press(page, "l");
+      await press(page, "Enter");
+      await page.waitForTimeout(500);
+      await press(page, "v");
+      for (const _ of [0, 1, 2, 3, 4, 5]) await press(page, "l");
+      await page.waitForTimeout(300);
+    },
+  },
+  {
+    name: "21-list-range-selected",
+    description: "a v range over the list, with a delete staged on it",
+    async setup(page) {
+      await page.waitForTimeout(600);
+      await press(page, "v");
+      await press(page, "j");
+      await press(page, "j");
+      await press(page, "d");
+      await page.waitForTimeout(400);
+    },
+  },
+  {
+    name: "22-tag-prompt",
+    description: "the prompt that stages any tag on the selection",
+    async setup(page) {
+      await page.waitForTimeout(600);
+      await press(page, "Space");
+      await press(page, "j");
+      await press(page, "Space");
+      await press(page, "t");
+      await page.waitForTimeout(300);
+      await page.keyboard.type("+ho");
+      await page.waitForTimeout(400);
+    },
+  },
+  {
+    name: "23-compose-attachment",
+    description: "a draft carrying a file",
+    async setup(page) {
+      await press(page, "c");
+      await page.waitForTimeout(900);
+      await page.setInputFiles('input[type="file"]', {
+        name: "agenda.pdf",
+        mimeType: "application/pdf",
+        buffer: Buffer.from("%PDF-1.4 minutes of the meeting"),
+      });
+      await page.waitForTimeout(500);
+    },
+  },
 ];
 
 const browser = await chromium.launch({
-  executablePath: "/run/current-system/sw/bin/google-chrome-stable",
+  executablePath,
   args: ["--no-sandbox", "--force-device-scale-factor=1", "--hide-scrollbars"],
 });
 
@@ -235,6 +304,11 @@ for (const state of STATES) {
     locale: "en-GB",
     reducedMotion: "reduce",
   });
+
+  // The fixtures are dated 2026-04-01 and the list now formats that date
+  // relative to today: without a fixed clock these baselines would quietly
+  // change shape at the next new year rather than when someone changed the UI.
+  await context.clock.setFixedTime(new Date("2026-08-01T12:30:00Z"));
 
   const page = await context.newPage();
   await page.addInitScript((base) => {

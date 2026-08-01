@@ -1,11 +1,12 @@
 /**
- * End-to-end verification against a running ecr-server + built web client.
+ * End-to-end verification against a running ecr server + built web client.
  * Usage: node verify.mjs <webUrl> <serverUrl> <token>
  *
  * On NixOS Playwright's bundled chromium fails on libnspr4.so, so the system
  * Chrome is used instead.
  */
 import { chromium } from "playwright";
+import { executablePath } from "./browser.mjs";
 
 const [webUrl, serverUrl, token] = process.argv.slice(2);
 const failures = [];
@@ -21,7 +22,7 @@ function check(name, condition, detail = "") {
 }
 
 const browser = await chromium.launch({
-  executablePath: "/run/current-system/sw/bin/google-chrome-stable",
+  executablePath,
   args: ["--no-sandbox"],
 });
 const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });

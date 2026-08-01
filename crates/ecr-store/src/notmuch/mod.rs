@@ -92,6 +92,83 @@ impl Notmuch {
         })
     }
 
+    /// Counts many queries in one process.
+    ///
+    /// The sidebar asks for a count per row, and spawning notmuch per row costs
+    /// more than the counting does. `--batch` reads one query per line and
+    /// writes one count per line, in order. No write lock: counting is a read,
+    /// and Xapian's single-writer rule does not reach it.
+    ///
+    /// An empty line means "everything" to notmuch, so a blank query would
+    /// silently return the whole database rather than nothing. They are
+    /// substituted before sending and answered as 0.
+    pub async fn count_batch(&self, queries: &[String]) -> Result<Vec<u64>> {
+        use tokio::io::AsyncWriteExt;
+
+        if queries.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        const NOTHING: &str = "tag:__ecr_matches_nothing__";
+        let batch: String = queries
+            .iter()
+            .map(|q| {
+                let line = q.trim();
+                if line.is_empty() { NOTHING } else { line }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let mut child = self
+            .command()
+            .args(["count", "--batch"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| match e.kind() {
+                std::io::ErrorKind::NotFound => Error::ToolMissing {
+                    tool: crate::tools::NOTMUCH,
+                },
+                _ => Error::Io(e),
+            })?;
+
+        if let Some(mut stdin) = child.stdin.take() {
+            stdin.write_all(batch.as_bytes()).await?;
+            stdin.write_all(b"\n").await?;
+            stdin.shutdown().await?;
+        }
+
+        let output = child.wait_with_output().await?;
+        if !output.status.success() {
+            return Err(Error::ToolFailed {
+                tool: crate::tools::NOTMUCH,
+                stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+            });
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let counts: Vec<u64> = stdout
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| line.trim().parse().unwrap_or(0))
+            .collect();
+
+        // A short read would silently shift every count onto the wrong row.
+        if counts.len() != queries.len() {
+            return Err(Error::ToolFailed {
+                tool: crate::tools::NOTMUCH,
+                stderr: format!(
+                    "`notmuch count --batch` answered {} of {} queries",
+                    counts.len(),
+                    queries.len()
+                ),
+            });
+        }
+
+        Ok(counts)
+    }
+
     pub async fn search_threads(&self, query: &Query) -> Result<Vec<ThreadSummary>> {
         let limit = format!("--limit={}", query.limit);
         let offset = format!("--offset={}", query.offset);

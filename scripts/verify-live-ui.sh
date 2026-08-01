@@ -9,11 +9,11 @@ cd "$ROOT"
 cleanup() { [ -n "${SRV:-}" ] && kill "$SRV" 2>/dev/null; wait 2>/dev/null; }
 trap cleanup EXIT
 
-cargo build -q -p ecr-server || exit 1
+cargo build -q -p ecr-cli || exit 1
 pnpm --dir web build > /dev/null 2>&1 || exit 1
 
 TOKENS=$(mktemp -d)/tokens.toml
-RUST_LOG=warn ./target/debug/ecr-server --tokens "$TOKENS" \
+RUST_LOG=warn ./target/debug/ecr --tokens "$TOKENS" \
   serve --bind "127.0.0.1:$PORT" --read-only --no-watch > /tmp/ecr-live-ui.log 2>&1 &
 SRV=$!
 

@@ -1,0 +1,22 @@
+# ecr Light — the default palette inverted, with the same three accents darkened
+# enough to hold their contrast on paper.
+
+name = "ecr Light"
+color_scheme = "light"
+
+[colors]
+paper = "#fbfcfd"
+paper_2 = "#f1f5f7"
+card = "#e8eef1"
+ink = "#12222a"
+ink_2 = "#3f5763"
+ink_3 = "#5f7885"
+rule = "#c6d5dc"
+rule_soft = "#dde7ec"
+proved = "#0f766e"
+proved_bg = "#d3ece7"
+obligation = "#5b46b8"
+obligation_bg = "#e2ddf7"
+blocking = "#b4382a"
+blocking_bg = "#f7ddd9"
+neutral_bg = "#e4ecf0"

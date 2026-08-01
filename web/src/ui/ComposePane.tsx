@@ -1,6 +1,7 @@
-import { Show, createSignal } from "solid-js";
-import type { Draft } from "../api/types";
+import { For, Show, createSignal } from "solid-js";
+import type { Attachment, Draft } from "../api/types";
 import type { AppStore } from "../state/store";
+import { formatSize, refuseReason, toAttachment } from "../state/attachments";
 import { VimEditor } from "./VimEditor";
 
 export function emptyDraft(): Draft {
@@ -12,6 +13,7 @@ export function emptyDraft(): Draft {
     body: "",
     in_reply_to: null,
     references: [],
+    attachments: [],
   };
 }
 
@@ -26,46 +28,22 @@ export function formatRecipients(list: string[]): string {
   return list.join(", ");
 }
 
+/** The header rows, in the order Tab walks them. */
+export const FIELDS = ["to", "cc", "bcc", "subject"] as const;
+export type Field = (typeof FIELDS)[number] | "body";
+const ORDER: Field[] = [...FIELDS, "body"];
+
+export function nextField(current: Field, delta: number): Field {
+  const at = ORDER.indexOf(current);
+  return ORDER[(at + delta + ORDER.length) % ORDER.length]!;
+}
+
 /**
- * The draft is edited as a whole message: headers on top, a blank line, then
- * the body. That keeps one editing surface rather than a form plus a textarea,
- * and it is the shape anyone who has used a mail client from a terminal
- * expects.
+ * Headers are rows, not text: the labels are DOM, so `To:` cannot be edited
+ * away or typed over. Every value is still the same vim engine as the body —
+ * one line each — so `ciw` on a recipient works exactly as it does anywhere
+ * else, and Tab walks the rows.
  */
-export function draftToText(draft: Draft): string {
-  const lines = [
-    `To: ${formatRecipients(draft.to)}`,
-    `Cc: ${formatRecipients(draft.cc)}`,
-    `Subject: ${draft.subject}`,
-    "",
-    draft.body,
-  ];
-  return lines.join("\n");
-}
-
-export function draftFromText(text: string, base: Draft): Draft {
-  const lines = text.split("\n");
-  const blank = lines.findIndex((l) => l.trim() === "");
-  const headerLines = blank === -1 ? lines : lines.slice(0, blank);
-  const body = blank === -1 ? "" : lines.slice(blank + 1).join("\n");
-
-  const draft: Draft = { ...base, to: [], cc: [], bcc: [], subject: "", body };
-
-  for (const line of headerLines) {
-    const at = line.indexOf(":");
-    if (at === -1) continue;
-    const name = line.slice(0, at).trim().toLowerCase();
-    const value = line.slice(at + 1).trim();
-
-    if (name === "to") draft.to = parseRecipients(value);
-    else if (name === "cc") draft.cc = parseRecipients(value);
-    else if (name === "bcc") draft.bcc = parseRecipients(value);
-    else if (name === "subject") draft.subject = value;
-  }
-
-  return draft;
-}
-
 export function ComposePane(props: {
   store: AppStore;
   draft: Draft;
@@ -74,14 +52,59 @@ export function ComposePane(props: {
 }) {
   const [error, setError] = createSignal("");
   const [sending, setSending] = createSignal(false);
+  const [dragging, setDragging] = createSignal(false);
+  const [focus, setFocus] = createSignal<Field>(
+    props.draft.to.length > 0 ? "body" : "to",
+  );
+
+  const [values, setValues] = createSignal({
+    to: formatRecipients(props.draft.to),
+    cc: formatRecipients(props.draft.cc),
+    bcc: formatRecipients(props.draft.bcc),
+    subject: props.draft.subject,
+    body: props.draft.body,
+  });
+
+  const [attachments, setAttachments] = createSignal<Attachment[]>(
+    props.draft.attachments ?? [],
+  );
+
+  let picker: HTMLInputElement | undefined;
 
   const account = () => props.store.sendingAccount();
 
-  const submit = async (text: string) => {
-    const draft = draftFromText(text, props.draft);
+  const set = (field: Field, value: string) =>
+    setValues((current) => ({ ...current, [field]: value }));
+
+  const collected = (): Draft => ({
+    ...props.draft,
+    to: parseRecipients(values().to),
+    cc: parseRecipients(values().cc),
+    bcc: parseRecipients(values().bcc),
+    subject: values().subject,
+    body: values().body,
+    attachments: attachments(),
+  });
+
+  const attach = async (files: File[]) => {
+    for (const file of files) {
+      const refusal = refuseReason(attachments(), file.size);
+      if (refusal) {
+        setError(`${file.name}: ${refusal}`);
+        continue;
+      }
+      const attachment = await toAttachment(file);
+      setAttachments((current) => [...current, attachment]);
+      setError("");
+    }
+  };
+
+  const submit = async () => {
+    const draft = collected();
 
     if (draft.to.length === 0 && draft.cc.length === 0 && draft.bcc.length === 0) {
       setError("add at least one recipient before sending");
+      setFocus("to");
       return;
     }
 
@@ -93,14 +116,40 @@ export function ComposePane(props: {
     else setError(props.store.status());
   };
 
+  const shared = (field: Field) => ({
+    onSubmit: () => void submit(),
+    onCancel: props.onClose,
+    onChange: (text: string) => set(field, text),
+    onNextField: () => setFocus(nextField(field, 1)),
+    onPreviousField: () => setFocus(nextField(field, -1)),
+    onCommand: (command: string) => {
+      if (command === "attach" || command === "a") picker?.click();
+      else setError(`unknown command: ${command}`);
+    },
+    onPasteFiles: (files: File[]) => void attach(files),
+  });
+
   return (
-    <>
+    <div
+      class="flex min-h-0 flex-1 flex-col"
+      classList={{ "ring-2 ring-obligation": dragging() }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        void attach([...(e.dataTransfer?.files ?? [])]);
+      }}
+    >
       <header class="flex shrink-0 items-start gap-3 border-b border-rule bg-paper-2 px-4 py-2">
         <div class="min-w-0 flex-1">
           <h1 class="text-sm text-ink">{props.label}</h1>
           <div class="text-xs text-ink-3">
-            from {account()?.address ?? "no account"} · <kbd>ZZ</kbd> send ·{" "}
-            <kbd>ZQ</kbd> discard · <kbd>C-b</kbd> hide
+            from {account()?.address ?? "no account"} · <kbd>Tab</kbd> field ·{" "}
+            <kbd>ZZ</kbd> send · <kbd>ZQ</kbd> discard · <kbd>C-b</kbd> hide
           </div>
         </div>
         <button
@@ -113,6 +162,77 @@ export function ComposePane(props: {
         </button>
       </header>
 
+      <div class="shrink-0 border-b border-rule">
+        <For each={FIELDS}>
+          {(field) => (
+            <div
+              class="flex items-center gap-2 border-b border-rule-soft px-3 last:border-b-0"
+              classList={{ "bg-neutral-bg/40": focus() === field }}
+              onClick={() => setFocus(field)}
+            >
+              {/* A label, not text in the buffer: there is nothing here to edit. */}
+              <span class="w-14 shrink-0 text-xs uppercase tracking-wide text-ink-3">
+                {field}
+              </span>
+              <div class="min-w-0 flex-1">
+                <VimEditor
+                  initial={values()[field]}
+                  label={`${field} field`}
+                  singleLine
+                  startMode={props.store.settings().preferences.editorStartMode}
+                  addressBook={field === "subject" ? undefined : props.store.addressBook() ?? []}
+                  {...shared(field)}
+                  focused={focus() === field}
+                />
+              </div>
+            </div>
+          )}
+        </For>
+      </div>
+
+      <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-rule px-3 py-1.5">
+        <For each={attachments()}>
+          {(attachment, index) => (
+            <span class="flex items-center gap-1 rounded border border-rule bg-card px-2 py-0.5 text-xs">
+              <span class="truncate-cell max-w-40">{attachment.filename}</span>
+              <span class="mono text-ink-3">{formatSize(attachment.data_b64.length)}</span>
+              <button
+                type="button"
+                class="text-ink-3 hover:text-blocking"
+                aria-label={`Remove ${attachment.filename}`}
+                onClick={() =>
+                  setAttachments((current) => current.filter((_, i) => i !== index()))
+                }
+              >
+                ✕
+              </button>
+            </span>
+          )}
+        </For>
+
+        <button
+          type="button"
+          class="rounded border border-rule px-2 py-0.5 text-xs text-obligation hover:bg-neutral-bg"
+          onClick={() => picker?.click()}
+          title="Attach a file (:attach), or drop one here"
+        >
+          ＋ attach
+        </button>
+
+        <span class="text-xs text-ink-3">or drop files here</span>
+
+        <input
+          ref={picker}
+          type="file"
+          multiple
+          class="hidden"
+          onChange={(e) => {
+            void attach([...(e.currentTarget.files ?? [])]);
+            e.currentTarget.value = "";
+          }}
+        />
+      </div>
+
       <Show when={error()}>
         <p class="shrink-0 border-b border-blocking bg-blocking-bg px-4 py-2 text-xs text-blocking">
           {error()}
@@ -124,15 +244,14 @@ export function ComposePane(props: {
       </Show>
 
       <VimEditor
-        initial={draftToText(props.draft)}
+        initial={values().body}
         label={props.label}
         submitLabel="send"
-        addressBook={props.store.addressBook() ?? []}
         startMode={props.store.settings().preferences.editorStartMode}
-        onSubmit={(text) => void submit(text)}
-        onCancel={props.onClose}
         onModeChange={(mode) => props.store.setMode(mode === "insert" ? "insert" : "normal")}
+        {...shared("body")}
+        focused={focus() === "body"}
       />
-    </>
+    </div>
   );
 }

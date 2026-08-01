@@ -188,7 +188,7 @@ mod tests {
         fs::write(
             cfg_dir.join("isyncrc"),
             format!(
-                "IMAPAccount main\nUser lokesh@example.com\nPassCmd \"oauthman token main\"\n\n\
+                "IMAPAccount main\nUser alice@example.com\nPassCmd \"oauthman token main\"\n\n\
                  IMAPStore main-remote\nAccount main\n\n\
                  MaildirStore main-local\nPath {}/main/\n\n\
                  Channel main\nFar :main-remote:\nNear :main-local:\n",
@@ -199,7 +199,7 @@ mod tests {
         fs::create_dir_all(cfg_dir.join("msmtp")).unwrap();
         fs::write(
             cfg_dir.join("msmtp/config"),
-            "account main\nfrom lokesh@example.com\nuser lokesh@example.com\naccount default : main\n",
+            "account main\nfrom alice@example.com\nuser alice@example.com\naccount default : main\n",
         )
         .unwrap();
 
@@ -255,10 +255,7 @@ mod tests {
         let (_home, paths) = fixture();
         let accounts = accounts(&paths);
         let main = accounts.iter().find(|a| a.id.as_str() == "main").unwrap();
-        let team = accounts
-            .iter()
-            .find(|a| a.id.as_str() == "team")
-            .unwrap();
+        let team = accounts.iter().find(|a| a.id.as_str() == "team").unwrap();
 
         assert_eq!(main.mbsync_channel.as_deref(), Some("main"));
         assert!(main.can_sync());
@@ -273,17 +270,14 @@ mod tests {
         let main = accounts.iter().find(|a| a.id.as_str() == "main").unwrap();
 
         assert_eq!(main.msmtp_account.as_deref(), Some("main"));
-        assert_eq!(main.address.as_deref(), Some("lokesh@example.com"));
+        assert_eq!(main.address.as_deref(), Some("alice@example.com"));
     }
 
     #[test]
     fn an_account_with_no_imap_block_does_not_borrow_another_accounts_identity() {
         let (_home, paths) = fixture();
         let accounts = accounts(&paths);
-        let team = accounts
-            .iter()
-            .find(|a| a.id.as_str() == "team")
-            .unwrap();
+        let team = accounts.iter().find(|a| a.id.as_str() == "team").unwrap();
 
         assert_eq!(team.address, None);
         assert_eq!(team.msmtp_account, None);
@@ -295,10 +289,7 @@ mod tests {
         let (_home, paths) = fixture();
         let accounts = accounts(&paths);
         let main = accounts.iter().find(|a| a.id.as_str() == "main").unwrap();
-        let team = accounts
-            .iter()
-            .find(|a| a.id.as_str() == "team")
-            .unwrap();
+        let team = accounts.iter().find(|a| a.id.as_str() == "team").unwrap();
 
         assert_eq!(oauth_profile(&paths, main).as_deref(), Some("main"));
         assert_eq!(oauth_profile(&paths, team), None);

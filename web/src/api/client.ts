@@ -11,6 +11,7 @@ import type {
   TagOp,
   Thread,
   ThreadSummary,
+  ThemeListing,
 } from "./types";
 
 export interface Connection {
@@ -35,7 +36,7 @@ export function saveConnection(connection: Connection): void {
 }
 
 function defaultBaseUrl(): string {
-  // Served by ecr-server itself, so the API is on this very origin. This is
+  // Served by the ecr server itself, so the API is on this very origin. This is
   // what makes opening http://host:8383 work with nothing to configure.
   if (typeof location !== "undefined" && location.protocol.startsWith("http")) {
     return location.origin;
@@ -164,6 +165,22 @@ export class Api {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ raw }),
+    });
+  }
+
+  async themes(): Promise<ThemeListing> {
+    return await this.request("/api/v1/themes");
+  }
+
+  async theme(path: string): Promise<{ path: string; raw: string }> {
+    return await this.request(`/api/v1/theme?${new URLSearchParams({ path })}`);
+  }
+
+  async saveTheme(path: string, raw: string): Promise<void> {
+    await this.request("/api/v1/theme", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path, raw }),
     });
   }
 

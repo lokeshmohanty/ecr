@@ -1,0 +1,21 @@
+# Gruvbox Light — medium contrast.
+
+name = "Gruvbox Light"
+color_scheme = "light"
+
+[colors]
+paper = "#fbf1c7"
+paper_2 = "#f2e5bc"
+card = "#ebdbb2"
+ink = "#3c3836"
+ink_2 = "#504945"
+ink_3 = "#7c6f64"
+rule = "#d5c4a1"
+rule_soft = "#e5d9b6"
+proved = "#79740e"
+proved_bg = "#e6e3b8"
+obligation = "#076678"
+obligation_bg = "#d3e0e2"
+blocking = "#9d0006"
+blocking_bg = "#f0d5cd"
+neutral_bg = "#ecdcb3"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds a throwaway mail setup from fixtures/ and prints the env needed to
-# run ecr-server against it. Never touches the real maildir.
+# run the server against it. Never touches the real maildir.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -75,4 +75,4 @@ NOTMUCH_CONFIG="$DEMO/.config/notmuch/default/config" notmuch new --quiet
 
 echo "demo mail root: $DEMO/Mail"
 echo "run the server with:"
-echo "  HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config cargo run -p ecr-server -- serve --bind 127.0.0.1:8099"
+echo "  HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config cargo run -p ecr-cli -- serve --bind 127.0.0.1:8099"

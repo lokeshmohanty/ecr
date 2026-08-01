@@ -1,0 +1,312 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (must already exist)"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # A tag does not skip verification. If this fails, nothing is published.
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install mail tooling and Tauri dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y notmuch isync msmtp \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - uses: extractions/setup-just@v3
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - run: just fmt-check
+      - run: just lint
+      - run: just test
+      - run: pnpm --dir web install --frozen-lockfile
+      - run: just test-web
+
+      - name: The tag matches the version in Cargo.toml
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          manifest=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$manifest" != "$tag" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match Cargo.toml version $manifest"
+            exit 1
+          fi
+
+  # The server and CLI, plus the built web client it serves.
+  tarball:
+    name: tarball (${{ matrix.target }})
+    needs: verify
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-22.04
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-22.04-arm
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - run: pnpm --dir web install --frozen-lockfile
+      - run: pnpm --dir web exec vite build
+      - run: cargo build --release -p ecr-cli --target ${{ matrix.target }}
+
+      # `share/ecr/web` beside the binary is one of the locations
+      # ecr_server::web::locate already searches, so this layout needs no flag.
+      - name: Assemble
+        run: |
+          stage="ecr-${{ matrix.target }}"
+          mkdir -p "$stage/bin" "$stage/share/ecr"
+          cp target/${{ matrix.target }}/release/ecr "$stage/bin/"
+          cp -r web/dist "$stage/share/ecr/web"
+          cp README.md CHANGELOG.md LICENSE-MIT LICENSE-APACHE THIRD-PARTY.md "$stage/"
+          cp -r licenses "$stage/licenses"
+          tar czf "$stage.tar.gz" "$stage"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarball-${{ matrix.target }}
+          path: ecr-*.tar.gz
+
+  # The desktop client. Built on the oldest supported runner because glibc is
+  # forward-compatible but not backward.
+  desktop:
+    name: desktop (deb, AppImage)
+    needs: verify
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install Tauri dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libsoup-3.0-dev librsvg2-dev patchelf file desktop-file-utils
+
+      - run: pnpm --dir web install --frozen-lockfile
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: tauri-cli
+      - run: cargo tauri build
+        working-directory: shell
+
+      - name: Collect bundles
+        run: |
+          mkdir -p out
+          find target/release/bundle \
+            \( -name '*.deb' -o -name '*.AppImage' \) -exec cp {} out/ \;
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop
+          path: out/*
+
+  android:
+    name: android
+    needs: verify
+    runs-on: ubuntu-latest
+    # Lifted to the job so the signing step's `if` can test it: the `secrets`
+    # context is not available in a step-level condition, but `env` is.
+    env:
+      ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install the NDK
+        run: |
+          sdkmanager --install "ndk;27.2.12479018"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+
+      - name: Install Tauri dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+
+      - run: pnpm --dir web install --frozen-lockfile
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: tauri-cli
+
+      - run: cargo tauri android init --ci
+        working-directory: shell
+
+      # Signed if the keystore secrets are present, unsigned otherwise. An
+      # unsigned APK sideloads fine but cannot be upgraded in place by a later
+      # signed build. This runs after `android init` because that regenerates
+      # gen/android and would discard the file. See docs/releasing.md#android.
+      - name: Decode the keystore
+        id: keystore
+        if: env.ANDROID_KEYSTORE != ''
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$ANDROID_KEYSTORE" | base64 -d > "$RUNNER_TEMP/ecr.jks"
+          {
+            echo "storeFile=$RUNNER_TEMP/ecr.jks"
+            echo "storePassword=$ANDROID_KEYSTORE_PASSWORD"
+            echo "keyAlias=$ANDROID_KEY_ALIAS"
+            echo "password=$ANDROID_KEY_PASSWORD"
+          } > shell/gen/android/keystore.properties
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Note the signing state
+        run: |
+          if [ "${{ steps.keystore.outputs.signed }}" = "true" ]; then
+            echo "APK will be signed."
+          else
+            echo "::warning::ANDROID_KEYSTORE is not set — the APK will be unsigned."
+          fi
+
+      - run: cargo tauri android build --apk
+        working-directory: shell
+
+      - name: Collect the APK
+        run: |
+          mkdir -p out
+          find shell/gen/android -name '*.apk' -exec cp {} out/ \;
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: out/*.apk
+
+  publish:
+    name: draft release
+    needs: [tarball, desktop, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: artifacts
+        run: |
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Extract the changelog section for this version
+        id: notes
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "No CHANGELOG.md section for $version." > notes.md
+          fi
+          cat notes.md
+
+      # Left as a draft on purpose: CI proves the build succeeded, not that the
+      # artifacts run. Download one per platform before publishing.
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          body_path: notes.md
+          files: artifacts/*
+          fail_on_unmatched_files: true
+
+  crates:
+    name: crates.io
+    needs: verify
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Tauri dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+
+      # In dependency order — each crate's path dependencies carry explicit
+      # versions that must already exist on the registry.
+      - name: Publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
+            echo "::warning::CARGO_REGISTRY_TOKEN is not set; skipping crates.io"
+            exit 0
+          fi
+          for crate in ecr-core ecr-store ecr-server ecr-cli; do
+            echo "== $crate =="
+            cargo publish -p "$crate" --no-verify
+            # The registry index needs a moment before the next crate can see it.
+            sleep 30
+          done

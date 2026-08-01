@@ -292,3 +292,416 @@ describe("the normal-mode caret", () => {
     expect(press(typed, "Escape").caret).toBe(2);
   });
 });
+
+const chord = (state: EditorState, key: string): EditorState =>
+  handleKey(state, { key, ctrl: true });
+
+describe("visual mode", () => {
+  it("v enters visual and anchors where the caret was", () => {
+    const state = press(normal("hello world", 2), "v");
+    expect(state.mode).toBe("visual");
+    expect(state.anchor).toBe(2);
+  });
+
+  it("v again leaves visual", () => {
+    expect(press(press(normal("hello"), "v"), "v").mode).toBe("normal");
+  });
+
+  it("motions extend the selection rather than moving it", () => {
+    const state = type(normal("hello world"), "vll");
+    expect(state.anchor).toBe(0);
+    expect(state.caret).toBe(2);
+  });
+
+  it("d deletes the selection inclusively", () => {
+    expect(type(normal("hello"), "vlld").text).toBe("lo");
+  });
+
+  it("y yanks the selection and leaves the caret at its start", () => {
+    const state = type(normal("hello world", 6), "vlllly");
+    expect(state.register).toBe("world");
+    expect(state.caret).toBe(6);
+    expect(state.mode).toBe("normal");
+  });
+
+  it("c deletes the selection and starts insert", () => {
+    const state = type(normal("hello"), "vlc");
+    expect(state.text).toBe("llo");
+    expect(state.mode).toBe("insert");
+  });
+
+  it("V selects whole lines regardless of the column", () => {
+    expect(type(normal("one\ntwo\nthree", 5), "Vd").text).toBe("one\nthree");
+  });
+
+  it("V then j takes both lines", () => {
+    expect(type(normal("one\ntwo\nthree"), "Vjd").text).toBe("three");
+  });
+
+  it("o swaps which end of the selection moves", () => {
+    const state = type(normal("hello world"), "vllo");
+    expect(state.caret).toBe(0);
+    expect(state.anchor).toBe(2);
+  });
+
+  it("gv restores the last selection", () => {
+    const yanked = type(normal("hello world"), "vlly");
+    const state = type(yanked, "gv");
+    expect(state.mode).toBe("visual");
+    expect(state.anchor).toBe(0);
+    expect(state.caret).toBe(2);
+  });
+
+  it("Escape leaves visual without touching the buffer", () => {
+    const state = press(type(normal("hello"), "vll"), "Escape");
+    expect(state.mode).toBe("normal");
+    expect(state.anchor).toBeNull();
+    expect(state.text).toBe("hello");
+  });
+
+  it("~ swaps the case of the selection", () => {
+    expect(type(normal("hello"), "vll~").text).toBe("HELlo");
+  });
+
+  it("> indents the selected lines", () => {
+    expect(type(normal("one\ntwo"), "Vj>").text).toBe("  one\n  two");
+  });
+
+  it("J joins the selected lines", () => {
+    expect(type(normal("one\ntwo\nthree"), "VjJ").text).toBe("one two\nthree");
+  });
+
+  it("p replaces the selection with the register", () => {
+    const yanked = type(normal("one\ntwo", 4), "vlly");
+    const state = type({ ...yanked, caret: 0 }, "vllp");
+    expect(state.text).toBe("two\ntwo");
+  });
+});
+
+describe("text objects", () => {
+  it("diw deletes the word under the caret", () => {
+    expect(type(normal("hello big world", 6), "diw").text).toBe("hello  world");
+  });
+
+  it("daw takes the trailing space too", () => {
+    expect(type(normal("hello big world", 6), "daw").text).toBe("hello world");
+  });
+
+  it("ciw leaves insert mode ready to retype", () => {
+    const state = type(normal("hello world"), "ciw");
+    expect(state.text).toBe(" world");
+    expect(state.mode).toBe("insert");
+  });
+
+  it('di" takes what is inside the quotes', () => {
+    expect(type(normal('say "hello there" now', 8), 'di"').text).toBe('say "" now');
+  });
+
+  it('da" takes the quotes as well', () => {
+    expect(type(normal('say "hello" now', 6), 'da"').text).toBe("say  now");
+  });
+
+  it("di( works from inside the brackets", () => {
+    expect(type(normal("call(a, b) end", 6), "di(").text).toBe("call() end");
+  });
+
+  it("da{ takes the braces", () => {
+    expect(type(normal("x {a} y", 3), "da{").text).toBe("x  y");
+  });
+
+  it("dip takes the paragraph", () => {
+    expect(type(normal("one\ntwo\n\nthree"), "dip").text).toBe("\nthree");
+  });
+
+  it("yiw fills the register without changing the text", () => {
+    const state = type(normal("hello world", 6), "yiw");
+    expect(state.register).toBe("world");
+    expect(state.text).toBe("hello world");
+  });
+
+  it("viw selects the word", () => {
+    const state = type(normal("hello world", 6), "viw");
+    expect(state.mode).toBe("visual");
+    expect(state.anchor).toBe(6);
+    expect(state.caret).toBe(10);
+  });
+
+  it("nested brackets pick the innermost pair", () => {
+    expect(type(normal("a(b(c)d)e", 4), "di(").text).toBe("a(b()d)e");
+  });
+});
+
+describe("find on the line", () => {
+  it("f jumps to the next occurrence", () => {
+    expect(type(normal("hello world"), "fw").caret).toBe(6);
+  });
+
+  it("t stops before it", () => {
+    expect(type(normal("hello world"), "tw").caret).toBe(5);
+  });
+
+  it("F searches backwards", () => {
+    expect(type(normal("hello world", 10), "Fo").caret).toBe(7);
+  });
+
+  it("; repeats the last find", () => {
+    expect(type(normal("a.b.c"), "f;;").caret).toBe(0);
+    expect(type(normal("a.b.c"), "f.;").caret).toBe(3);
+  });
+
+  it(", repeats it the other way", () => {
+    expect(type(normal("a.b.c"), "f.;,").caret).toBe(1);
+  });
+
+  it("never leaves the line", () => {
+    expect(type(normal("abc\nxbc"), "fx").caret).toBe(0);
+  });
+
+  it("df deletes up to and including the character", () => {
+    expect(type(normal("hello world"), "dfo").text).toBe(" world");
+  });
+
+  it("dt deletes up to it", () => {
+    expect(type(normal("hello world"), "dto").text).toBe("o world");
+  });
+});
+
+describe("repeat with .", () => {
+  it("repeats a delete", () => {
+    expect(type(normal("aaa bbb ccc"), "dw.").text).toBe("ccc");
+  });
+
+  it("repeats x", () => {
+    expect(type(normal("hello"), "x.").text).toBe("llo");
+  });
+
+  it("repeats an insert session", () => {
+    const typed = handleKey(type(normal("ab"), "iX"), { key: "Escape" });
+    expect(press(typed, ".").text).toBe("XXab");
+  });
+
+  it("repeats a change with its typed text", () => {
+    const changed = handleKey(type(normal("one two"), "ciwX"), { key: "Escape" });
+    expect(changed.text).toBe("X two");
+    expect(type(changed, "w.").text).toBe("X X");
+  });
+
+  it("keeps the count", () => {
+    expect(type(normal("abcdefgh"), "2x.").text).toBe("efgh");
+  });
+
+  it("a motion is not part of the change it precedes", () => {
+    // Had `w` been recorded, `.` would jump to the end before deleting.
+    const state = type(normal("hello world"), "wx");
+    expect(state.text).toBe("hello orld");
+    expect(press(state, ".").text).toBe("hello rld");
+  });
+});
+
+describe("registers", () => {
+  it('"ay puts the yank in a named register', () => {
+    const state = type(normal("hello world"), '"ayiw');
+    expect(state.registers.a?.text).toBe("hello");
+  });
+
+  it('"ap pastes from it', () => {
+    const yanked = type(normal("hello world"), '"ayiw');
+    const state = type({ ...yanked, caret: 10 }, '"ap');
+    expect(state.text).toBe("hello worldhello");
+  });
+
+  it("an unnamed yank does not disturb a named register", () => {
+    const first = type(normal("hello world"), '"ayiw');
+    const second = type({ ...first, caret: 6 }, "yiw");
+    expect(second.registers.a?.text).toBe("hello");
+    expect(second.register).toBe("world");
+  });
+
+  it("yy is linewise and pastes onto a new line", () => {
+    const state = type(normal("one\ntwo"), "yyp");
+    expect(state.text).toBe("one\none\ntwo");
+  });
+});
+
+describe("in-buffer search", () => {
+  const run = (state: EditorState, keys: string) =>
+    handleKey(type(state, keys), { key: "Enter" });
+
+  it("/ moves to the match", () => {
+    expect(run(normal("alpha beta gamma"), "/beta").caret).toBe(6);
+  });
+
+  it("n goes to the next one", () => {
+    expect(press(run(normal("aXbXc"), "/X"), "n").caret).toBe(3);
+  });
+
+  it("N goes back", () => {
+    expect(press(press(run(normal("aXbXc"), "/X"), "n"), "N").caret).toBe(1);
+  });
+
+  it("wraps around the end", () => {
+    expect(press(press(run(normal("aXbXc"), "/X"), "n"), "n").caret).toBe(1);
+  });
+
+  it("? searches backwards", () => {
+    expect(run(normal("aXbXc", 4), "?X").caret).toBe(3);
+  });
+
+  it("a lowercase pattern ignores case", () => {
+    expect(run(normal("hello World"), "/world").caret).toBe(6);
+  });
+
+  it("a pattern with a capital does not", () => {
+    expect(run(normal("hello world"), "/World").caret).toBe(0);
+  });
+
+  it("Escape abandons the prompt", () => {
+    const state = press(type(normal("hello"), "/hel"), "Escape");
+    expect(state.promptKind).toBeNull();
+    expect(state.caret).toBe(0);
+  });
+
+  it("typing into the prompt never reaches the buffer", () => {
+    expect(type(normal("hello"), "/dd").text).toBe("hello");
+  });
+});
+
+describe("ex commands", () => {
+  const run = (state: EditorState, keys: string) =>
+    handleKey(type(state, keys), { key: "Enter" });
+
+  it(":w submits", () => {
+    expect(run(normal("hi"), ":w").submit).toBe(true);
+  });
+
+  it(":wq submits", () => {
+    expect(run(normal("hi"), ":wq").submit).toBe(true);
+  });
+
+  it(":q cancels", () => {
+    expect(run(normal("hi"), ":q").cancel).toBe(true);
+  });
+
+  it("an unknown command is handed to the host", () => {
+    expect(run(normal("hi"), ":attach").command).toBe("attach");
+  });
+});
+
+describe("C-c chords", () => {
+  it("C-c C-c submits like ZZ", () => {
+    expect(chord(chord(normal("hi"), "c"), "c").submit).toBe(true);
+  });
+
+  it("C-c C-k discards like ZQ", () => {
+    expect(chord(chord(normal("hi"), "c"), "k").cancel).toBe(true);
+  });
+
+  it("works from insert mode", () => {
+    const inserting = type(normal("hi"), "iX");
+    expect(chord(chord(inserting, "c"), "c").submit).toBe(true);
+  });
+
+  it("C-c followed by anything else acts as Escape", () => {
+    const state = press(chord(type(normal("hi"), "i"), "c"), "j");
+    expect(state.mode).toBe("normal");
+    expect(state.submit).toBe(false);
+  });
+});
+
+describe("small edits", () => {
+  it("r replaces one character", () => {
+    expect(type(normal("hello"), "rj").text).toBe("jello");
+  });
+
+  it("J joins two lines with a space", () => {
+    expect(press(normal("one\ntwo"), "J").text).toBe("one two");
+  });
+
+  it("~ flips the case under the caret", () => {
+    expect(press(normal("abc"), "~").text).toBe("Abc");
+  });
+
+  it("S replaces the whole line", () => {
+    const state = type(normal("one\ntwo"), "S");
+    expect(state.text).toBe("\ntwo");
+    expect(state.mode).toBe("insert");
+  });
+
+  it(">> indents the line", () => {
+    expect(type(normal("one"), ">>").text).toBe("  one");
+  });
+
+  it("<< removes the indent", () => {
+    expect(type(normal("    one", 4), "<<").text).toBe("  one");
+  });
+
+  it("C-r redoes an undone change", () => {
+    const undone = type(normal("hello"), "xu");
+    expect(undone.text).toBe("hello");
+    expect(chord(undone, "r").text).toBe("ello");
+  });
+
+  it("C-a increments the number under the caret", () => {
+    expect(chord(normal("item 41", 5), "a").text).toBe("item 42");
+  });
+
+  it("C-x decrements it", () => {
+    expect(chord(normal("item 42", 5), "x").text).toBe("item 41");
+  });
+
+  it("% jumps to the matching bracket", () => {
+    expect(press(normal("call(a, b)"), "%").caret).toBe(9);
+  });
+
+  it("{ and } move by paragraph", () => {
+    expect(press(normal("one\n\ntwo"), "}").caret).toBe(4);
+  });
+});
+
+describe("single-line fields", () => {
+  const field = (text: string) => ({ ...initialState(text, "normal", true), caret: 0 });
+
+  it("Enter asks for the next field instead of breaking the line", () => {
+    const state = press(type(field("alice"), "i"), "Enter");
+    expect(state.text).toBe("alice");
+    expect(state.next).toBe(true);
+  });
+
+  it("Tab asks for the next field", () => {
+    expect(press(type(field("alice"), "i"), "Tab").next).toBe(true);
+  });
+
+  it("Shift-Tab asks for the previous one", () => {
+    const state = handleKey(type(field("alice"), "i"), { key: "Tab", shift: true });
+    expect(state.previous).toBe(true);
+  });
+
+  it("o cannot open a line", () => {
+    const state = press(field("alice"), "o");
+    expect(state.text).toBe("alice");
+    expect(state.mode).toBe("insert");
+  });
+
+  it("a pasted newline becomes a space", () => {
+    const state = handleKey(field("a"), { key: "Insert", paste: "b\nc" });
+    expect(state.text).not.toContain("\n");
+  });
+
+  it("still takes the whole editing grammar", () => {
+    expect(type(field("hello world"), "dw").text).toBe("world");
+  });
+});
+
+describe("yanking reaches the host clipboard", () => {
+  it("y fills the clipboard channel", () => {
+    expect(type(normal("hello world"), "yiw").clipboard).toBe("hello");
+  });
+
+  it("a delete fills it too, as vim's unnamed register does", () => {
+    expect(type(normal("hello world"), "dw").clipboard).toBe("hello ");
+  });
+
+  it("a motion leaves it alone", () => {
+    expect(type(normal("hello"), "w").clipboard).toBeNull();
+  });
+});

@@ -2,7 +2,7 @@ use crate::auth;
 use crate::error::ApiError;
 use crate::routes;
 use crate::state::AppState;
-use axum::extract::{Request, State};
+use axum::extract::{DefaultBodyLimit, Request, State};
 use axum::http::{header, HeaderValue, Method};
 use axum::middleware::{self, Next};
 use axum::response::Response;
@@ -13,6 +13,22 @@ use tower_http::trace::TraceLayer;
 
 pub fn router(state: AppState) -> Router {
     router_with_cors(state, None)
+}
+
+/// Serves until ctrl-c. Owning this here is what keeps axum out of the CLI.
+pub async fn serve(
+    listener: tokio::net::TcpListener,
+    state: AppState,
+    allowed_origins: Option<Vec<String>>,
+    web_dir: Option<&std::path::Path>,
+) -> anyhow::Result<()> {
+    axum::serve(listener, router_with_web(state, allowed_origins, web_dir))
+        .with_graceful_shutdown(async {
+            let _ = tokio::signal::ctrl_c().await;
+            tracing::info!("shutting down");
+        })
+        .await?;
+    Ok(())
 }
 
 /// The API plus the built web client on the same origin, which is what lets a
@@ -44,6 +60,7 @@ pub fn router_with_cors(state: AppState, allowed_origins: Option<Vec<String>>) -
         .route("/api/v1/accounts", get(routes::accounts))
         .route("/api/v1/addresses", get(routes::addresses))
         .route("/api/v1/tags", get(routes::tags))
+        .route("/api/v1/counts", post(routes::counts))
         .route("/api/v1/threads", get(routes::threads))
         .route("/api/v1/threads/{id}", get(routes::thread))
         .route("/api/v1/messages/{id}", get(routes::message))
@@ -51,10 +68,20 @@ pub fn router_with_cors(state: AppState, allowed_origins: Option<Vec<String>>) -
         .route("/api/v1/messages/{id}/parts/{part}", get(routes::part))
         .route("/api/v1/tags", post(routes::tag))
         .route("/api/v1/sync", post(routes::sync))
-        .route("/api/v1/send", post(routes::send))
+        .route(
+            "/api/v1/send",
+            // A draft carries its attachments base64 in the same request, so
+            // this route alone needs room for the 25MB cap plus the ~4/3
+            // encoding overhead. Axum's 2MB default truncated the body, which
+            // surfaced as an unintelligible parse error rather than a refusal.
+            post(routes::send).layer(DefaultBodyLimit::max(36 * 1024 * 1024)),
+        )
         .route("/api/v1/events", get(routes::events))
         .route("/api/v1/config", get(routes::config))
         .route("/api/v1/config", put(routes::save_config))
+        .route("/api/v1/themes", get(routes::themes))
+        .route("/api/v1/theme", get(routes::theme))
+        .route("/api/v1/theme", put(routes::save_theme))
         .layer(middleware::from_fn_with_state(state.clone(), require_token));
 
     public

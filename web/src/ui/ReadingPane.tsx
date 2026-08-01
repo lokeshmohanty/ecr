@@ -1,8 +1,10 @@
-import { For, Show, createEffect, createResource, onCleanup } from "solid-js";
+import { For, Show, createEffect, createResource, createSignal, onCleanup } from "solid-js";
 import type { Message } from "../api/types";
 import type { AppStore } from "../state/store";
 import { absolutizePartUrls } from "./body-urls";
 import { toggleLabel } from "../state/format";
+import { linkify } from "./linkify";
+import { attachViewCursor, type ViewTarget } from "./view-mode";
 
 export function ReadingPane(props: { store: AppStore; onBack?: () => void }) {
   let scroller: HTMLDivElement | undefined;
@@ -63,6 +65,7 @@ export function ReadingPane(props: { store: AppStore; onBack?: () => void }) {
                     message={message}
                     index={index()}
                     store={props.store}
+                    total={loaded().messages.length}
                     newest={index() === loaded().messages.length - 1}
                   />
                 )}
@@ -79,18 +82,17 @@ function MessageView(props: {
   message: Message;
   index: number;
   store: AppStore;
+  total: number;
   newest: boolean;
 }) {
-  const expandByDefault = () =>
-    props.newest ? props.store.settings().preferences.expandNewest : false;
+  const open = () => props.store.messageOpen(props.message.id, props.newest);
 
-  const open = () => {
-    const explicit = props.store.collapsed[props.message.id];
-    return explicit === undefined ? expandByDefault() : !explicit;
-  };
+  /** The message the conversation cursor is on, and so the one keys act upon. */
+  const current = () => props.store.messageIndex() === props.index;
 
-  const cursor = () =>
-    props.store.pane() === "detail" && props.store.messageIndex() === props.index;
+  // Not pane-scoped: C-j/C-k walk the conversation from anywhere, so the tint
+  // has to be visible from anywhere too. A single-message thread needs none.
+  const cursor = () => props.total > 1 && current();
 
   const wanted = () => props.store.messageFormat(props.message.id);
 
@@ -120,6 +122,23 @@ function MessageView(props: {
 
   const attachments = () => props.message.parts.filter((p) => p.disposition === "attachment");
 
+  /** The rendered body, whichever way it was rendered, for the reading cursor. */
+  const [target, setTarget] = createSignal<ViewTarget | null>(null);
+
+  createEffect(() => {
+    if (!props.store.viewing() || !current() || !open()) return;
+
+    const rendered = target();
+    if (!rendered) return;
+
+    const detach = attachViewCursor(rendered, {
+      scroller: props.store.detailScroller(),
+      onExit: () => props.store.setViewing(false),
+      onStatus: (text) => props.store.setStatus(text),
+    });
+    onCleanup(detach);
+  });
+
   return (
     <article
       data-message={props.index}
@@ -131,12 +150,12 @@ function MessageView(props: {
         class="touch-target flex w-full items-baseline gap-3 px-4 py-3 text-left hover:bg-neutral-bg"
         onClick={() => {
           props.store.setMessageIndex(props.index);
-          props.store.toggleCollapsed(props.message.id);
+          props.store.toggleCollapsed(props.message.id, props.newest);
         }}
       >
         <span class="shrink-0 text-ink-3">{open() ? "▾" : "▸"}</span>
         <span class="truncate-cell flex-1 text-ink">
-          {props.message.from.map((a) => a.name ?? a.email).join(", ")}
+          {props.message.from.map(sender).join(", ")}
         </span>
         <span class="shrink-0 text-xs text-ink-3">{props.message.date}</span>
       </button>
@@ -146,6 +165,10 @@ function MessageView(props: {
           <dl class="mb-3 grid grid-cols-[3rem_minmax(0,1fr)] gap-x-2 text-xs text-ink-3">
             <Recipients label="to" list={props.message.to} />
             <Recipients label="cc" list={props.message.cc} />
+            <dt class="uppercase">id</dt>
+            <dd class="mono truncate-cell" title={props.message.id}>
+              {props.message.id}
+            </dd>
           </dl>
 
           <Show when={attachments().length > 0}>
@@ -210,9 +233,12 @@ function MessageView(props: {
                 <Show
                   when={loaded().format === "html"}
                   fallback={
-                    <pre class="mono max-w-full overflow-x-auto rounded border border-rule-soft bg-card p-3 text-[13px] leading-relaxed whitespace-pre-wrap text-ink">
-                      {loaded().content}
-                    </pre>
+                    <pre
+                      ref={(el) => setTarget({ root: el, frame: null })}
+                      class="mono max-w-full overflow-x-auto rounded border border-rule-soft bg-card p-3 text-[13px] leading-relaxed whitespace-pre-wrap text-ink"
+                      // Bare URLs become links so Enter opens them here too.
+                      innerHTML={linkify(loaded().content)}
+                    />
                   }
                 >
                   <BodyFrame
@@ -221,6 +247,7 @@ function MessageView(props: {
                       props.store.api.baseUrl,
                       props.store.connection().token,
                     )}
+                    onReady={(doc, frame) => setTarget({ root: doc.body, frame })}
                   />
                 </Show>
               </>
@@ -230,6 +257,11 @@ function MessageView(props: {
       </Show>
     </article>
   );
+}
+
+/** A name alone hides which address actually sent it. */
+function sender(address: { name: string | null; email: string }): string {
+  return address.name ? `${address.name} <${address.email}>` : address.email;
 }
 
 function Recipients(props: { label: string; list: { name: string | null; email: string }[] }) {
@@ -252,7 +284,10 @@ function Recipients(props: { label: string; list: { name: string | null; email: 
  * background, and forcing a dark one produced dark-on-dark text in a large
  * share of messages.
  */
-function BodyFrame(props: { html: string }) {
+function BodyFrame(props: {
+  html: string;
+  onReady?: (doc: Document, frame: HTMLIFrameElement) => void;
+}) {
   let frame: HTMLIFrameElement | undefined;
 
   const document = () => `<!doctype html>
@@ -309,6 +344,8 @@ function BodyFrame(props: { html: string }) {
   const fit = () => {
     const doc = frame?.contentDocument;
     if (!frame || !doc?.body) return;
+
+    props.onReady?.(doc, frame);
 
     const measure = () => {
       const height = Math.max(

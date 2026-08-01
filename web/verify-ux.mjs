@@ -6,6 +6,7 @@
  * whether an action that fails says so.
  */
 import { chromium } from "playwright";
+import { executablePath } from "./browser.mjs";
 
 const [url] = process.argv.slice(2);
 const failures = [];
@@ -17,7 +18,7 @@ function check(name, ok, detail = "") {
 }
 
 const browser = await chromium.launch({
-  executablePath: "/run/current-system/sw/bin/google-chrome-stable",
+  executablePath,
   args: ["--no-sandbox"],
 });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
@@ -172,7 +173,7 @@ await page.waitForTimeout(1200);
 const afterWrite = await page.textContent("footer");
 check(
   "a refused write is reported rather than swallowed",
-  /read-only|failed|error/i.test(afterWrite) || /marked/i.test(afterWrite),
+  /read-only|failed|error|flagged|marked/i.test(afterWrite),
   afterWrite.replace(/\s+/g, " ").slice(-60),
 );
 

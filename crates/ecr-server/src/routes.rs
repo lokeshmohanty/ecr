@@ -84,6 +84,39 @@ pub async fn tags(State(state): State<AppState>) -> ApiResult<Json<Vec<String>>>
     Ok(Json(state.store.notmuch().tags().await?))
 }
 
+/// How many queries one request may ask about.
+///
+/// The sidebar sends a query per visible row, which is tens. A cap keeps a
+/// single request from turning into an unbounded amount of Xapian work.
+const MAX_COUNT_QUERIES: usize = 200;
+
+#[derive(Deserialize)]
+pub struct CountsRequest {
+    pub queries: Vec<String>,
+}
+
+#[derive(Serialize)]
+pub struct CountsResponse {
+    /// Positional, matching the request: duplicate queries stay cheap and the
+    /// client zips by index rather than re-deriving the key it sent.
+    pub counts: Vec<u64>,
+}
+
+pub async fn counts(
+    State(state): State<AppState>,
+    Json(request): Json<CountsRequest>,
+) -> ApiResult<Json<CountsResponse>> {
+    if request.queries.len() > MAX_COUNT_QUERIES {
+        return Err(ApiError::BadRequest(format!(
+            "at most {MAX_COUNT_QUERIES} queries per request, got {}",
+            request.queries.len()
+        )));
+    }
+
+    let counts = state.store.count_batch(&request.queries).await?;
+    Ok(Json(CountsResponse { counts }))
+}
+
 pub async fn threads(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -425,6 +458,138 @@ pub async fn save_config(
     }
 
     let path = state.store.paths().settings_file();
+    if let Some(parent) = path.parent() {
+        if let Err(err) = std::fs::create_dir_all(parent) {
+            return ApiError::Internal(err.to_string()).into_response();
+        }
+    }
+
+    match write_atomically(&path, &update.raw) {
+        Ok(()) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "path": path.display().to_string() })),
+        )
+            .into_response(),
+        Err(err) => ApiError::Internal(err.to_string()).into_response(),
+    }
+}
+
+#[derive(Serialize)]
+pub struct ThemeListing {
+    pub dir: String,
+    pub presets: Vec<ThemeEntry>,
+}
+
+#[derive(Serialize)]
+pub struct ThemeEntry {
+    /// The value that goes in settings.toml, relative to the config dir.
+    pub path: String,
+    /// The display name from the file, falling back to the stem.
+    pub name: String,
+    pub builtin: bool,
+}
+
+/// Every theme on disk, seeded with the shipped presets on first call so a fresh
+/// install has something to pick from.
+pub async fn themes(State(state): State<AppState>) -> ApiResult<Json<ThemeListing>> {
+    let dir = state.store.paths().themes_dir();
+    ecr_store::themes::seed(&dir).map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let builtin: std::collections::HashSet<&str> =
+        ecr_store::themes::PRESETS.iter().map(|(n, _)| *n).collect();
+
+    let mut presets = Vec::new();
+    let entries = std::fs::read_dir(&dir).map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("toml") {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+
+        let name = std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|raw| raw.parse::<toml::Table>().ok())
+            .and_then(|doc| doc.get("name")?.as_str().map(str::to_string))
+            .unwrap_or_else(|| stem.to_string());
+
+        presets.push(ThemeEntry {
+            path: format!("themes/{stem}.toml"),
+            name,
+            builtin: builtin.contains(stem),
+        });
+    }
+
+    presets.sort_by(|a, b| a.path.cmp(&b.path));
+
+    Ok(Json(ThemeListing {
+        dir: dir.display().to_string(),
+        presets,
+    }))
+}
+
+#[derive(Deserialize)]
+pub struct ThemeQuery {
+    pub path: String,
+}
+
+/// Unlike the settings file, a theme that is not there is a real error: the file
+/// was named by settings.toml, so its absence is a broken link the user should
+/// see rather than an empty palette that silently does nothing.
+pub async fn theme(
+    State(state): State<AppState>,
+    AxumQuery(query): AxumQuery<ThemeQuery>,
+) -> ApiResult<Json<ConfigFile>> {
+    let path = state
+        .store
+        .paths()
+        .resolve_relative(&query.path)
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+
+    let raw = std::fs::read_to_string(&path).map_err(|err| match err.kind() {
+        std::io::ErrorKind::NotFound => ApiError::NotFound(format!("no theme at {}", query.path)),
+        _ => ApiError::Internal(err.to_string()),
+    })?;
+
+    Ok(Json(ConfigFile {
+        path: path.display().to_string(),
+        raw,
+    }))
+}
+
+#[derive(Deserialize)]
+pub struct ThemeUpdate {
+    pub path: String,
+    pub raw: String,
+}
+
+pub async fn save_theme(State(state): State<AppState>, Json(update): Json<ThemeUpdate>) -> Response {
+    let path = match state.store.paths().resolve_relative(&update.path) {
+        Ok(path) => path,
+        Err(err) => return ApiError::BadRequest(err.to_string()).into_response(),
+    };
+
+    if let Err(err) = update.raw.parse::<toml::Table>() {
+        let (line, column) = err
+            .span()
+            .map(|span| position(&update.raw, span.start))
+            .unwrap_or((1, 1));
+
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ConfigRejected {
+                error: "invalid_toml",
+                detail: err.message().to_string(),
+                line,
+                column,
+            }),
+        )
+            .into_response();
+    }
+
     if let Some(parent) = path.parent() {
         if let Err(err) = std::fs::create_dir_all(parent) {
             return ApiError::Internal(err.to_string()).into_response();

@@ -1,6 +1,7 @@
 import { parse as parseToml } from "smol-toml";
 
 import { DEFAULT_BINDINGS, type Action, type Binding, type Pane } from "../keymap/engine";
+import { DATE_FORMATS, isDateFormat, isTimezone, type DateFormat } from "./datetime";
 import {
   DEFAULT_PACKAGES,
   PACKAGE_IDS,
@@ -33,6 +34,12 @@ export interface Preferences {
   markReadOnOpen: boolean;
   /** How long it must be on screen first, in milliseconds. */
   markReadDelay: number;
+  /** The theme file to load, relative to this file's directory. */
+  theme: string;
+  /** How dates are written in the message list. */
+  listDateFormat: DateFormat;
+  /** IANA timezone every date is shown in. Empty means the machine's own. */
+  timezone: string;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -47,6 +54,9 @@ export const DEFAULT_PREFERENCES: Preferences = {
   pinnedCompose: true,
   markReadOnOpen: true,
   markReadDelay: 1200,
+  theme: "themes/ecr-dark.toml",
+  listDateFormat: "adaptive",
+  timezone: "Asia/Kolkata",
 };
 
 export interface Settings {
@@ -129,6 +139,12 @@ export const SECTIONS: SectionSpec[] = [
     advanced: false,
   },
   {
+    id: "appearance",
+    title: "Appearance",
+    blurb: "Which palette the client wears.",
+    advanced: false,
+  },
+  {
     id: "reading",
     title: "Reading",
     blurb: "How messages are shown, and when they count as read.",
@@ -164,6 +180,11 @@ export const PREFERENCE_DOCS: Record<keyof Preferences, PreferenceDoc> = {
     section: "general",
     doc: "Move through a list and the right-hand pane follows as you go. Turn this\noff to open threads only with Enter.",
   },
+  theme: {
+    section: "appearance",
+    doc: "The theme file to load, relative to this file's own directory. The\nshipped presets are written into themes/ on first run; copy one, edit it,\nand point this at your copy. Editing a preset in place works too, but a\nnew release will not update a file you have changed.",
+    values: "themes/ecr-dark.toml | themes/tokyonight.toml | any file you write",
+  },
   preferHtml: {
     section: "reading",
     doc: "Show the HTML part of a message rather than its plain-text alternative.\nEither way, t switches the message in front of you.",
@@ -183,6 +204,16 @@ export const PREFERENCE_DOCS: Record<keyof Preferences, PreferenceDoc> = {
   markReadDelay: {
     section: "reading",
     doc: "How long it must stay on screen first, in milliseconds. Raise this if\nscrolling past a message is marking it read.",
+  },
+  listDateFormat: {
+    section: "reading",
+    doc: "How dates are written in the message list. adaptive shows the clock for\ntoday, day and month for this year, and the full date before that — so the\ncolumn stays narrow without ever being ambiguous.",
+    values: "adaptive | time | datetime | iso | relative",
+  },
+  timezone: {
+    section: "reading",
+    doc: "The IANA timezone every date is shown in, such as Asia/Kolkata or\nEurope/Berlin. Leave it empty to follow the machine ecr is displayed on.",
+    values: "an IANA timezone name, or empty",
   },
   replyAll: {
     section: "composing",
@@ -459,6 +490,28 @@ function assign(
     preferences.editorStartMode = value;
     return;
   }
+  if (key === "listDateFormat") {
+    if (typeof value !== "string" || !isDateFormat(value)) {
+      errors.push(`${at}: ${name} expects ${DATE_FORMATS.join(", ")}`);
+      return;
+    }
+    preferences.listDateFormat = value;
+    return;
+  }
+  // A typo here is silent otherwise: Intl falls back to the machine's zone, so
+  // every date would look plausible and be wrong.
+  if (key === "timezone") {
+    if (typeof value !== "string") {
+      errors.push(`${at}: ${name} expects text in quotes`);
+      return;
+    }
+    if (!isTimezone(value)) {
+      errors.push(`${at}: ${name} does not name a timezone: ${JSON.stringify(value)}`);
+      return;
+    }
+    preferences.timezone = value;
+    return;
+  }
   if (typeof current === "boolean") {
     if (typeof value !== "boolean") {
       errors.push(`${at}: ${name} expects true or false`);
@@ -581,15 +634,16 @@ function readPackages(
   }
 }
 
-function lineOfHeader(text: string, header: string): number {
+export function lineOfHeader(text: string, header: string): number {
   const lines = text.split("\n");
   const found = lines.findIndex((line) => line.trim().replace(/\s/g, "") === `[${header}]`);
   return found + 1 || 1;
 }
 
-function lineOfKey(text: string, header: string, key: string): number {
+/** An empty `header` means the key sits above every table, at the top level. */
+export function lineOfKey(text: string, header: string, key: string): number {
   const lines = text.split("\n");
-  const start = lines.findIndex((line) => line.trim() === header);
+  const start = header === "" ? 0 : lines.findIndex((line) => line.trim() === header);
   const pattern = new RegExp(`^\\s*"?${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"?\\s*=`);
   for (let i = Math.max(start, 0); i < lines.length; i += 1) {
     if (pattern.test(lines[i]!)) return i + 1;

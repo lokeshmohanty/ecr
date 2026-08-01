@@ -1,9 +1,10 @@
 import { chromium } from "playwright";
+import { executablePath } from "./browser.mjs";
 const [url] = process.argv.slice(2);
 const failures = [], notes = [];
 const check = (n, ok, d = "") => { console.log(`  ${ok ? "ok  " : "FAIL"} ${n}${d ? ` — ${d}` : ""}`); if (!ok) failures.push(n); };
 
-const browser = await chromium.launch({ executablePath: "/run/current-system/sw/bin/google-chrome-stable", args: ["--no-sandbox"] });
+const browser = await chromium.launch({ executablePath, args: ["--no-sandbox"] });
 const page = await browser.newPage({ viewport: { width: 1500, height: 940 } });
 page.on("pageerror", (e) => notes.push(e.message.slice(0, 120)));
 page.on("console", (m) => {
@@ -135,7 +136,7 @@ check("typing appends", (await page.inputValue("textarea")).split("\n")[0].endsW
 await page.keyboard.press("u"); await page.waitForTimeout(250);
 check("one undo removes the whole insert session", !(await page.inputValue("textarea")).includes("XYZ"));
 
-await page.screenshot({ path: "screenshots/v3-dark.png" });
+await page.screenshot({ path: "screenshots/live/v3-dark.png" });
 check("no page errors", notes.length === 0, notes.slice(0, 2).join(" | "));
 await browser.close();
 console.log(failures.length === 0 ? "\nALL V3 CHECKS PASSED" : `\n${failures.length} FAILED: ${failures.join(", ")}`);

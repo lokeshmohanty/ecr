@@ -320,7 +320,7 @@ tags=new;unread
 exclude_tags=deleted;spam;trash
 
 [user]
-name=Lokesh Mohanty
+name=Alice Example
 other_email=
 primary_email=alice@example.com
 "#;
@@ -333,7 +333,7 @@ primary_email=alice@example.com
             Some(PathBuf::from("/home/alice/.local/share/Mail"))
         );
         assert_eq!(cfg.primary_email.as_deref(), Some("alice@example.com"));
-        assert_eq!(cfg.user_name.as_deref(), Some("Lokesh Mohanty"));
+        assert_eq!(cfg.user_name.as_deref(), Some("Alice Example"));
         assert_eq!(cfg.exclude_tags, vec!["deleted", "spam", "trash"]);
         assert_eq!(cfg.new_tags, vec!["new", "unread"]);
         assert!(cfg.other_email.is_empty());
@@ -350,9 +350,8 @@ primary_email=alice@example.com
 
     #[test]
     fn explicit_mail_root_wins_over_database_path() {
-        let cfg = NotmuchConfig::parse(
-            "[database]\npath=/var/lib/notmuch\nmail_root=/home/alice/Mail\n",
-        );
+        let cfg =
+            NotmuchConfig::parse("[database]\npath=/var/lib/notmuch\nmail_root=/home/alice/Mail\n");
         assert_eq!(
             cfg.effective_mail_root(),
             Some(&PathBuf::from("/home/alice/Mail"))
@@ -500,10 +499,7 @@ account default : main
     #[test]
     fn finds_the_account_serving_an_address() {
         let cfg = MsmtpConfig::parse(LIVE_MSMTP);
-        assert_eq!(
-            cfg.account_for_address("alice@example.com"),
-            Some("main")
-        );
+        assert_eq!(cfg.account_for_address("alice@example.com"), Some("main"));
         assert_eq!(cfg.account_for_address("nobody@example.com"), None);
     }
 }

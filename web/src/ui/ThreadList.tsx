@@ -1,7 +1,8 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import type { ThreadSummary } from "../api/types";
 import type { AppStore } from "../state/store";
-import { MARK_TAGS } from "../state/store";
+import { badgesFor } from "../state/store";
+import { formatListDate } from "../state/datetime";
 import { windowRange } from "./window";
 
 const ROW_HEIGHT = 58;
@@ -132,16 +133,28 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
 
   const badges = () => {
     const id = props.thread.newest_message;
-    if (!id) return "";
-    return (props.store.marks[id] ?? []).map((m) => MARK_TAGS[m].badge).join("");
+    return id ? badgesFor(props.store.marks[id]) : "";
+  };
+
+  const picked = () => props.store.isSelected(props.index);
+
+  // Falls back to notmuch's own phrasing when the server sent no timestamp, so
+  // an older server still shows something rather than an empty column.
+  const when = () => {
+    const preferences = props.store.settings().preferences;
+    return (
+      formatListDate(props.thread.timestamp, preferences.listDateFormat, preferences.timezone) ||
+      props.thread.date_relative
+    );
   };
 
   return (
     <div
-      class="row-grid touch-target cursor-pointer border-b border-rule-soft px-3 py-2"
+      class="row-grid touch-target relative cursor-pointer border-b border-rule-soft px-3 py-2"
       style={{ height: `${ROW_HEIGHT}px` }}
       classList={{
         "bg-obligation-bg text-ink": selected(),
+        "bg-neutral-bg": !selected() && picked(),
         "hover:bg-neutral-bg": !selected(),
       }}
       onClick={() => {
@@ -156,11 +169,17 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
         class="tape"
         classList={{
           "tape-marked": badges() !== "",
-          "tape-unread": badges() === "" && unread(),
-          "tape-flagged": badges() === "" && !unread() && flagged(),
+          "tape-selected": badges() === "" && picked(),
+          "tape-unread": badges() === "" && !picked() && unread(),
+          "tape-flagged": badges() === "" && !picked() && !unread() && flagged(),
         }}
-        title={badges() || (unread() ? "unread" : flagged() ? "flagged" : "")}
+        title={badges() || (picked() ? "selected" : unread() ? "unread" : flagged() ? "flagged" : "")}
       />
+
+      {/* What is staged, so it can be read before x writes it. */}
+      <Show when={badges()}>
+        <span class="mono absolute left-6 text-[10px] text-blocking">{badges()}</span>
+      </Show>
 
       <div class="min-w-0">
         <div
@@ -178,7 +197,7 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
       </div>
 
       <div class="mono text-right text-xs text-ink-3">
-        <div>{props.thread.date_relative}</div>
+        <div title={props.thread.date_relative}>{when()}</div>
         <Show when={props.thread.total > 1}>
           <div class="text-proved">({props.thread.total})</div>
         </Show>

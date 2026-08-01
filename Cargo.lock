@@ -1069,10 +1069,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
+name = "ecr-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "ecr-core",
+ "ecr-server",
+ "ecr-store",
+ "qrcode",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "ecr-core"
 version = "0.1.0"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "ecr-desktop"
+version = "0.1.0"
+dependencies = [
+ "gtk",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
 ]
 
 [[package]]
@@ -1082,14 +1110,12 @@ dependencies = [
  "anyhow",
  "axum",
  "chrono",
- "clap",
  "dirs",
  "ecr-core",
  "ecr-store",
  "futures",
  "hex",
  "notify",
- "qrcode",
  "rand",
  "reqwest",
  "serde",
@@ -1102,18 +1128,6 @@ dependencies = [
  "toml 0.9.12+spec-1.1.0",
  "tower-http 0.7.0",
  "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "ecr-shell"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-opener",
 ]
 
 [[package]]
@@ -1122,6 +1136,7 @@ version = "0.1.0"
 dependencies = [
  "ammonia",
  "anyhow",
+ "base64 0.22.1",
  "dirs",
  "ecr-core",
  "mail-builder",
