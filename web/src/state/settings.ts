@@ -26,6 +26,10 @@ export interface Preferences {
   editorStartMode: "normal" | "insert";
   /** Open compose pinned to the bottom of the detail pane. */
   pinnedCompose: boolean;
+  /** Drop the unread tag once a message has actually been on screen. */
+  markReadOnOpen: boolean;
+  /** How long it must be on screen first, in milliseconds. */
+  markReadDelay: number;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -38,6 +42,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   followSelection: true,
   editorStartMode: "normal",
   pinnedCompose: true,
+  markReadOnOpen: true,
+  markReadDelay: 1200,
 };
 
 export interface Settings {
@@ -245,12 +251,17 @@ function applyPreference(
 export function actionToText(action: Action): string {
   if (action.kind === "reply") return action.all ? "reply:all" : "reply";
   if (action.kind === "mark") return `mark:${action.tag}`;
+  if ((action.kind === "scrollDown" || action.kind === "scrollUp") && action.half) {
+    return `${action.kind}:half`;
+  }
   return action.kind;
 }
 
 export function actionFromText(text: string): Action | null {
   if (text === "reply") return { kind: "reply", all: false };
   if (text === "reply:all") return { kind: "reply", all: true };
+  if (text === "scrollDown:half") return { kind: "scrollDown", half: true };
+  if (text === "scrollUp:half") return { kind: "scrollUp", half: true };
   if (text.startsWith("mark:")) return { kind: "mark", tag: text.slice(5) };
 
   const known = new Set(DEFAULT_BINDINGS.map((b) => b.action.kind));

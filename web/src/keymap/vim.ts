@@ -34,7 +34,9 @@ export interface EditorState {
 export function initialState(text: string, mode: VimMode = "insert"): EditorState {
   return {
     text,
-    caret: text.length,
+    // Normal mode rests *on* a character, as in vim. Past the last one there is
+    // nothing for the block cursor to cover, so it would look like no cursor.
+    caret: mode === "normal" ? Math.max(text.length - 1, 0) : text.length,
     mode,
     history: [],
     insertAnchor: null,

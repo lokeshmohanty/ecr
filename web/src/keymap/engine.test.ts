@@ -159,10 +159,10 @@ describe("modes and focus", () => {
 });
 
 describe("modifiers", () => {
-  it("claims only the ctrl chords it has bound", () => {
+  it("claims only the ctrl chords bound in the focused pane", () => {
     const map = new Keymap();
-    // C-j is bound; C-t is not and belongs to the browser.
-    expect(map.handle({ key: "j", ctrl: true }, "normal", false, "list")).toMatchObject({
+    // C-h is global; C-t is bound nowhere and belongs to the browser.
+    expect(map.handle({ key: "h", ctrl: true }, "normal", false, "list")).toMatchObject({
       type: "action",
     });
     expect(map.handle({ key: "t", ctrl: true }, "normal", false, "list")).toEqual({
@@ -242,9 +242,9 @@ describe("ctrl chords", () => {
     });
   });
 
-  it("ctrl+p toggles the pinned split", () => {
+  it("ctrl+b toggles the pinned split, even mid-edit", () => {
     const map = new Keymap();
-    expect(map.handle({ key: "p", ctrl: true }, "insert", true, "detail")).toMatchObject({
+    expect(map.handle({ key: "b", ctrl: true }, "insert", true, "detail")).toMatchObject({
       action: { kind: "togglePinned" },
     });
   });
@@ -260,6 +260,95 @@ describe("ctrl chords", () => {
   it("a plain key is unaffected by the chord path", () => {
     const map = new Keymap();
     expect(map.handle({ key: "h" }, "normal", false, "list")).toMatchObject({
+      action: { kind: "focusLeft" },
+    });
+  });
+});
+
+describe("scrolling and conversation movement in the detail pane", () => {
+  const map = () => new Keymap();
+
+  it("j and k scroll the reading pane rather than moving the list", () => {
+    expect(press(map(), "j", { pane: "detail" })).toMatchObject({
+      action: { kind: "scrollDown" },
+    });
+    expect(press(map(), "k", { pane: "detail" })).toMatchObject({
+      action: { kind: "scrollUp" },
+    });
+  });
+
+  it("j and k still move the cursor in the list and the sidebar", () => {
+    expect(press(map(), "j", { pane: "list" })).toMatchObject({ action: { kind: "next" } });
+    expect(press(map(), "j", { pane: "sidebar" })).toMatchObject({ action: { kind: "next" } });
+  });
+
+  it("ctrl-e and ctrl-y scroll a line at a time", () => {
+    const m = map();
+    expect(m.handle({ key: "e", ctrl: true }, "normal", false, "detail")).toMatchObject({
+      action: { kind: "scrollDown" },
+    });
+    expect(m.handle({ key: "y", ctrl: true }, "normal", false, "detail")).toMatchObject({
+      action: { kind: "scrollUp" },
+    });
+  });
+
+  it("ctrl-d and ctrl-u scroll half a screen", () => {
+    const m = map();
+    expect(m.handle({ key: "d", ctrl: true }, "normal", false, "detail")).toMatchObject({
+      action: { kind: "scrollDown", half: true },
+    });
+    expect(m.handle({ key: "u", ctrl: true }, "normal", false, "detail")).toMatchObject({
+      action: { kind: "scrollUp", half: true },
+    });
+  });
+
+  it("ctrl-j and ctrl-k walk the conversation", () => {
+    const m = map();
+    expect(m.handle({ key: "j", ctrl: true }, "normal", false, "detail")).toMatchObject({
+      action: { kind: "nextMessage" },
+    });
+    expect(m.handle({ key: "k", ctrl: true }, "normal", false, "detail")).toMatchObject({
+      action: { kind: "prevMessage" },
+    });
+  });
+
+  it("ctrl-n and ctrl-p are the same movement", () => {
+    const m = map();
+    expect(m.handle({ key: "n", ctrl: true }, "normal", false, "detail")).toMatchObject({
+      action: { kind: "nextMessage" },
+    });
+    expect(m.handle({ key: "p", ctrl: true }, "normal", false, "detail")).toMatchObject({
+      action: { kind: "prevMessage" },
+    });
+  });
+
+  it("ctrl-h and ctrl-l still move between panes from the detail pane", () => {
+    const m = map();
+    expect(m.handle({ key: "h", ctrl: true }, "normal", false, "detail")).toMatchObject({
+      action: { kind: "focusLeft" },
+    });
+    expect(m.handle({ key: "l", ctrl: true }, "normal", false, "detail")).toMatchObject({
+      action: { kind: "focusRight" },
+    });
+  });
+
+  it("ctrl-b toggles the pinned split from anywhere", () => {
+    for (const pane of ["sidebar", "list", "detail"] as Pane[]) {
+      expect(map().handle({ key: "b", ctrl: true }, "normal", false, pane), pane).toMatchObject({
+        action: { kind: "togglePinned" },
+      });
+    }
+  });
+
+  it("a chord bound only to the detail pane does not fire elsewhere", () => {
+    expect(map().handle({ key: "e", ctrl: true }, "normal", false, "list")).toEqual({
+      type: "ignored",
+      consumed: false,
+    });
+  });
+
+  it("chords still work while an editor holds focus", () => {
+    expect(map().handle({ key: "h", ctrl: true }, "insert", true, "detail")).toMatchObject({
       action: { kind: "focusLeft" },
     });
   });

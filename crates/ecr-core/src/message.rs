@@ -222,6 +222,9 @@ pub struct Body {
     pub format: BodyFormat,
     pub content: String,
     pub remote_resources_blocked: usize,
+    /// Whether the message carries a real HTML part, so the client knows
+    /// whether offering to switch to it means anything.
+    pub has_html: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

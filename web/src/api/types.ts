@@ -73,6 +73,8 @@ export interface Body {
   format: "text" | "html";
   content: string;
   remote_resources_blocked: number;
+  /** Whether the message has a real HTML part to switch to. */
+  has_html: boolean;
 }
 
 export interface Page<T> {

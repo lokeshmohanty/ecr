@@ -7,6 +7,7 @@ import type { Mode, Pane } from "../keymap/engine";
 import { loadSettings, saveSettings, type Settings } from "./settings";
 import { ALL_ACCOUNTS, accountLabel, buildTree, type ViewGroup } from "./views";
 import { parseAddress, type AddressEntry } from "./suggest";
+import { effectiveFormat, toggled, type MessageFormat } from "./format";
 
 export type Mark = "archive" | "delete" | "read" | "unread" | "flag";
 
@@ -89,8 +90,10 @@ export function createAppStore() {
   const [connected, setConnected] = createSignal(false);
   const [lastError, setLastError] = createSignal("");
   const [collapsed, setCollapsed] = createStore<Record<string, boolean>>({});
-  /** Messages the reader has forced to plain text, by id. */
-  const [plainText, setPlainText] = createStore<Record<string, boolean>>({});
+  /** Per-message format overrides, by id. Absent means follow the preference. */
+  const [formatOverride, setFormatOverride] = createStore<Record<string, MessageFormat>>({});
+  /** The detail pane's scroll container, so keys can drive it. */
+  const [detailScroller, setDetailScroller] = createSignal<HTMLElement | null>(null);
   const [pinnedOpen, setPinnedOpen] = createSignal(true);
   const [expandedGroup, setExpandedGroup] = createSignal<string>(ALL_ACCOUNTS);
 
@@ -257,12 +260,21 @@ export function createAppStore() {
     selectQuery(row.query);
   }
 
+  /**
+   * A draft is the reader's own work, so navigating never discards it — only
+   * sending, ZQ or the close button does. Settings has nothing to lose, so
+   * moving away closes it.
+   */
+  function leaveRightPane() {
+    if (right().kind !== "compose") setRight({ kind: "reading" });
+  }
+
   function selectQuery(next: string) {
     batch(() => {
       setQuery(next);
       setSelected(0);
       setOpenThread(null);
-      setRight({ kind: "reading" });
+      leaveRightPane();
     });
   }
 
@@ -365,8 +377,56 @@ export function createAppStore() {
     }
   }
 
-  function togglePlainText(id: string) {
-    setPlainText(id, (v) => !v);
+  /** The format a message is shown in right now. */
+  function messageFormat(id: string): MessageFormat {
+    return effectiveFormat(formatOverride[id], settings().preferences.preferHtml);
+  }
+
+  function toggleFormat(id: string): MessageFormat {
+    const next = toggled(formatOverride[id], settings().preferences.preferHtml);
+    setFormatOverride(id, next);
+    return next;
+  }
+
+  /** One line, or half a screen. Matches vim's C-e and C-d. */
+  function scrollDetail(direction: 1 | -1, half = false) {
+    const element = detailScroller();
+    if (!element) return;
+
+    const step = half ? element.clientHeight / 2 : 64;
+    element.scrollBy({ top: direction * step, behavior: "auto" });
+  }
+
+  /**
+   * Drops the unread tag once a message has actually been on screen. The delay
+   * is what keeps scrolling past a thread from marking it read.
+   */
+  const markReadTimers = new Map<string, number>();
+
+  function markReadWhenSeen(id: string, tags: string[]) {
+    const { markReadOnOpen, markReadDelay } = settings().preferences;
+    if (!markReadOnOpen || !tags.includes("unread")) return;
+    if (markReadTimers.has(id)) return;
+
+    const timer = window.setTimeout(async () => {
+      markReadTimers.delete(id);
+      try {
+        await api.tag([{ id, add: [], remove: ["unread"] }]);
+        bumpRevision();
+      } catch {
+        // A read-only server refuses this; it is not worth a message.
+      }
+    }, markReadDelay);
+
+    markReadTimers.set(id, timer);
+  }
+
+  function cancelMarkRead(id: string) {
+    const timer = markReadTimers.get(id);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      markReadTimers.delete(id);
+    }
   }
 
   function toggleCollapsed(id: string) {
@@ -438,6 +498,7 @@ export function createAppStore() {
     focusPane,
     right,
     setRight,
+    leaveRightPane,
     palette,
     setPalette,
     selected,
@@ -487,8 +548,14 @@ export function createAppStore() {
     sendingAccount,
     accountForTags,
     collapsed,
-    plainText,
-    togglePlainText,
+    detailScroller,
+    setDetailScroller,
+    scrollDetail,
+    markReadWhenSeen,
+    cancelMarkRead,
+    formatOverride,
+    messageFormat,
+    toggleFormat,
     toggleCollapsed,
     setAllCollapsed,
     cycleAccount,

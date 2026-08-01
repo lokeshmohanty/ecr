@@ -271,3 +271,24 @@ describe("word motions at the edges", () => {
     expect(type(normal("one\ntwo", 0), "dw").text).toBe("\ntwo");
   });
 });
+
+describe("the normal-mode caret", () => {
+  it("never sits past the last character, so the block cursor is visible", () => {
+    // vim does not allow it either: normal mode rests *on* a character.
+    const state = initialState("hello", "normal");
+    expect(state.caret).toBe(4);
+  });
+
+  it("sits at zero in an empty buffer", () => {
+    expect(initialState("", "normal").caret).toBe(0);
+  });
+
+  it("insert mode still opens at the end, ready to type", () => {
+    expect(initialState("hello", "insert").caret).toBe(5);
+  });
+
+  it("leaving insert at the end steps back onto the last character", () => {
+    const typed = type(initialState(""), "abc");
+    expect(press(typed, "Escape").caret).toBe(2);
+  });
+});

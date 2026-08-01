@@ -26,8 +26,8 @@ export type Action =
   | { kind: "toggleFold" }
   | { kind: "foldAll" }
   | { kind: "unfoldAll" }
-  | { kind: "scrollDown" }
-  | { kind: "scrollUp" }
+  | { kind: "scrollDown"; half?: boolean }
+  | { kind: "scrollUp"; half?: boolean }
   | { kind: "nextMessage" }
   | { kind: "prevMessage" }
   | { kind: "loadRemote" }
@@ -57,13 +57,12 @@ export const DEFAULT_BINDINGS: Binding[] = [
   { keys: "l", action: { kind: "focusRight" }, description: "focus pane right" },
   { keys: "C-h", action: { kind: "focusLeft" }, description: "focus pane left" },
   { keys: "C-l", action: { kind: "focusRight" }, description: "focus pane right" },
-  { keys: "C-j", action: { kind: "focusPinned" }, description: "focus the pinned split" },
-  { keys: "C-k", action: { kind: "focusRight" }, description: "focus the reading pane" },
-  { keys: "C-p", action: { kind: "togglePinned" }, description: "hide or show the pinned split" },
+  { keys: "C-b", action: { kind: "togglePinned" }, description: "hide or show the pinned split" },
+  { keys: "C-w", action: { kind: "focusPinned" }, description: "focus the pinned split" },
 
   // Movement — meaning depends on the focused pane
-  { keys: "j", action: { kind: "next" }, description: "next" },
-  { keys: "k", action: { kind: "prev" }, description: "previous" },
+  { keys: "j", action: { kind: "next" }, description: "next", panes: ["sidebar", "list"] },
+  { keys: "k", action: { kind: "prev" }, description: "previous", panes: ["sidebar", "list"] },
   { keys: "gg", action: { kind: "first" }, description: "first" },
   { keys: "G", action: { kind: "last" }, description: "last" },
 
@@ -80,7 +79,18 @@ export const DEFAULT_BINDINGS: Binding[] = [
   { keys: "x", action: { kind: "executeMarks" }, description: "execute marks", panes: ["list"] },
   { keys: "X", action: { kind: "clearMarks" }, description: "clear marks", panes: ["list"] },
 
-  // Detail
+  // Detail. Reading is scrolling, so j/k move the page and the conversation is
+  // walked with a chord — the same split vim makes between a buffer and a list.
+  { keys: "j", action: { kind: "scrollDown" }, description: "scroll down", panes: ["detail"] },
+  { keys: "k", action: { kind: "scrollUp" }, description: "scroll up", panes: ["detail"] },
+  { keys: "C-e", action: { kind: "scrollDown" }, description: "scroll down a line", panes: ["detail"] },
+  { keys: "C-y", action: { kind: "scrollUp" }, description: "scroll up a line", panes: ["detail"] },
+  { keys: "C-d", action: { kind: "scrollDown", half: true }, description: "scroll down half a screen", panes: ["detail"] },
+  { keys: "C-u", action: { kind: "scrollUp", half: true }, description: "scroll up half a screen", panes: ["detail"] },
+  { keys: "C-j", action: { kind: "nextMessage" }, description: "next message in thread", panes: ["detail"] },
+  { keys: "C-k", action: { kind: "prevMessage" }, description: "previous message in thread", panes: ["detail"] },
+  { keys: "C-n", action: { kind: "nextMessage" }, description: "next message in thread", panes: ["detail"] },
+  { keys: "C-p", action: { kind: "prevMessage" }, description: "previous message in thread", panes: ["detail"] },
   { keys: "J", action: { kind: "nextMessage" }, description: "next message in thread", panes: ["detail"] },
   { keys: "K", action: { kind: "prevMessage" }, description: "previous message in thread", panes: ["detail"] },
   { keys: "za", action: { kind: "toggleFold" }, description: "fold message", panes: ["detail"] },
@@ -172,10 +182,14 @@ export class Keymap {
       return { type: "ignored", consumed: false };
     }
 
-    // Ctrl chords are matched directly and work in every mode, including while
-    // a text field has focus, so they can move away from an open editor.
+    // Ctrl chords are matched whole and work in every mode, including while a
+    // text field has focus, so they can move away from an open editor. They are
+    // pane-scoped like everything else, and a pane-specific chord wins.
     if (event.ctrl) {
-      const chord = this.bindings.find((b) => b.keys === chordName(event));
+      const name = chordName(event);
+      const scoped = this.inPane(pane);
+      const chord = scoped.find((b) => b.keys === name && b.panes) ?? scoped.find((b) => b.keys === name);
+
       return chord
         ? { type: "action", action: chord.action, consumed: true }
         : { type: "ignored", consumed: false };

@@ -2,6 +2,7 @@ import { For, Show, createEffect, createResource, onCleanup } from "solid-js";
 import type { Message } from "../api/types";
 import type { AppStore } from "../state/store";
 import { absolutizePartUrls } from "./body-urls";
+import { toggleLabel } from "../state/format";
 
 export function ReadingPane(props: { store: AppStore; onBack?: () => void }) {
   let scroller: HTMLDivElement | undefined;
@@ -49,7 +50,13 @@ export function ReadingPane(props: { store: AppStore; onBack?: () => void }) {
               </div>
             </header>
 
-            <div ref={scroller} class="scroll-y flex-1">
+            <div
+              ref={(el) => {
+                scroller = el;
+                props.store.setDetailScroller(el);
+              }}
+              class="scroll-y flex-1"
+            >
               <For each={loaded().messages}>
                 {(message, index) => (
                   <MessageView
@@ -85,16 +92,12 @@ function MessageView(props: {
   const cursor = () =>
     props.store.pane() === "detail" && props.store.messageIndex() === props.index;
 
-  const forcePlain = () => props.store.plainText[props.message.id] === true;
+  const wanted = () => props.store.messageFormat(props.message.id);
 
   const [body] = createResource(
     () =>
       open()
-        ? ([
-            props.message.id,
-            props.store.allowRemote(),
-            !forcePlain() && props.store.settings().preferences.preferHtml,
-          ] as const)
+        ? ([props.message.id, props.store.allowRemote(), wanted() === "html"] as const)
         : null,
     async (key) => {
       if (!key) return null;
@@ -102,6 +105,18 @@ function MessageView(props: {
       return props.store.api.body(id, html, remote).catch(() => null);
     },
   );
+
+  // Reading it is what marks it read: the body has to have loaded and stayed
+  // on screen, not merely been scrolled past.
+  createEffect(() => {
+    if (open() && body()) {
+      props.store.markReadWhenSeen(props.message.id, props.message.tags);
+    } else {
+      props.store.cancelMarkRead(props.message.id);
+    }
+  });
+
+  onCleanup(() => props.store.cancelMarkRead(props.message.id));
 
   const attachments = () => props.message.parts.filter((p) => p.disposition === "attachment");
 
@@ -175,16 +190,22 @@ function MessageView(props: {
                   nothing to measure, so it paints immediately instead of
                   waiting on a document load and a resize.
                 */}
-                <div class="mb-2 flex items-center gap-3 text-xs text-ink-3">
-                  <button
-                    type="button"
-                    class="rounded border border-rule px-2 py-0.5 hover:bg-neutral-bg"
-                    onClick={() => props.store.togglePlainText(props.message.id)}
-                    title="Toggle plain text (t)"
-                  >
-                    {loaded().format === "html" ? "as plain text (t)" : "as html (t)"}
-                  </button>
-                </div>
+                {/*
+                  Only offered when the message actually has an HTML part —
+                  otherwise the button would promise a view that does not exist.
+                */}
+                <Show when={loaded().has_html}>
+                  <div class="mb-2 flex items-center gap-3 text-xs text-ink-3">
+                    <button
+                      type="button"
+                      class="rounded border border-rule px-2 py-0.5 hover:bg-neutral-bg"
+                      onClick={() => props.store.toggleFormat(props.message.id)}
+                      title="Switch between html and plain text (t)"
+                    >
+                      {toggleLabel(wanted())}
+                    </button>
+                  </div>
+                </Show>
 
                 <Show
                   when={loaded().format === "html"}

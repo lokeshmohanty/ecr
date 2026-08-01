@@ -165,6 +165,19 @@ h3 {
   border-left-color: var(--color-obligation);
 }
 
+/*
+ * In normal mode the character under the caret is selected to draw a block
+ * cursor, so that selection is styled as a cursor rather than as a highlight.
+ */
+.vim-normal::selection {
+  background: var(--color-obligation);
+  color: var(--color-paper);
+}
+
+.vim-area {
+  caret-color: var(--color-obligation);
+}
+
 kbd {
   font-size: 0.72rem;
   color: var(--color-obligation);

@@ -89,7 +89,7 @@ build-web:
 check: fmt-check lint test test-web verify verify-ux visual
 
 # Everything, including the checks that use your real mail. All read-only bar none.
-check-all: check verify-live verify-live-ui verify-features verify-v2 verify-v3 verify-widths verify-desktop
+check-all: check verify-live verify-live-ui verify-features verify-v2 verify-v3 verify-v4 verify-widths verify-desktop
 
 # Rust tests. Integration tests build a throwaway notmuch database from fixtures/.
 test *args:
@@ -154,6 +154,20 @@ verify-v2:
     trap 'kill %1 2>/dev/null || true' EXIT
     for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null && break; sleep 0.5; done
     node web/verify-v2.mjs "http://127.0.0.1:$port"
+
+# Scrolling, conversation movement, format toggle, mark-read and the cursor.
+verify-v4:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    port=8371
+    ./scripts/demo-env.sh /tmp/ecr-v4 > /dev/null
+    cargo build -q -p {{server}}
+    pnpm --dir web build > /dev/null
+    HOME=/tmp/ecr-v4 XDG_CONFIG_HOME=/tmp/ecr-v4/.config RUST_LOG=warn \
+      ./target/debug/{{server}} serve --bind "127.0.0.1:$port" --no-watch &
+    trap 'kill %1 2>/dev/null || true' EXIT
+    for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null && break; sleep 0.5; done
+    node web/verify-v4.mjs "http://127.0.0.1:$port"
 
 # Check the theme, HTML rendering, caching, ctrl+p and the editor.
 verify-v3:

@@ -131,6 +131,7 @@ impl ParsedMessage {
             format: BodyFormat::Text,
             content: self.text.clone().unwrap_or_default(),
             remote_resources_blocked: 0,
+            has_html: self.has_html_part,
         }
     }
 
@@ -141,11 +142,7 @@ impl ParsedMessage {
 
     pub fn body(&self, format: BodyFormat, ctx: &SanitizeContext) -> Body {
         match format {
-            BodyFormat::Text => Body {
-                format: BodyFormat::Text,
-                content: self.text.clone().unwrap_or_default(),
-                remote_resources_blocked: 0,
-            },
+            BodyFormat::Text => self.as_text(),
             BodyFormat::Html if self.has_html_part => match &self.html {
                 Some(html) => sanitize(html, self, ctx),
                 None => self.as_text(),
@@ -245,6 +242,7 @@ fn sanitize(html: &str, message: &ParsedMessage, ctx: &SanitizeContext) -> Body 
         format: BodyFormat::Html,
         content: cleaned,
         remote_resources_blocked: blocked,
+        has_html: true,
     }
 }
 
@@ -760,5 +758,44 @@ mod format_tests {
         let body = body_of("Subject: nothing\r\n\r\n", BodyFormat::Html);
         assert_eq!(body.format, BodyFormat::Text);
         assert_eq!(body.content.trim(), "");
+    }
+}
+
+#[cfg(test)]
+mod alternative_tests {
+    use super::*;
+
+    fn body_of(raw: &str) -> Body {
+        parse("x@y.z", raw.as_bytes())
+            .unwrap()
+            .body(BodyFormat::Text, &SanitizeContext::new("/parts/", true))
+    }
+
+    #[test]
+    fn a_text_only_message_reports_no_html_alternative() {
+        // The client uses this to decide whether offering "as html" is honest.
+        assert!(!body_of("Content-Type: text/plain\r\n\r\nplain").has_html);
+    }
+
+    #[test]
+    fn an_html_message_reports_one() {
+        assert!(body_of("Content-Type: text/html\r\n\r\n<p>hi</p>").has_html);
+    }
+
+    #[test]
+    fn a_multipart_alternative_reports_one() {
+        let raw = "Content-Type: multipart/alternative; boundary=B\r\n\r\n\
+                   --B\r\nContent-Type: text/plain\r\n\r\nplain\r\n\
+                   --B\r\nContent-Type: text/html\r\n\r\n<p>rich</p>\r\n--B--\r\n";
+        assert!(body_of(raw).has_html);
+    }
+
+    #[test]
+    fn the_flag_does_not_depend_on_which_format_was_asked_for() {
+        let parsed = parse("x@y.z", b"Content-Type: text/html\r\n\r\n<p>hi</p>").unwrap();
+        let ctx = SanitizeContext::new("/parts/", true);
+
+        assert!(parsed.body(BodyFormat::Html, &ctx).has_html);
+        assert!(parsed.body(BodyFormat::Text, &ctx).has_html);
     }
 }

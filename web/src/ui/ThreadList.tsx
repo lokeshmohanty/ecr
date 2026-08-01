@@ -147,7 +147,7 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
       onClick={() => {
         props.store.setSelected(props.index);
         props.store.setOpenThread(props.thread.id);
-        props.store.setRight({ kind: "reading" });
+        props.store.leaveRightPane();
         props.store.setMessageIndex(0);
       }}
     >

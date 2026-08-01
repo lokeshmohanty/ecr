@@ -206,3 +206,59 @@ describe("packages", () => {
     expect(toText(defaultSettings())).toContain("[packages]");
   });
 });
+
+describe("reading preferences", () => {
+  it("marks a message read once it has been displayed, by default", () => {
+    expect(DEFAULT_PREFERENCES.markReadOnOpen).toBe(true);
+  });
+
+  it("waits a moment before doing so, so scrolling past does not count", () => {
+    expect(DEFAULT_PREFERENCES.markReadDelay).toBeGreaterThan(0);
+  });
+
+  it("parses both", () => {
+    const { settings, errors } = fromText(
+      "[preferences]\nmarkReadOnOpen = false\nmarkReadDelay = 3000\n",
+    );
+    expect(errors).toEqual([]);
+    expect(settings.preferences.markReadOnOpen).toBe(false);
+    expect(settings.preferences.markReadDelay).toBe(3000);
+  });
+
+  it("rejects a negative delay", () => {
+    expect(fromText("[preferences]\nmarkReadDelay = -1\n").errors[0]).toMatch(/positive number/);
+  });
+
+  it("round-trips", () => {
+    const { settings } = fromText(toText(defaultSettings()));
+    expect(settings.preferences.markReadOnOpen).toBe(DEFAULT_PREFERENCES.markReadOnOpen);
+    expect(settings.preferences.markReadDelay).toBe(DEFAULT_PREFERENCES.markReadDelay);
+  });
+});
+
+describe("the new detail-pane bindings survive settings", () => {
+  it("keeps scrolling bound to the detail pane", () => {
+    const { settings } = fromText(toText(defaultSettings()));
+    const scroll = settings.bindings.find((b) => b.keys === "C-e");
+
+    expect(scroll?.action).toEqual({ kind: "scrollDown" });
+    expect(scroll?.panes).toEqual(["detail"]);
+  });
+
+  it("keeps the half-screen variant distinct from the line one", () => {
+    const { settings } = fromText(toText(defaultSettings()));
+    expect(settings.bindings.find((b) => b.keys === "C-d")?.action).toEqual({
+      kind: "scrollDown",
+      half: true,
+    });
+  });
+
+  it("keeps conversation movement on its chords", () => {
+    const { settings } = fromText(toText(defaultSettings()));
+    for (const keys of ["C-j", "C-n"]) {
+      expect(settings.bindings.find((b) => b.keys === keys)?.action, keys).toEqual({
+        kind: "nextMessage",
+      });
+    }
+  });
+});

@@ -159,13 +159,20 @@ export function App() {
         const thread = store.current();
         if (thread) {
           store.setOpenThread(thread.id);
-          store.setRight({ kind: "reading" });
+          store.leaveRightPane();
           store.setMessageIndex(0);
           store.setPane("detail");
           setMobilePane("detail");
         }
         break;
       }
+
+      case "scrollDown":
+        store.scrollDetail(1, action.half);
+        break;
+      case "scrollUp":
+        store.scrollDetail(-1, action.half);
+        break;
 
       case "nextMessage":
         store.setMessageIndex(Math.min(store.messageIndex() + 1, threadMessages().length - 1));
@@ -197,10 +204,7 @@ export function App() {
 
       case "togglePlain": {
         const message = threadMessages()[store.messageIndex()];
-        if (message) {
-          store.togglePlainText(message.id);
-          store.setStatus(store.plainText[message.id] ? "plain text" : "html");
-        }
+        if (message) store.setStatus(store.toggleFormat(message.id));
         break;
       }
 

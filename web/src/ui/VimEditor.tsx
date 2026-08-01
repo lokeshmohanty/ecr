@@ -80,9 +80,9 @@ export function VimEditor(props: VimEditorProps) {
   // textarea is unfocused, every keystroke falls through to the app, and the
   // editor looks inert.
   onMount(() => {
+    // Focus only. The selection is the effect's job — setting it here as a
+    // collapsed range overrode the block cursor on the first paint.
     area?.focus({ preventScroll: true });
-    const caret = state().caret;
-    area?.setSelectionRange(caret, caret);
   });
 
   // Keep the DOM caret in step with the model after every change.
@@ -90,7 +90,16 @@ export function VimEditor(props: VimEditorProps) {
     const current = state();
     if (!area) return;
     if (area.value !== current.text) area.value = current.text;
-    area.setSelectionRange(current.caret, current.caret);
+
+    // A block cursor in normal mode. A textarea has no caret-shape, so the
+    // character under the caret is selected instead — the selection highlight
+    // is the block, and it collapses back to a bar in insert mode.
+    if (current.mode === "normal" && current.caret < current.text.length) {
+      area.setSelectionRange(current.caret, current.caret + 1);
+    } else {
+      area.setSelectionRange(current.caret, current.caret);
+    }
+
     props.onModeChange?.(current.mode);
   });
 
@@ -165,14 +174,13 @@ export function VimEditor(props: VimEditorProps) {
       <textarea
         ref={area}
         aria-label={props.label}
-        class="min-h-0 flex-1 resize-none rounded-none border-0 border-t border-rule bg-card p-3 leading-relaxed outline-none"
+        class="vim-area min-h-0 flex-1 resize-none rounded-none border-0 border-t border-rule bg-card p-3 leading-relaxed outline-none"
+        classList={{ "vim-normal": state().mode === "normal" }}
         spellcheck={false}
         autocomplete="off"
         value={props.initial}
         onKeyDown={onKeyDown}
         onClick={syncCaretFromClick}
-        onFocus={syncCaretFromClick}
-        onSelect={syncCaretFromClick}
         onPaste={onPaste}
       />
 
