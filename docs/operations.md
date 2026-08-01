@@ -114,13 +114,48 @@ and the release notes say which — Android will refuse to upgrade it in place f
 a later signed build. Uninstall first in that case. See
 [releasing.md](releasing.md#android).
 
-Building one locally needs the Android SDK and NDK, which are deliberately not
-in the dev shell: it is a large closure and nothing else needs it.
+### Running it on a device you have plugged in
 
 ```bash
-cargo tauri android init
+just android
+```
+
+That builds the web client, starts a server if one is not already listening,
+installs a debug APK on the connected phone and runs it, streaming its logs
+until you interrupt it. `cargo tauri android init` runs the first time, if
+`shell/gen/android` is not there yet.
+
+The phone reaches the server over the cable: `adb reverse` forwards
+`localhost:8383` on the device to this machine, which is the shell's built-in
+default address, so nothing is baked into the APK and no device token is
+needed. `ECR_BIND` can move the host port; the device side stays 8383.
+
+The UI is embedded in the APK (`--no-dev-server`) rather than served from this
+machine, so a web change means running the recipe again — but the phone needs
+nothing but the cable. Left to itself, Tauri serves the assets from this
+machine's LAN address on a physical device, which puts the phone on your
+network and picks that address by guessing or by asking.
+
+The device needs USB debugging on, and the authorisation prompt accepted — the
+recipe stops with what to do if `adb devices` reports nothing usable.
+
+### The toolchain
+
+The Android SDK and NDK are deliberately not in the default dev shell: it is a
+multi-gigabyte closure and nothing else needs it. They live in a second shell,
+which `just android` enters for you.
+
+```bash
+nix develop .#android    # SDK, NDK, JDK 17, adb, cargo-tauri, the android rust target
 cargo tauri android build --apk
 ```
+
+The SDK is unfree and its licence has to be accepted, so that shell imports its
+own nixpkgs rather than loosening the one every other build goes through. A Nix
+SDK is read-only, so whatever the Tauri template asks for has to be pinned in
+`flake.nix` in advance — platforms 34-36, the matching build tools, and the
+`aapt2FromMavenOverride` that stops Gradle running a binary that cannot execute
+on NixOS.
 
 `bundle.android.minSdkVersion` is set to 28 in `shell/tauri.conf.json`.
 

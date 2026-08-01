@@ -29,8 +29,9 @@ selects before it acts.
 - **SQLite cache.** Every request shells out to notmuch. Measured: ~200ms for a
   50-thread page of the 23k inbox. Usable, but too slow for search-as-you-type,
   which is the point at which this becomes worth building.
-- **Android.** Needs the Android SDK/NDK in the flake and `tauri android init`.
-  `minSdkVersion` is already set. The web client works as a PWA meanwhile.
+- **Android.** `just android` builds, installs and runs it on a plugged-in
+  device from the opt-in `.#android` shell, reaching the server through `adb
+  reverse`. Not yet shipped as an APK from CI, and not run on a real phone yet.
 - **`ts-rs` generation.** `web/src/api/types.ts` is hand-maintained and can
   drift from `ecr-core`.
 

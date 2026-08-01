@@ -59,9 +59,54 @@
             msmtp
           ];
 
+          # The Android SDK is unfree and its licence has to be accepted, so it
+          # gets its own nixpkgs rather than loosening the one every other build
+          # goes through. It is a multi-gigabyte closure: nothing but
+          # `nix develop .#android` ever evaluates this.
+          androidPkgs = import nixpkgs {
+            inherit system;
+            config = {
+              allowUnfree = true;
+              android_sdk.accept_license = true;
+            };
+          };
+
+          # Gradle asks the SDK for whatever the Tauri template names — `compileSdk
+          # 36` as of tauri-cli 2.9 — and a Nix SDK is read-only, so it cannot
+          # download a missing piece. Carrying the three current platform and
+          # build-tools pairs is what keeps a `tauri android init` from a newer
+          # CLI from failing at the first Gradle sync.
+          ndkVersion = "27.3.13750724";
+          buildToolsVersion = "36.0.0";
+          androidSdk = androidPkgs.androidenv.composeAndroidPackages {
+            platformVersions = [
+              "34"
+              "35"
+              "36"
+            ];
+            buildToolsVersions = [
+              "34.0.0"
+              "35.0.0"
+              buildToolsVersion
+            ];
+            includeNDK = true;
+            inherit ndkVersion;
+            includeEmulator = false;
+            includeSystemImages = false;
+          };
+          androidRoot = "${androidSdk.androidsdk}/libexec/android-sdk";
+
+          # Rust builds the shell's cdylib for the phone, so the toolchain needs
+          # the Android std. arm64 is every real device; x86_64 is the emulator.
+          rustAndroid = pkgs.fenix.combine [
+            rustToolchain
+            pkgs.fenix.targets."aarch64-linux-android".stable.rust-std
+            pkgs.fenix.targets."x86_64-linux-android".stable.rust-std
+          ];
+
           # Tauri v2 desktop (WebKitGTK) build dependencies. The Android SDK/NDK
-          # is deliberately not here — it is a large, opt-in closure and is not
-          # needed until the Android shell phase.
+          # is deliberately not in the default shell — it is a large, opt-in
+          # closure; `nix develop .#android` is where it lives.
           tauriDeps = with pkgs; [
             webkitgtk_4_1
             gtk3
@@ -102,32 +147,35 @@
               libxfixes
               libxcb
             ]);
+
+          # Everything but the Rust toolchain, which differs between the two
+          # shells: the Android one carries the phone's std as well.
+          devTools =
+            (with pkgs; [
+              pkg-config
+
+              # Web client
+              nodejs_22
+              pnpm
+
+              # Tooling
+              sqlite # inspecting the ecr-store cache
+              just # task runner; see the Justfile
+              hurl # API-level tests against ecr-server
+              jq
+
+              # Licence compliance; see THIRD-PARTY.md and deny.toml
+              cargo-deny
+              cargo-license
+              git-filter-repo
+            ])
+            ++ mailTools;
         in
         {
           devShells.default = pkgs.mkShell {
             name = "ecr";
 
-            packages =
-              (with pkgs; [
-                rustToolchain
-                pkg-config
-
-                # Web client
-                nodejs_22
-                pnpm
-
-                # Tooling
-                sqlite # inspecting the ecr-store cache
-                just # task runner; see the Justfile
-                hurl # API-level tests against ecr-server
-                jq
-
-                # Licence compliance; see THIRD-PARTY.md and deny.toml
-                cargo-deny
-                cargo-license
-                git-filter-repo
-              ])
-              ++ mailTools;
+            packages = [ rustToolchain ] ++ devTools;
 
             buildInputs = tauriDeps;
 
@@ -149,6 +197,50 @@
               echo "  node    $(node --version)"
               echo
               echo "  cargo run -p ecr-server -- doctor   # verify the mail setup"
+            '';
+          };
+
+          # Opt-in: `nix develop .#android`, or just run `just android`, which
+          # enters this shell for you. The default shell plus the SDK, the NDK,
+          # a JDK, adb and the Tauri CLI. The server still runs on this machine,
+          # so the mail tools have to be here too — hence devTools, not a
+          # freestanding Android-only shell.
+          devShells.android = pkgs.mkShell {
+            name = "ecr-android";
+
+            packages = devTools ++ [
+              rustAndroid # the host toolchain plus the phone's std
+              androidSdk.androidsdk
+              androidSdk.platform-tools # adb
+              pkgs.cargo-tauri
+              pkgs.jdk17
+            ];
+
+            buildInputs = tauriDeps;
+
+            RUST_LOG = "debug";
+            RUST_BACKTRACE = "1";
+
+            ANDROID_HOME = androidRoot;
+            ANDROID_SDK_ROOT = androidRoot;
+            NDK_HOME = "${androidRoot}/ndk/${ndkVersion}";
+            JAVA_HOME = "${pkgs.jdk17}";
+
+            # Gradle resolves aapt2 from a Maven artifact and then tries to
+            # execute it: a prebuilt binary that cannot run on NixOS. Point it
+            # at the SDK's own patched copy or every build dies in resource
+            # linking.
+            GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${androidRoot}/build-tools/${buildToolsVersion}/aapt2";
+
+            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath tauriRuntime;
+
+            shellHook = ''
+              echo "ecr android shell"
+              echo "  sdk   $ANDROID_HOME"
+              echo "  ndk   $NDK_HOME"
+              echo "  adb   $(adb --version 2>/dev/null | head -1)"
+              echo
+              echo "  just android   # build, install and run on a connected device"
             '';
           };
 
