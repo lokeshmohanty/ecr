@@ -129,6 +129,19 @@ export interface Doctor {
   checks: Check[];
 }
 
+export interface MailingList {
+  /** The bare List-Id, which is what a `List:` query searches. */
+  id: string;
+  name: string;
+  count: number;
+}
+
+export interface MailingLists {
+  lists: MailingList[];
+  /** False when notmuch has no `index.header.List`, making `List:` unsearchable. */
+  searchable: boolean;
+}
+
 export interface ThemeEntry {
   /** The value that goes in settings.toml, relative to the config dir. */
   path: string;

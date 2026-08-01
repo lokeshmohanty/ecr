@@ -677,7 +677,10 @@ async fn a_theme_reads_back_the_file_its_link_names() {
         .await
         .expect("json");
 
-    assert!(body["raw"].as_str().expect("raw").contains("#2e3440"), "{body}");
+    assert!(
+        body["raw"].as_str().expect("raw").contains("#2e3440"),
+        "{body}"
+    );
 }
 
 #[tokio::test]
@@ -692,9 +695,7 @@ async fn a_theme_link_cannot_read_outside_the_config_dir() {
         "/etc/passwd.toml",
         "themes/nord.conf",
     ] {
-        let response = server
-            .get(&format!("/api/v1/theme?path={attempt}"))
-            .await;
+        let response = server.get(&format!("/api/v1/theme?path={attempt}")).await;
         assert_eq!(response.status(), 400, "{attempt} was not rejected");
     }
 }

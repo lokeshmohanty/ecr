@@ -38,6 +38,12 @@ tags=unread;inbox
 
 [search]
 exclude_tags=deleted;spam
+
+# List-Id is not a searchable prefix in stock notmuch, so the sidebar's mailing
+# list rows would match nothing without this. Defining it here is what lets the
+# fixture database exercise them.
+[index]
+header.List=List-Id
 EOF
 
 cat > "$DEMO/.config/notmuch/default/hooks/post-new" <<'EOF'

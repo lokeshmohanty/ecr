@@ -12,6 +12,7 @@ import type {
   Thread,
   ThreadSummary,
   ThemeListing,
+  MailingLists,
 } from "./types";
 
 export interface Connection {
@@ -166,6 +167,21 @@ export class Api {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ raw }),
     });
+  }
+
+  async lists(): Promise<MailingLists> {
+    return await this.request("/api/v1/lists");
+  }
+
+  /** Positional: `counts[i]` answers `queries[i]`. */
+  async counts(queries: string[]): Promise<number[]> {
+    if (queries.length === 0) return [];
+    const body = await this.request<{ counts: number[] }>("/api/v1/counts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ queries }),
+    });
+    return body.counts;
   }
 
   async themes(): Promise<ThemeListing> {

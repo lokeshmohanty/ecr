@@ -12,10 +12,80 @@ use ecr_core::message::{
     ThreadSummary,
 };
 use ecr_core::revision::Revision;
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::io::{BufRead, BufReader};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::process::Command;
 use tokio::sync::Mutex;
+
+/// A mailing list found by scanning `List-Id` headers.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MailingList {
+    /// The bare identifier, which is what `List:` searches.
+    pub id: String,
+    /// The human label the header carried, falling back to the identifier.
+    pub name: String,
+    pub count: u32,
+}
+
+/// Reads just the `List-Id` header, stopping at the blank line that ends them.
+/// Whole messages are megabytes; the headers are the first few hundred bytes.
+fn read_list_id(path: &Path) -> Option<String> {
+    let file = std::fs::File::open(path).ok()?;
+    let mut reader = BufReader::new(file);
+    let mut line = String::new();
+    let mut found: Option<String> = None;
+
+    loop {
+        line.clear();
+        let read = reader.read_line(&mut line).ok()?;
+        if read == 0 {
+            break;
+        }
+        let trimmed = line.trim_end_matches(['\r', '\n']);
+        if trimmed.is_empty() {
+            break;
+        }
+
+        // A folded header continues on a line starting with whitespace.
+        if let Some(value) = found.as_mut() {
+            if trimmed.starts_with([' ', '\t']) {
+                value.push(' ');
+                value.push_str(trimmed.trim());
+                continue;
+            }
+            break;
+        }
+
+        if let Some(rest) = trimmed
+            .get(..8)
+            .filter(|head| head.eq_ignore_ascii_case("list-id:"))
+            .map(|_| &trimmed[8..])
+        {
+            found = Some(rest.trim().to_string());
+        }
+    }
+
+    found.filter(|v| !v.is_empty())
+}
+
+/// `Emacs development <emacs-devel.gnu.org>` is a name and an id; a bare
+/// `<id>` or an unbracketed value is only an id.
+fn split_list_id(raw: &str) -> (String, String) {
+    match (raw.rfind('<'), raw.rfind('>')) {
+        (Some(open), Some(close)) if close > open => {
+            let id = raw[open + 1..close].trim().to_string();
+            let name = raw[..open].trim().trim_matches('"').trim().to_string();
+            let name = if name.is_empty() { id.clone() } else { name };
+            (id, name)
+        }
+        _ => {
+            let id = raw.trim().trim_matches('"').to_string();
+            (id.clone(), id)
+        }
+    }
+}
 
 pub struct Notmuch {
     paths: Arc<MailPaths>,
@@ -114,7 +184,11 @@ impl Notmuch {
             .iter()
             .map(|q| {
                 let line = q.trim();
-                if line.is_empty() { NOTHING } else { line }
+                if line.is_empty() {
+                    NOTHING
+                } else {
+                    line
+                }
             })
             .collect::<Vec<_>>()
             .join("\n");
@@ -330,6 +404,65 @@ impl Notmuch {
         Ok(book)
     }
 
+    /// The mailing lists recent mail arrived from.
+    ///
+    /// notmuch cannot enumerate `List-Id` values — it is not even a searchable
+    /// prefix unless `index.header.List` is configured — so this reads the
+    /// header off recent message files and tallies them. It is bounded by
+    /// `scan` files for that reason: the cost is real, and unbounded it would
+    /// grow with the maildir.
+    pub async fn mailing_lists(&self, scan: usize) -> Result<Vec<MailingList>> {
+        let files = self
+            .run(&[
+                "search",
+                "--output=files",
+                "--limit",
+                &scan.to_string(),
+                "*",
+            ])
+            .await
+            .unwrap_or_default();
+
+        let paths: Vec<PathBuf> = files.lines().map(PathBuf::from).collect();
+
+        // Reading a few hundred files is blocking work; keep it off the runtime.
+        let lists = tokio::task::spawn_blocking(move || {
+            let mut seen: HashMap<String, MailingList> = HashMap::new();
+
+            for path in paths {
+                let Some(raw) = read_list_id(&path) else {
+                    continue;
+                };
+                let (id, name) = split_list_id(&raw);
+                let entry =
+                    seen.entry(id.clone())
+                        .or_insert_with(|| MailingList { id, name, count: 0 });
+                entry.count += 1;
+            }
+
+            let mut lists: Vec<MailingList> = seen.into_values().collect();
+            lists.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.name.cmp(&b.name)));
+            lists
+        })
+        .await
+        .map_err(|e| Error::ToolFailed {
+            tool: crate::tools::NOTMUCH,
+            stderr: format!("scanning for mailing lists panicked: {e}"),
+        })?;
+
+        Ok(lists)
+    }
+
+    /// Whether `List:` is a searchable prefix, which needs
+    /// `index.header.List=List-Id` and a reindex. Without it the list rows
+    /// would render and then match nothing when clicked.
+    pub async fn indexes_list_id(&self) -> bool {
+        self.run(&["config", "get", "index.header.List"])
+            .await
+            .map(|value| value.trim().eq_ignore_ascii_case("List-Id"))
+            .unwrap_or(false)
+    }
+
     /// Every tag in the database, for query completion.
     pub async fn tags(&self) -> Result<Vec<String>> {
         let stdout = self.run(&["search", "--output=tags", "*"]).await?;
@@ -510,5 +643,80 @@ mod tests {
     fn an_empty_header_yields_no_addresses() {
         assert!(parse_address_list("").is_empty());
         assert!(parse_address_list("  ,  ").is_empty());
+    }
+
+    #[test]
+    fn a_list_id_splits_into_its_name_and_its_id() {
+        let (id, name) = split_list_id("Emacs development <emacs-devel.gnu.org>");
+        assert_eq!(id, "emacs-devel.gnu.org");
+        assert_eq!(name, "Emacs development");
+    }
+
+    #[test]
+    fn a_bare_list_id_is_its_own_name() {
+        let (id, name) = split_list_id("<numpy-discussion.python.org>");
+        assert_eq!(id, "numpy-discussion.python.org");
+        assert_eq!(name, "numpy-discussion.python.org");
+
+        let (id, name) = split_list_id("mu-discuss.googlegroups.com");
+        assert_eq!(id, "mu-discuss.googlegroups.com");
+        assert_eq!(name, "mu-discuss.googlegroups.com");
+    }
+
+    #[test]
+    fn a_quoted_list_name_loses_its_quotes() {
+        let (_, name) = split_list_id("\"Culture STIC\" <culture.stic.fr>");
+        assert_eq!(name, "Culture STIC");
+    }
+
+    fn message_with(headers: &str) -> tempfile::NamedTempFile {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(file.path(), format!("{headers}\n\nThe body.\n")).unwrap();
+        file
+    }
+
+    #[test]
+    fn reads_the_list_id_header() {
+        let file = message_with("From: a@b.c\nList-Id: Emacs <emacs-devel.gnu.org>\nSubject: hi");
+        assert_eq!(
+            read_list_id(file.path()).as_deref(),
+            Some("Emacs <emacs-devel.gnu.org>")
+        );
+    }
+
+    #[test]
+    fn the_header_name_is_matched_regardless_of_case() {
+        let file = message_with("LIST-ID: <x.example.com>");
+        assert_eq!(
+            read_list_id(file.path()).as_deref(),
+            Some("<x.example.com>")
+        );
+    }
+
+    #[test]
+    fn a_folded_list_id_is_rejoined() {
+        let file = message_with("List-Id: A very long list name\n <long.example.com>");
+        assert_eq!(
+            read_list_id(file.path()).as_deref(),
+            Some("A very long list name <long.example.com>")
+        );
+    }
+
+    #[test]
+    fn a_message_without_the_header_yields_nothing() {
+        let file = message_with("From: a@b.c\nSubject: hi");
+        assert_eq!(read_list_id(file.path()), None);
+    }
+
+    /// The body is not headers: a line there that looks like one must not count.
+    #[test]
+    fn the_scan_stops_at_the_end_of_the_headers() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            file.path(),
+            "From: a@b.c\n\nList-Id: <not-a-header.example.com>\n",
+        )
+        .unwrap();
+        assert_eq!(read_list_id(file.path()), None);
     }
 }

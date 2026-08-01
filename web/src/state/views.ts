@@ -5,18 +5,43 @@ export interface ViewTemplate {
   name: string;
   /** Unscoped notmuch query; `scopeQuery` narrows it to an account. */
   query: string;
+  /** Shown before the name when sidebar icons are on. */
+  icon: string;
 }
 
 export const VIEW_TEMPLATES: ViewTemplate[] = [
-  { name: "INBOX", query: "tag:inbox" },
-  { name: "UNREAD", query: "tag:unread" },
-  { name: "FLAGGED", query: "tag:flagged" },
-  { name: "TODAY", query: "date:today" },
-  { name: "SENT", query: "tag:sent" },
-  { name: "DRAFTS", query: "tag:draft" },
-  { name: "ARCHIVE", query: "not tag:inbox and not tag:trash" },
-  { name: "ALL MAIL", query: "*" },
+  { name: "INBOX", query: "tag:inbox", icon: "▣" },
+  { name: "UNREAD", query: "tag:unread", icon: "✉" },
+  { name: "FLAGGED", query: "tag:flagged", icon: "⚑" },
+  { name: "TODAY", query: "date:today", icon: "◷" },
+  { name: "SENT", query: "tag:sent", icon: "➤" },
+  { name: "DRAFTS", query: "tag:draft", icon: "▤" },
+  { name: "ARCHIVE", query: "not tag:inbox and not tag:trash", icon: "▨" },
+  { name: "ALL MAIL", query: "*", icon: "∗" },
 ];
+
+/** The foldable groups of rows below the mailboxes, in their default order. */
+export type SectionId = "mailboxes" | "tags" | "people" | "lists";
+
+export const SECTION_IDS: SectionId[] = ["mailboxes", "tags", "people", "lists"];
+
+export const SECTION_LABELS: Record<SectionId, { title: string; icon: string }> = {
+  mailboxes: { title: "Mailboxes", icon: "▤" },
+  tags: { title: "Tags", icon: "◇" },
+  people: { title: "People", icon: "◔" },
+  lists: { title: "Mailing lists", icon: "≡" },
+};
+
+export function isSectionId(value: string): value is SectionId {
+  return (SECTION_IDS as string[]).includes(value);
+}
+
+/** A row the user defined in settings.toml. */
+export interface CustomView {
+  name: string;
+  query: string;
+  icon: string;
+}
 
 export interface AccountLike {
   id: string;
@@ -26,7 +51,7 @@ export interface AccountLike {
 export interface ViewGroup {
   account: string;
   address: string | null;
-  views: { name: string; query: string }[];
+  views: { name: string; query: string; icon: string }[];
 }
 
 /**
@@ -67,6 +92,7 @@ export function buildTree(accounts: AccountLike[]): ViewGroup[] {
     address: addresses[0] ?? null,
     views: VIEW_TEMPLATES.map((v) => ({
       name: v.name,
+      icon: v.icon,
       query:
         v.name === "SENT"
           ? sentQuery(account, addresses)

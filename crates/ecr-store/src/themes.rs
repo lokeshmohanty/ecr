@@ -7,7 +7,10 @@ use std::path::Path;
 pub const PRESETS: &[(&str, &str)] = &[
     ("ecr-dark", include_str!("../../../themes/ecr-dark.toml")),
     ("ecr-light", include_str!("../../../themes/ecr-light.toml")),
-    ("tokyonight", include_str!("../../../themes/tokyonight.toml")),
+    (
+        "tokyonight",
+        include_str!("../../../themes/tokyonight.toml"),
+    ),
     (
         "tokyonight-storm",
         include_str!("../../../themes/tokyonight-storm.toml"),
@@ -29,7 +32,10 @@ pub const PRESETS: &[(&str, &str)] = &[
         "solarized-light",
         include_str!("../../../themes/solarized-light.toml"),
     ),
-    ("everforest", include_str!("../../../themes/everforest.toml")),
+    (
+        "everforest",
+        include_str!("../../../themes/everforest.toml"),
+    ),
 ];
 
 pub const DEFAULT_THEME: &str = "themes/ecr-dark.toml";
@@ -123,8 +129,9 @@ mod tests {
 
     #[test]
     fn the_default_theme_is_a_preset() {
-        assert!(PRESETS.iter().any(|(name, _)| DEFAULT_THEME
-            == format!("themes/{name}.toml")));
+        assert!(PRESETS
+            .iter()
+            .any(|(name, _)| DEFAULT_THEME == format!("themes/{name}.toml")));
     }
 
     #[test]
@@ -138,7 +145,10 @@ mod tests {
 
         seed(&themes).unwrap();
 
-        assert_eq!(std::fs::read_to_string(&edited).unwrap(), "name = \"mine\"\n");
+        assert_eq!(
+            std::fs::read_to_string(&edited).unwrap(),
+            "name = \"mine\"\n"
+        );
         assert!(themes.join("everforest.toml").exists());
     }
 }

@@ -24,95 +24,56 @@ import {
 	parseTheme,
 	saveThemeText,
 } from "./theme";
-import { ALL_ACCOUNTS, accountLabel, buildTree, type ViewGroup } from "./views";
+import { createCounts } from "./counts";
+import {
+	ALL_ACCOUNTS,
+	SECTION_LABELS,
+	accountLabel,
+	buildTree,
+	scopeQuery,
+	type SectionId,
+	type ViewGroup,
+} from "./views";
 import { parseAddress, type AddressEntry } from "./suggest";
 import { effectiveFormat, toggled, type MessageFormat } from "./format";
 
-export type Mark = "archive" | "delete" | "read" | "unread" | "flag";
+import {
+	MARK_TAGS,
+	badgesFor,
+	emptyStaged,
+	markToOps,
+	parseTagInput,
+	type Mark,
+	type MarkQueue,
+	type Staged,
+} from "./store/marks";
+import {
+	HIDDEN_TAGS,
+	PEOPLE_SHOWN,
+	sectionKey,
+	quoteTerm,
+	type SidebarRow,
+} from "./store/sidebar";
 
-/**
- * What is staged against one message: presets, which toggle, and whatever
- * arbitrary tags were typed at the prompt.
- */
-export interface Staged {
-	marks: Mark[];
-	add: string[];
-	remove: string[];
-}
+// Re-exported so every existing `from "../state/store"` import keeps working.
+export {
+	MARK_TAGS,
+	badgesFor,
+	emptyStaged,
+	markToOps,
+	parseTagInput,
+	sectionKey,
+	type Mark,
+	type MarkQueue,
+	type SidebarRow,
+	type Staged,
+};
 
-export interface MarkQueue {
-	[messageId: string]: Staged;
-}
-
-export function emptyStaged(): Staged {
-	return { marks: [], add: [], remove: [] };
-}
-
-/** `+work`, `-inbox`, or a bare tag meaning add. */
-export function parseTagInput(input: string): {
-	add: string[];
-	remove: string[];
-} {
-	const add: string[] = [];
-	const remove: string[] = [];
-
-	for (const word of input.split(/[\s,]+/).filter(Boolean)) {
-		if (word.startsWith("-")) {
-			if (word.length > 1) remove.push(word.slice(1));
-		} else {
-			const tag = word.startsWith("+") ? word.slice(1) : word;
-			if (tag) add.push(tag);
-		}
-	}
-	return { add, remove };
-}
-
-export function badgesFor(staged: Staged | undefined): string {
-	if (!staged) return "";
-	const presets = staged.marks.map((m) => MARK_TAGS[m].badge).join("");
-	const tagged = staged.add.length > 0 || staged.remove.length > 0 ? "T" : "";
-	return presets + tagged;
-}
-
-/** What the right-hand pane is showing. */
 export type RightPane =
 	| { kind: "reading" }
 	| { kind: "compose"; draft: Draft; label: string }
 	| { kind: "settings" };
 
-export const MARK_TAGS: Record<
-	Mark,
-	{ add: string[]; remove: string[]; badge: string }
-> = {
-	archive: { add: [], remove: ["inbox"], badge: "A" },
-	delete: { add: ["deleted"], remove: ["inbox"], badge: "D" },
-	read: { add: [], remove: ["unread"], badge: "R" },
-	unread: { add: ["unread"], remove: [], badge: "U" },
-	flag: { add: ["flagged"], remove: [], badge: "F" },
-};
-
-export function markToOps(queue: MarkQueue) {
-	return Object.entries(queue)
-		.map(([id, staged]) => {
-			const add = new Set<string>(staged.add);
-			const remove = new Set<string>(staged.remove);
-			for (const mark of staged.marks) {
-				for (const tag of MARK_TAGS[mark].add) add.add(tag);
-				for (const tag of MARK_TAGS[mark].remove) remove.add(tag);
-			}
-			// Adding a tag wins over removing it, so `u` after `r` reads as unread.
-			for (const tag of add) remove.delete(tag);
-			return { id, add: [...add], remove: [...remove] };
-		})
-		.filter((op) => op.add.length > 0 || op.remove.length > 0);
-}
-
-/**
- * Whether a message is showing, given any explicit fold and the default for
- * its position. The fold key has to agree with this: flipping the stored
- * boolean turned an absent entry into `true`, which reads as collapsed, so
- * `za` on an already-collapsed message did nothing at all.
- */
 export function isMessageOpen(
 	explicit: boolean | undefined,
 	newest: boolean,
@@ -183,6 +144,8 @@ export function createAppStore() {
 	const [visualAnchor, setVisualAnchor] = createSignal<number | null>(null);
 	const [connected, setConnected] = createSignal(false);
 	const [lastError, setLastError] = createSignal("");
+	/** Survives a healthy connection: only editing the file clears it. */
+	const [settingsProblem, setSettingsProblem] = createSignal("");
 	const [collapsed, setCollapsed] = createStore<Record<string, boolean>>({});
 	/** Per-message format overrides, by id. Absent means follow the preference. */
 	const [formatOverride, setFormatOverride] = createStore<
@@ -196,6 +159,15 @@ export function createAppStore() {
 	const [viewing, setViewing] = createSignal(false);
 	const [pinnedOpen, setPinnedOpen] = createSignal(true);
 	const [expandedGroup, setExpandedGroup] = createSignal<string>(ALL_ACCOUNTS);
+	const [expandedSections, setExpandedSections] = createSignal<ReadonlySet<string>>(
+		new Set<string>(),
+	);
+	// A signal holding an immutable record rather than a store: counts arrive for
+	// keys that were not there when the sidebar first read them, and replacing
+	// the whole record is what reliably wakes those readers.
+	const [countMap, setCountMap] = createSignal<Record<string, number>>({});
+	/** True once the server's settings have been read, or failed to be. */
+	const [configSettled, setConfigSettled] = createSignal(false);
 
 	// Under Tauri there is no usable origin, so the shell supplies the URL.
 	// ECR_SERVER_URL is the authoritative server for a desktop launch, so a
@@ -295,10 +267,24 @@ export function createAppStore() {
 			.catch(() => setLastError("settings could not reach the server"));
 	}
 
+	/**
+	 * A bad line in settings.toml is not a connection failure, and must not be
+	 * cleared like one: `lastError` is wiped the moment the server answers, and
+	 * it is only painted where the thread list would be. With mail on screen a
+	 * bad line would otherwise vanish in silence — the one thing this file's
+	 * design promises not to do.
+	 */
+	function reportSettingsProblem(message: string) {
+		setSettingsProblem(message);
+	}
+
 	/** Applies edited text, or reports why it cannot. */
 	function applySettingsText(text: string): string[] {
 		const { settings: parsed, errors } = fromToml(text);
-		if (errors.length === 0) setSettings(parsed, text);
+		if (errors.length === 0) {
+			setSettings(parsed, text);
+			setSettingsProblem("");
+		}
 		return errors;
 	}
 
@@ -318,9 +304,15 @@ export function createAppStore() {
 				setSettingsSignal(parsed);
 				setSettingsSource(file.raw);
 				setAllowRemote(parsed.preferences.loadRemoteImages);
-				if (errors.length > 0) setLastError(`${file.path}: ${errors[0]}`);
+				// The status bar as well as lastError: lastError is only painted
+				// where the thread list would be, so with mail on screen a bad
+				// line in settings.toml would otherwise be discarded in silence —
+				// the one thing this file's design promises not to do.
+				if (errors.length > 0) reportSettingsProblem(`${file.path}: ${errors[0]}`);
 			} catch {
 				// Offline, or an old server: the local copy stands.
+			} finally {
+				setConfigSettled(true);
 			}
 		})();
 	});
@@ -354,6 +346,32 @@ export function createAppStore() {
 		})();
 	});
 
+	// Gathered from the database rather than configured. Each is fetched once per
+	// connection and refreshed on a revision bump, since new mail can introduce a
+	// tag, a correspondent or a list that was not there before.
+	const gathered = () => (connection().baseUrl ? `${connection().baseUrl}|${revision()}` : null);
+
+	const [tagList] = createResource(gathered, async () => {
+		const tags = await api.tags();
+		return tags.filter((tag) => !HIDDEN_TAGS.has(tag)).sort((a, b) => a.localeCompare(b));
+	});
+
+	const [peopleList] = createResource(gathered, async () => {
+		const people = await api.addresses();
+		return [...people].sort((a, b) => b.count - a.count).slice(0, PEOPLE_SHOWN);
+	});
+
+	const [listInfo] = createResource(gathered, async () => await api.lists());
+	const listList = () => listInfo()?.lists;
+
+	const counts = createCounts(
+		api,
+		(entries) => setCountMap((current) => ({ ...current, ...Object.fromEntries(entries) })),
+		(query) => countMap()[query],
+		() => setCountMap({}),
+		{ onError: () => {} },
+	);
+
 	const [themeList] = createResource(
 		() => connection().baseUrl || null,
 		async () => (await api.themes()).presets,
@@ -375,6 +393,7 @@ export function createAppStore() {
 
 	function bumpRevision() {
 		api.invalidate();
+		counts.invalidate();
 		setRevision((r) => r + 1);
 	}
 
@@ -453,18 +472,18 @@ export function createAppStore() {
 	 * Flattened sidebar rows: each account header, then its views when expanded.
 	 * Flattening keeps j/k a single index rather than a nested cursor.
 	 */
-	function sidebarRows(): {
-		kind: "group" | "view";
-		name: string;
-		group: string;
-		query: string;
-	}[] {
-		const rows: {
-			kind: "group" | "view";
-			name: string;
-			group: string;
-			query: string;
-		}[] = [];
+	/**
+	 * The sidebar as one flat, index-addressable list.
+	 *
+	 * Flat is the contract: j/k walk it by index and Enter activates whatever
+	 * `sidebarIndex` lands on, so nesting is expressed by `indent` rather than
+	 * by structure. Only the expanded group and its expanded sections
+	 * contribute rows, which is also what bounds how many counts are asked for.
+	 */
+	function sidebarRows(): SidebarRow[] {
+		const rows: SidebarRow[] = [];
+		const preferences = settings().preferences;
+		const sections = preferences.sidebarSections;
 
 		for (const group of tree()) {
 			rows.push({
@@ -472,20 +491,95 @@ export function createAppStore() {
 				name: group.account,
 				group: group.account,
 				query: group.views[0]?.query ?? "*",
+				icon: "",
+				indent: 0,
+				counted: false,
 			});
 
-			if (expandedGroup() === group.account) {
-				for (const view of group.views) {
+			if (expandedGroup() !== group.account) continue;
+
+			for (const section of sections) {
+				if (section === "mailboxes") {
+					for (const view of group.views) {
+						rows.push({
+							kind: "view",
+							name: view.name,
+							group: group.account,
+							query: view.query,
+							icon: view.icon,
+							indent: 1,
+							counted: true,
+						});
+					}
+					continue;
+				}
+
+				const label = SECTION_LABELS[section];
+				const key = sectionKey(group.account, section);
+				rows.push({
+					kind: "section",
+					name: label.title,
+					group: group.account,
+					query: "",
+					icon: label.icon,
+					indent: 1,
+					counted: false,
+					section,
+				});
+
+				if (!expandedSections().has(key)) continue;
+				for (const entry of sectionEntries(section, group.account)) {
 					rows.push({
 						kind: "view",
-						name: view.name,
+						name: entry.name,
 						group: group.account,
-						query: view.query,
+						query: entry.query,
+						icon: entry.icon,
+						indent: 2,
+						counted: true,
 					});
 				}
 			}
+
+			for (const custom of preferences.sidebarCustom) {
+				rows.push({
+					kind: "view",
+					name: custom.name,
+					group: group.account,
+					query: scopeQuery(custom.query, group.account),
+					icon: custom.icon,
+					indent: 1,
+					counted: true,
+				});
+			}
 		}
 		return rows;
+	}
+
+	/** The rows a gathered section contributes, newest data first. */
+	function sectionEntries(
+		section: Exclude<SectionId, "mailboxes">,
+		account: string,
+	): { name: string; query: string; icon: string }[] {
+		if (section === "tags") {
+			return (tagList() ?? []).map((tag) => ({
+				name: tag,
+				query: scopeQuery(`tag:${quoteTerm(tag)}`, account),
+				icon: "◇",
+			}));
+		}
+		if (section === "people") {
+			return (peopleList() ?? []).map((person) => ({
+				name: person.name?.trim() || person.email,
+				query: scopeQuery(`from:${quoteTerm(person.email)}`, account),
+				icon: "◔",
+			}));
+		}
+		return (listList() ?? []).map((list) => ({
+			name: list.name,
+			query: scopeQuery(`List:${quoteTerm(list.id)}`, account),
+			icon: "≡",
+		}));
 	}
 
 	function moveSidebar(delta: number) {
@@ -498,10 +592,39 @@ export function createAppStore() {
 		const row = sidebarRows()[sidebarIndex()];
 		if (!row) return;
 
+		if (row.kind === "section" && row.section) {
+			toggleSection(row.group, row.section);
+			return;
+		}
 		if (row.kind === "group") {
 			setExpandedGroup(row.group);
 		}
 		selectQuery(row.query);
+	}
+
+	function toggleSection(group: string, section: SectionId) {
+		const key = sectionKey(group, section);
+		setExpandedSections((current) => {
+			const next = new Set(current);
+			if (!next.delete(key)) next.add(key);
+			return next;
+		});
+	}
+
+	/**
+	 * Counts for the rows actually on screen, and nothing else.
+	 *
+	 * Nothing is asked for until the server's settings have landed: until then
+	 * `sidebarCounts` is only the built-in default, and someone who turned
+	 * counts off would still pay for one request on every cold start.
+	 */
+	function requestVisibleCounts() {
+		if (!configSettled() || !settings().preferences.sidebarCounts) return;
+		counts.request(sidebarRows().filter((r) => r.counted).map((r) => r.query));
+	}
+
+	function countOf(query: string): number | undefined {
+		return settings().preferences.sidebarCounts ? counts.get(query) : undefined;
 	}
 
 	/**
@@ -935,6 +1058,14 @@ export function createAppStore() {
 		pinnedOpen,
 		setPinnedOpen,
 		expandedGroup,
+		expandedSections,
+		toggleSection,
+		requestVisibleCounts,
+		countOf,
+		tagList,
+		peopleList,
+		listList,
+		listsSearchable: () => listInfo()?.searchable ?? true,
 		setExpandedGroup,
 		tree,
 		currentAccount,
@@ -955,6 +1086,7 @@ export function createAppStore() {
 		status,
 		setStatus,
 		lastError,
+		settingsProblem,
 		pendingKeys,
 		setPendingKeys,
 		allowRemote,

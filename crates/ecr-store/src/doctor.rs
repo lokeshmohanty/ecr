@@ -69,6 +69,15 @@ pub async fn run_with_paths(paths: &MailPaths) -> Doctor {
         .with_hint("run `notmuch new` to create it")
     });
 
+    // Not a failure: everything except the sidebar's mailing-list rows works
+    // without it, and reindexing a large database is the user's call to make.
+    checks.push(if indexes_list_header(paths) {
+        Check::ok("List-Id index", "index.header.List is set")
+    } else {
+        Check::warn("List-Id index", "index.header.List is not set")
+            .with_hint("mailing lists cannot be searched; add `header.List=List-Id` under [index] in your notmuch config, then run `notmuch reindex '*'`")
+    });
+
     let post_new_hook = paths.post_new_hook();
     checks.push(match &post_new_hook {
         Some(hook) => Check::ok("post-new hook", format!("{}", hook.display())),
@@ -164,6 +173,38 @@ async fn oauth_check(account: &str, profile: &str) -> Check {
         TokenState::Unknown(reason) => Check::warn(name, reason)
             .with_hint(format!("run `oauthman status {profile}` to see why")),
     }
+}
+
+/// Whether the notmuch config defines `header.List` under `[index]`.
+///
+/// Read from the file rather than asked of notmuch: doctor runs when things are
+/// already broken, and shelling out is one more thing that can fail.
+fn indexes_list_header(paths: &MailPaths) -> bool {
+    let Some(path) = paths.notmuch.path.as_ref() else {
+        return false;
+    };
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return false;
+    };
+
+    let mut in_index = false;
+    for line in text.lines() {
+        let line = line.trim();
+        if line.starts_with('[') {
+            in_index = line.eq_ignore_ascii_case("[index]");
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let key = key.trim();
+        let qualified = key.eq_ignore_ascii_case("index.header.List");
+        let scoped = in_index && key.eq_ignore_ascii_case("header.List");
+        if (qualified || scoped) && value.trim().eq_ignore_ascii_case("List-Id") {
+            return true;
+        }
+    }
+    false
 }
 
 fn tool_check(tool: &ToolInfo) -> Check {

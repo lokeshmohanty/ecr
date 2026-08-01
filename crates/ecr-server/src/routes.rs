@@ -84,6 +84,26 @@ pub async fn tags(State(state): State<AppState>) -> ApiResult<Json<Vec<String>>>
     Ok(Json(state.store.notmuch().tags().await?))
 }
 
+/// How many recent messages the list scan reads headers from.
+const LIST_SCAN: usize = 2000;
+
+#[derive(Serialize)]
+pub struct Lists {
+    pub lists: Vec<ecr_store::notmuch::MailingList>,
+    /// False when `index.header.List` is unset, which makes `List:` unsearchable
+    /// and every row below useless. The client says so rather than showing rows
+    /// that match nothing.
+    pub searchable: bool,
+}
+
+pub async fn lists(State(state): State<AppState>) -> ApiResult<Json<Lists>> {
+    let notmuch = state.store.notmuch();
+    Ok(Json(Lists {
+        lists: notmuch.mailing_lists(LIST_SCAN).await?,
+        searchable: notmuch.indexes_list_id().await,
+    }))
+}
+
 /// How many queries one request may ask about.
 ///
 /// The sidebar sends a query per visible row, which is tens. A cap keeps a
@@ -566,7 +586,10 @@ pub struct ThemeUpdate {
     pub raw: String,
 }
 
-pub async fn save_theme(State(state): State<AppState>, Json(update): Json<ThemeUpdate>) -> Response {
+pub async fn save_theme(
+    State(state): State<AppState>,
+    Json(update): Json<ThemeUpdate>,
+) -> Response {
     let path = match state.store.paths().resolve_relative(&update.path) {
         Ok(path) => path,
         Err(err) => return ApiError::BadRequest(err.to_string()).into_response(),

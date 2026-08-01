@@ -61,6 +61,7 @@ pub fn router_with_cors(state: AppState, allowed_origins: Option<Vec<String>>) -
         .route("/api/v1/addresses", get(routes::addresses))
         .route("/api/v1/tags", get(routes::tags))
         .route("/api/v1/counts", post(routes::counts))
+        .route("/api/v1/lists", get(routes::lists))
         .route("/api/v1/threads", get(routes::threads))
         .route("/api/v1/threads/{id}", get(routes::thread))
         .route("/api/v1/messages/{id}", get(routes::message))
