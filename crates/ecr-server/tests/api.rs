@@ -413,3 +413,141 @@ async fn a_preflight_permits_the_authorization_header() {
 
     assert!(allowed.contains("authorization"), "got {allowed:?}");
 }
+
+#[tokio::test]
+async fn the_settings_file_starts_out_absent_but_readable() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let response = server.get("/api/v1/config").await;
+    assert_eq!(response.status(), 200);
+
+    let body: serde_json::Value = response.json().await.expect("json");
+    assert_eq!(body["raw"], "");
+    assert!(
+        body["path"]
+            .as_str()
+            .expect("path")
+            .ends_with("settings.toml"),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn settings_survive_a_write_and_a_read() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let raw = "[reading]\nprefer_html = false\n";
+    let response = server
+        .put("/api/v1/config", serde_json::json!({ "raw": raw }))
+        .await;
+    assert_eq!(response.status(), 200);
+
+    let body: serde_json::Value = server
+        .get("/api/v1/config")
+        .await
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(body["raw"], raw);
+}
+
+#[tokio::test]
+async fn the_settings_directory_is_created_on_demand() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let response = server
+        .put(
+            "/api/v1/config",
+            serde_json::json!({ "raw": "[general]\n" }),
+        )
+        .await;
+    assert_eq!(response.status(), 200);
+
+    let path = server.settings_path();
+    assert!(path.exists(), "{} was not written", path.display());
+}
+
+#[tokio::test]
+async fn a_settings_file_that_is_not_toml_is_rejected_with_its_line() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let response = server
+        .put(
+            "/api/v1/config",
+            serde_json::json!({ "raw": "[general]\nstart_query =\n" }),
+        )
+        .await;
+    assert_eq!(response.status(), 422);
+
+    let body: serde_json::Value = response.json().await.expect("json");
+    assert_eq!(body["line"], 2, "{body}");
+}
+
+#[tokio::test]
+async fn a_rejected_settings_file_does_not_replace_the_good_one() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let good = "[reading]\nprefer_html = true\n";
+    server
+        .put("/api/v1/config", serde_json::json!({ "raw": good }))
+        .await;
+    server
+        .put(
+            "/api/v1/config",
+            serde_json::json!({ "raw": "not = = toml" }),
+        )
+        .await;
+
+    let body: serde_json::Value = server
+        .get("/api/v1/config")
+        .await
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(body["raw"], good);
+}
+
+#[tokio::test]
+async fn settings_are_protected_by_the_same_token_as_everything_else() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    assert_eq!(server.anonymous("/api/v1/config").await.status(), 401);
+}
+
+#[tokio::test]
+async fn a_browser_may_preflight_a_settings_write() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let response = reqwest::Client::new()
+        .request(reqwest::Method::OPTIONS, server.url("/api/v1/config"))
+        .header("origin", "http://127.0.0.1:4199")
+        .header("access-control-request-method", "PUT")
+        .send()
+        .await
+        .unwrap();
+
+    let allowed = response
+        .headers()
+        .get("access-control-allow-methods")
+        .map(|v| v.to_str().unwrap().to_string())
+        .unwrap_or_default();
+
+    assert!(
+        allowed.contains("PUT"),
+        "the settings file is written with PUT; the preflight allowed only {allowed}"
+    );
+}

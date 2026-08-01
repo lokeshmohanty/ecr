@@ -146,6 +146,8 @@ pub struct MailPaths {
     pub maildir_root: PathBuf,
     pub database_path: PathBuf,
     pub binaries: crate::settings::Binaries,
+    /// Where ecr keeps its own files, as opposed to the mail tools' files.
+    pub ecr_config_dir: PathBuf,
 }
 
 impl MailPaths {
@@ -199,7 +201,13 @@ impl MailPaths {
             maildir_root,
             database_path,
             binaries: crate::settings::Binaries::from_settings(settings),
+            ecr_config_dir: env.config_dir.join("ecr"),
         })
+    }
+
+    /// The user-facing settings file, shared by every client.
+    pub fn settings_file(&self) -> PathBuf {
+        self.ecr_config_dir.join("settings.toml")
     }
 
     pub fn xapian_dir(&self) -> PathBuf {

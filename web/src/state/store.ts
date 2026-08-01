@@ -1,10 +1,17 @@
-import { batch, createResource, createSignal } from "solid-js";
+import { createEffect, batch, createResource, createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 import { Api, loadConnection, saveConnection, type Connection } from "../api/client";
 import { shellServerUrl } from "../api/platform";
 import type { Account, Draft, ServerEvent, ThreadSummary } from "../api/types";
 import type { Mode, Pane } from "../keymap/engine";
-import { loadSettings, saveSettings, type Settings } from "./settings";
+import {
+  fromToml,
+  loadSettings,
+  loadSettingsText,
+  saveSettings,
+  toToml,
+  type Settings,
+} from "./settings";
 import { ALL_ACCOUNTS, accountLabel, buildTree, type ViewGroup } from "./views";
 import { parseAddress, type AddressEntry } from "./suggest";
 import { effectiveFormat, toggled, type MessageFormat } from "./format";
@@ -70,6 +77,12 @@ export function createAppStore() {
   const api = new Api(connection());
 
   const [settings, setSettingsSignal] = createSignal<Settings>(loadSettings());
+  /**
+   * The file as written, not as parsed. Editing the text rather than
+   * regenerating it is what lets the user's own comments and ordering survive
+   * a toggle on the settings page.
+   */
+  const [settingsSource, setSettingsSource] = createSignal(loadSettingsText());
 
   const [query, setQuery] = createSignal(settings().preferences.startQuery);
   const [revision, setRevision] = createSignal(0);
@@ -161,12 +174,44 @@ export function createAppStore() {
     bumpRevision();
   }
 
-  function setSettings(next: Settings) {
-    saveSettings(next);
+  function setSettings(next: Settings, source = toToml(next)) {
+    saveSettings(next, source);
     setSettingsSignal(next);
+    setSettingsSource(source);
     setAllowRemote(next.preferences.loadRemoteImages);
     bumpRevision();
+    void api.saveConfig(source).catch(() => setLastError("settings could not reach the server"));
   }
+
+  /** Applies edited text, or reports why it cannot. */
+  function applySettingsText(text: string): string[] {
+    const { settings: parsed, errors } = fromToml(text);
+    if (errors.length === 0) setSettings(parsed, text);
+    return errors;
+  }
+
+  // The file lives on the server, so browser, desktop and phone read the same
+  // one. An empty file is a first run: seed it with the commented default.
+  createEffect(() => {
+    if (!connection().baseUrl) return;
+    void (async () => {
+      try {
+        const file = await api.config();
+        if (file.raw.trim() === "") {
+          await api.saveConfig(settingsSource());
+          return;
+        }
+        const { settings: parsed, errors } = fromToml(file.raw);
+        saveSettings(parsed, file.raw);
+        setSettingsSignal(parsed);
+        setSettingsSource(file.raw);
+        setAllowRemote(parsed.preferences.loadRemoteImages);
+        if (errors.length > 0) setLastError(`${file.path}: ${errors[0]}`);
+      } catch {
+        // Offline, or an old server: the local copy stands.
+      }
+    })();
+  });
 
   function bumpRevision() {
     api.invalidate();
@@ -486,6 +531,8 @@ export function createAppStore() {
     setConnection,
     settings,
     setSettings,
+    settingsSource,
+    applySettingsText,
     query,
     setQuery,
     selectQuery,

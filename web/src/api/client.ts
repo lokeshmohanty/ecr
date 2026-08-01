@@ -155,6 +155,18 @@ export class Api {
    */
   private bodies = new Map<string, Body>();
 
+  async config(): Promise<{ path: string; raw: string }> {
+    return await this.request("/api/v1/config");
+  }
+
+  async saveConfig(raw: string): Promise<void> {
+    await this.request("/api/v1/config", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ raw }),
+    });
+  }
+
   async body(id: string, html: boolean, remote: boolean): Promise<Body> {
     const key = `${id}|${html}|${remote}`;
     const cached = this.bodies.get(key);

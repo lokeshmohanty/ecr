@@ -102,3 +102,11 @@ CORS entirely. `--allowed-origin` restricts it where that is wanted.
   Escape is ours. Transient overlays claim Escape before the keymap sees it.
 - **Data.** Resources keyed by `(query, revision)`; SSE bumps the revision
   signal and exactly the affected resources refetch.
+- **Settings.** One commented TOML file at `~/.config/ecr/settings.toml`, held
+  by the server so browser, desktop and phone read the same one. The client
+  generates it from the tables in `state/settings.ts`, so every option reaches
+  the file with its explanation and default, and the everyday sections sit above
+  an `ADVANCED` divider. The file is edited, never regenerated: `withValue`
+  replaces a single value in place so a switch on the settings page leaves the
+  user's own comments and ordering intact. The server writes it only if it
+  parses, so no client can leave behind a file no client can read.

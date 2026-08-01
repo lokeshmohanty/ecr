@@ -109,9 +109,15 @@ the thread, a composer, or settings. Reply, compose and settings all render
 (`web/src/keymap/vim.ts` is the pure engine; `ui/VimEditor.tsx` applies it to a
 textarea). Drafts are edited as whole messages: headers, blank line, body.
 
-Settings are edited as text through that same editor and stored in
-localStorage; `state/settings.ts` parses them and reports errors with line
-numbers rather than silently discarding a bad line.
+Settings are one commented TOML file at `~/.config/ecr/settings.toml`, owned by
+the server (`GET`/`PUT /api/v1/config`) so every client reads the same one, and
+edited through that same vim editor. `state/settings.ts` generates the file from
+its own tables — an option cannot exist in the code without appearing in the
+file with its explanation and default — and reports errors with line numbers
+rather than silently discarding a bad line. Edits go through `withValue`, which
+replaces one value and leaves every other byte alone, so a toggle on the
+settings page never costs the user the comments they wrote. localStorage holds
+only a copy, for starting before the server answers.
 
 ## Layout
 

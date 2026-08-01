@@ -134,7 +134,7 @@ const STATES = [
       await page.waitForTimeout(1600);
       await press(page, "r");
       await page.waitForTimeout(1000);
-      await chord(page, "p");
+      await chord(page, "b");
       await page.waitForTimeout(400);
     },
   },

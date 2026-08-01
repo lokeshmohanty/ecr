@@ -100,7 +100,7 @@ export function ComposePane(props: {
           <h1 class="text-sm text-ink">{props.label}</h1>
           <div class="text-xs text-ink-3">
             from {account()?.address ?? "no account"} · <kbd>ZZ</kbd> send ·{" "}
-            <kbd>ZQ</kbd> discard · <kbd>C-p</kbd> hide
+            <kbd>ZQ</kbd> discard · <kbd>C-b</kbd> hide
           </div>
         </div>
         <button

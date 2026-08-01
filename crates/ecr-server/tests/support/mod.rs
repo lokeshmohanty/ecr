@@ -130,6 +130,20 @@ impl Server {
             .expect("request")
     }
 
+    pub async fn put(&self, path: &str, body: serde_json::Value) -> reqwest::Response {
+        self.client
+            .put(self.url(path))
+            .bearer_auth(TOKEN)
+            .json(&body)
+            .send()
+            .await
+            .expect("request")
+    }
+
+    pub fn settings_path(&self) -> PathBuf {
+        self.home.path().join(".config/ecr/settings.toml")
+    }
+
     pub fn capture_path(&self) -> PathBuf {
         self.home.path().join("captured")
     }

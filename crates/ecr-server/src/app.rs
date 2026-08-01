@@ -6,7 +6,7 @@ use axum::extract::{Request, State};
 use axum::http::{header, HeaderValue, Method};
 use axum::middleware::{self, Next};
 use axum::response::Response;
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use axum::Router;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
@@ -53,6 +53,8 @@ pub fn router_with_cors(state: AppState, allowed_origins: Option<Vec<String>>) -
         .route("/api/v1/sync", post(routes::sync))
         .route("/api/v1/send", post(routes::send))
         .route("/api/v1/events", get(routes::events))
+        .route("/api/v1/config", get(routes::config))
+        .route("/api/v1/config", put(routes::save_config))
         .layer(middleware::from_fn_with_state(state.clone(), require_token));
 
     public
@@ -64,7 +66,7 @@ pub fn router_with_cors(state: AppState, allowed_origins: Option<Vec<String>>) -
 
 fn cors(allowed_origins: Option<Vec<String>>) -> CorsLayer {
     let layer = CorsLayer::new()
-        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::OPTIONS])
         .allow_headers([
             header::AUTHORIZATION,
             header::CONTENT_TYPE,

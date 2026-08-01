@@ -32,6 +32,20 @@ async function open(preferHtml = true) {
   );
 
   await page.goto(url, { waitUntil: "networkidle" });
+
+  // Settings live in a file on the server, so the file the last page wrote
+  // would otherwise outrank this page's preferences. Emptying it makes the
+  // client write this page's own settings on the way back up.
+  await page.evaluate(async () => {
+    localStorage.removeItem("ecr.settings.toml");
+    await fetch("/api/v1/config", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ raw: "" }),
+    });
+  });
+  await page.reload({ waitUntil: "networkidle" });
+
   await page.waitForSelector("[class*='row-grid'][class*='cursor-pointer']", { timeout: 20000 });
   await page.waitForTimeout(1000);
   return page;

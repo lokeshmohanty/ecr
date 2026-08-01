@@ -19,6 +19,8 @@ unauthenticated and logs a warning.
 | POST | `/tags` | `{ ops: [{ id, add, remove }] }` → new revision |
 | POST | `/sync` | `{ accounts: [] }` → `SyncReport`. Empty means all |
 | POST | `/send` | `{ account, to, cc, bcc, subject, body, in_reply_to, references }` |
+| GET | `/config` | `{ path, raw }`. An absent settings file is `raw: ""`, not a `404` |
+| PUT | `/config` | `{ raw }`. Written only if it parses; `422 invalid_toml` carries `line` and `column` |
 | GET | `/events` | SSE. Accepts `?access_token=` because EventSource cannot set headers |
 
 ## Server-sent events

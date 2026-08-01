@@ -1,6 +1,6 @@
 import { For, Show, createSignal } from "solid-js";
 import type { AppStore } from "../state/store";
-import { defaultSettings, fromText, toText } from "../state/settings";
+import { defaultToml, tomlString, withValue } from "../state/settings";
 import { PACKAGE_IDS, PACKAGE_LABELS, type PackageId } from "../state/packages";
 import { VimEditor } from "./VimEditor";
 
@@ -9,33 +9,34 @@ type Tab = "packages" | "text";
 export function SettingsPane(props: { store: AppStore; onClose: () => void }) {
   const [tab, setTab] = createSignal<Tab>("packages");
   const [errors, setErrors] = createSignal<string[]>([]);
-  const [source, setSource] = createSignal(toText(props.store.settings()));
+  const [source, setSource] = createSignal(props.store.settingsSource());
 
   const apply = (text: string) => {
-    const { settings, errors: found } = fromText(text);
+    const found = props.store.applySettingsText(text);
     setErrors(found);
     if (found.length > 0) return;
 
-    props.store.setSettings(settings);
     props.store.setStatus("settings saved");
     props.onClose();
   };
 
+  // Edits the file in place rather than regenerating it, so a switch flipped
+  // here never costs the user the comments they wrote.
+  const edit = (id: PackageId, key: string, literal: string) => {
+    const text = withValue(props.store.settingsSource(), `[packages.${id}]`, key, literal);
+    props.store.applySettingsText(text);
+    setSource(text);
+  };
+
   const setManagement = (id: PackageId, management: "self" | "ecr") => {
-    const next = structuredClone(props.store.settings());
-    next.packages[id] = { ...next.packages[id], management };
-    props.store.setSettings(next);
-    setSource(toText(next));
+    edit(id, "management", JSON.stringify(management));
     props.store.setStatus(
       management === "ecr" ? `ecr now manages ${id}` : `${id} is yours to manage`,
     );
   };
 
   const setConfig = (id: PackageId, config: string) => {
-    const next = structuredClone(props.store.settings());
-    next.packages[id] = { ...next.packages[id], config };
-    props.store.setSettings(next);
-    setSource(toText(next));
+    edit(id, "config", tomlString(config));
   };
 
   return (
@@ -152,7 +153,7 @@ export function SettingsPane(props: { store: AppStore; onClose: () => void }) {
             type="button"
             class="rounded border border-rule px-2 py-1 hover:bg-neutral-bg"
             onClick={() => {
-              setSource(toText(defaultSettings()));
+              setSource(defaultToml());
               setErrors([]);
               props.store.setStatus("defaults loaded — ZZ to apply");
             }}

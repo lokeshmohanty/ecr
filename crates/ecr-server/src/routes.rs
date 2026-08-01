@@ -364,3 +364,93 @@ mod tests {
         assert_eq!(sanitize_filename("report 2026.pdf"), "report 2026.pdf");
     }
 }
+
+#[derive(Serialize)]
+pub struct ConfigFile {
+    pub path: String,
+    pub raw: String,
+}
+
+/// The settings file every client shares. Absent is not an error — a client
+/// that finds it empty writes the commented default into it.
+pub async fn config(State(state): State<AppState>) -> ApiResult<Json<ConfigFile>> {
+    let path = state.store.paths().settings_file();
+    let raw = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(err) => return Err(ApiError::Internal(err.to_string())),
+    };
+
+    Ok(Json(ConfigFile {
+        path: path.display().to_string(),
+        raw,
+    }))
+}
+
+#[derive(Deserialize)]
+pub struct ConfigUpdate {
+    pub raw: String,
+}
+
+#[derive(Serialize)]
+pub struct ConfigRejected {
+    pub error: &'static str,
+    pub detail: String,
+    pub line: usize,
+    pub column: usize,
+}
+
+/// Written only if it parses, so a client that sends nonsense cannot leave the
+/// user with a settings file that no client can read back.
+pub async fn save_config(
+    State(state): State<AppState>,
+    Json(update): Json<ConfigUpdate>,
+) -> Response {
+    if let Err(err) = update.raw.parse::<toml::Table>() {
+        let (line, column) = err
+            .span()
+            .map(|span| position(&update.raw, span.start))
+            .unwrap_or((1, 1));
+
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ConfigRejected {
+                error: "invalid_toml",
+                detail: err.message().to_string(),
+                line,
+                column,
+            }),
+        )
+            .into_response();
+    }
+
+    let path = state.store.paths().settings_file();
+    if let Some(parent) = path.parent() {
+        if let Err(err) = std::fs::create_dir_all(parent) {
+            return ApiError::Internal(err.to_string()).into_response();
+        }
+    }
+
+    match write_atomically(&path, &update.raw) {
+        Ok(()) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "path": path.display().to_string() })),
+        )
+            .into_response(),
+        Err(err) => ApiError::Internal(err.to_string()).into_response(),
+    }
+}
+
+/// A settings file half-written by a crash is worse than one not written.
+fn write_atomically(path: &std::path::Path, contents: &str) -> std::io::Result<()> {
+    let temp = path.with_extension("toml.new");
+    std::fs::write(&temp, contents)?;
+    std::fs::rename(&temp, path)
+}
+
+fn position(text: &str, offset: usize) -> (usize, usize) {
+    let head = &text[..offset.min(text.len())];
+    let line = head.matches('\n').count() + 1;
+    let column = head.rsplit('\n').next().map(str::len).unwrap_or(0) + 1;
+    (line, column)
+}
