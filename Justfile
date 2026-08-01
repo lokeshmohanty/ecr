@@ -86,7 +86,7 @@ build-web:
 # ----------------------------------------------------------------- test ----
 
 # Everything CI runs, plus the browser checks.
-check: fmt-check lint test test-web verify
+check: fmt-check lint test test-web verify verify-ux visual
 
 # Everything, including the checks that use your real mail. All read-only bar none.
 check-all: check verify-live verify-live-ui verify-features verify-v2 verify-v3 verify-widths verify-desktop
@@ -166,6 +166,24 @@ verify-v3:
     trap 'kill %1 2>/dev/null || true' EXIT
     for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null && break; sleep 0.5; done
     node web/verify-v3.mjs "http://127.0.0.1:$port"
+
+# Visual regression against the fixture maildir. --approve accepts the current look.
+visual *args:
+    ./scripts/visual.sh {{args}}
+
+# Contrast, accessible names, touch targets, feedback and empty states.
+verify-ux:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    port=8376
+    ./scripts/demo-env.sh /tmp/ecr-visual > /dev/null
+    cargo build -q -p {{server}}
+    pnpm --dir web build > /dev/null
+    HOME=/tmp/ecr-visual XDG_CONFIG_HOME=/tmp/ecr-visual/.config RUST_LOG=warn \
+      ./target/debug/{{server}} serve --bind "127.0.0.1:$port" --no-watch &
+    trap 'kill %1 2>/dev/null || true' EXIT
+    for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null && break; sleep 0.5; done
+    node web/verify-ux.mjs "http://127.0.0.1:$port"
 
 # Check the row layout holds from 320px to 1920px.
 verify-widths:

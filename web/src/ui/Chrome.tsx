@@ -10,8 +10,12 @@ export function TopBar(props: { store: AppStore; onSync: () => void; onSettings:
       </span>
 
       <div class="flex min-w-0 flex-1 items-center gap-2 rounded border border-rule bg-paper-2 px-2 py-1">
-        <span class="text-ink-3">query:</span>
+        <label for="ecr-query" class="text-ink-3">
+          query:
+        </label>
         <input
+          id="ecr-query"
+          aria-label="notmuch query"
           class="w-full border-0 bg-transparent p-0 outline-none"
           value={props.store.query()}
           onChange={(e) => {

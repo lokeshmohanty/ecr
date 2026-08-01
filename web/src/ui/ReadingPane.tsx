@@ -3,7 +3,7 @@ import type { Message } from "../api/types";
 import type { AppStore } from "../state/store";
 import { absolutizePartUrls } from "./body-urls";
 
-export function ReadingPane(props: { store: AppStore }) {
+export function ReadingPane(props: { store: AppStore; onBack?: () => void }) {
   let scroller: HTMLDivElement | undefined;
   const thread = () => props.store.thread();
 
@@ -28,12 +28,24 @@ export function ReadingPane(props: { store: AppStore }) {
       >
         {(loaded) => (
           <>
-            <header class="shrink-0 border-b border-rule px-4 py-3">
+            <header class="flex shrink-0 items-start gap-3 border-b border-rule px-4 py-3">
+              {/* Touch has no h/l, so the way back has to be visible. */}
+              <button
+                type="button"
+                class="touch-target -ml-1 shrink-0 rounded px-2 py-1 text-ink-3 hover:bg-neutral-bg md:hidden"
+                aria-label="Back to the list"
+                onClick={() => props.onBack?.()}
+              >
+                ‹ list
+              </button>
+
+              <div class="min-w-0 flex-1">
               <h1 class="text-base text-ink">{loaded().subject || "(no subject)"}</h1>
               <div class="text-xs text-ink-3">
                 {loaded().messages.length} message{loaded().messages.length === 1 ? "" : "s"}
                 {" · "}
                 <kbd>J</kbd>/<kbd>K</kbd> message · <kbd>za</kbd> fold · <kbd>r</kbd> reply
+              </div>
               </div>
             </header>
 
@@ -177,7 +189,7 @@ function MessageView(props: {
                 <Show
                   when={loaded().format === "html"}
                   fallback={
-                    <pre class="mono overflow-x-auto rounded border border-rule-soft bg-card p-3 text-[13px] leading-relaxed whitespace-pre-wrap text-ink">
+                    <pre class="mono max-w-full overflow-x-auto rounded border border-rule-soft bg-card p-3 text-[13px] leading-relaxed whitespace-pre-wrap text-ink">
                       {loaded().content}
                     </pre>
                   }

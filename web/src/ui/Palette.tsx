@@ -127,6 +127,7 @@ export function Palette(props: { store: AppStore }) {
             <span class="text-obligation">{prefix()}</span>
             <input
               ref={input}
+              aria-label={searching() ? "search query" : "command"}
               class="w-full border-0 bg-transparent p-0 text-ink outline-none"
               placeholder={searching() ? "notmuch query, e.g. tag:unread and from:alice" : "command"}
               value={props.store.palette()}

@@ -164,6 +164,7 @@ export function VimEditor(props: VimEditorProps) {
     <div class="flex min-h-0 flex-1 flex-col">
       <textarea
         ref={area}
+        aria-label={props.label}
         class="min-h-0 flex-1 resize-none rounded-none border-0 border-t border-rule bg-card p-3 leading-relaxed outline-none"
         spellcheck={false}
         autocomplete="off"

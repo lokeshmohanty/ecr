@@ -9,6 +9,7 @@ import { ComposePane, emptyDraft } from "./ui/ComposePane";
 import { SettingsPane } from "./ui/SettingsPane";
 import { ConnectionSetup, Help, StatusBar, TopBar } from "./ui/Chrome";
 import type { Draft, Message } from "./api/types";
+import { quoteBody, replyAttribution } from "./state/quote";
 
 /** A key belongs to a text field whenever one of these has focus. */
 function isEditing(target: EventTarget | null): boolean {
@@ -261,8 +262,18 @@ export function App() {
           break;
         }
         const all = action.kind === "reply" && (action.all || store.settings().preferences.replyAll);
+
+        // The quote comes from the real body, so a reply has something to
+        // answer against rather than just the subject line.
+        const original = await store.api
+          .body(message.id, false, false)
+          .then((b) => b.content)
+          .catch(() => "");
+
         openCompose(
-          action.kind === "forward" ? forwardDraft(message) : replyDraft(message, all),
+          action.kind === "forward"
+            ? forwardDraft(message, original)
+            : replyDraft(message, all, original),
           action.kind === "forward" ? "forward" : all ? "reply all" : "reply",
         );
         break;
@@ -345,7 +356,13 @@ export function App() {
                     navigable.
                   */}
                   <div class="flex min-h-0 flex-1 flex-col">
-                    <ReadingPane store={store} />
+                    <ReadingPane
+                      store={store}
+                      onBack={() => {
+                        setMobilePane("list");
+                        store.setPane("list");
+                      }}
+                    />
                   </div>
 
                   <Show when={composing()}>
@@ -402,20 +419,22 @@ export function App() {
   );
 }
 
-function replyDraft(message: Message, all: boolean): Draft {
+function replyDraft(message: Message, all: boolean, original: string): Draft {
   const to = (message.reply_to.length ? message.reply_to : message.from).map((a) => a.email);
+  const quoted = quoteBody(original);
+
   return {
     to,
     cc: all ? message.cc.map((a) => a.email).filter((e) => !to.includes(e)) : [],
     bcc: [],
     subject: prefixed(message.subject, "Re:"),
-    body: `\n\nOn ${message.date}, ${message.from[0]?.email ?? "someone"} wrote:\n${quote(message)}`,
+    body: `\n\n${replyAttribution(message.date, message.from[0]?.email ?? null)}\n${quoted}\n`,
     in_reply_to: message.id,
     references: [...message.references, message.id],
   };
 }
 
-function forwardDraft(message: Message): Draft {
+function forwardDraft(message: Message, original: string): Draft {
   return {
     to: [],
     cc: [],
@@ -426,14 +445,10 @@ function forwardDraft(message: Message): Draft {
       `From: ${message.from.map((a) => a.email).join(", ")}\n` +
       `Date: ${message.date}\n` +
       `Subject: ${message.subject}\n` +
-      `To: ${message.to.map((a) => a.email).join(", ")}\n\n`,
+      `To: ${message.to.map((a) => a.email).join(", ")}\n\n${original.trim()}\n`,
     in_reply_to: null,
     references: [],
   };
-}
-
-function quote(message: Message): string {
-  return `> (${message.subject})\n`;
 }
 
 function prefixed(subject: string, prefix: string): string {

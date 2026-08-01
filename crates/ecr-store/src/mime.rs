@@ -6,6 +6,10 @@ pub struct ParsedMessage {
     parts: Vec<StoredPart>,
     html: Option<String>,
     text: Option<String>,
+    /// Whether the message actually carries a text/html part. mail-parser will
+    /// synthesise HTML from a text part, and serving that costs the client an
+    /// iframe, a sandbox and a resize for a message with no markup in it.
+    has_html_part: bool,
 }
 
 struct StoredPart {
@@ -24,6 +28,11 @@ pub fn parse(id: &str, raw: &[u8]) -> Result<ParsedMessage> {
     let html = parsed.body_html(0).map(|c| c.into_owned());
     let text = parsed.body_text(0).map(|c| c.into_owned());
 
+    let has_html_part = parsed
+        .parts
+        .iter()
+        .any(|p| matches!(p.body, PartType::Html(_)));
+
     let mut parts = Vec::new();
     for (index, part) in parsed.parts.iter().enumerate() {
         if part.is_multipart() {
@@ -34,7 +43,12 @@ pub fn parse(id: &str, raw: &[u8]) -> Result<ParsedMessage> {
         }
     }
 
-    Ok(ParsedMessage { parts, html, text })
+    Ok(ParsedMessage {
+        parts,
+        html,
+        text,
+        has_html_part,
+    })
 }
 
 fn store_part(index: u32, part: &MessagePart<'_>) -> Option<StoredPart> {
@@ -112,6 +126,19 @@ impl ParsedMessage {
         self.html.as_deref()
     }
 
+    fn as_text(&self) -> Body {
+        Body {
+            format: BodyFormat::Text,
+            content: self.text.clone().unwrap_or_default(),
+            remote_resources_blocked: 0,
+        }
+    }
+
+    /// True when the message carries real markup, not text dressed up as HTML.
+    pub fn is_html(&self) -> bool {
+        self.has_html_part
+    }
+
     pub fn body(&self, format: BodyFormat, ctx: &SanitizeContext) -> Body {
         match format {
             BodyFormat::Text => Body {
@@ -119,14 +146,11 @@ impl ParsedMessage {
                 content: self.text.clone().unwrap_or_default(),
                 remote_resources_blocked: 0,
             },
-            BodyFormat::Html => match &self.html {
+            BodyFormat::Html if self.has_html_part => match &self.html {
                 Some(html) => sanitize(html, self, ctx),
-                None => Body {
-                    format: BodyFormat::Text,
-                    content: self.text.clone().unwrap_or_default(),
-                    remote_resources_blocked: 0,
-                },
+                None => self.as_text(),
             },
+            BodyFormat::Html => self.as_text(),
         }
     }
 }
@@ -672,5 +696,69 @@ mod dark_mode_tests {
         );
         assert!(html.contains("#131517"), "{html}");
         assert!(html.contains("margin:0"), "{html}");
+    }
+}
+
+#[cfg(test)]
+mod format_tests {
+    use super::*;
+
+    fn body_of(raw: &str, format: BodyFormat) -> Body {
+        parse("x@y.z", raw.as_bytes())
+            .unwrap()
+            .body(format, &SanitizeContext::new("/parts/", true))
+    }
+
+    #[test]
+    fn a_text_only_message_is_served_as_text_even_when_html_is_asked_for() {
+        // mail-parser will happily synthesise HTML from a text part. Doing so
+        // costs an iframe, a sandbox and a resize for a message that has no
+        // markup at all, so the client is told what it really is.
+        let body = body_of(
+            "Content-Type: text/plain\r\n\r\nA single email with no replies.",
+            BodyFormat::Html,
+        );
+
+        assert_eq!(body.format, BodyFormat::Text);
+        assert!(body.content.contains("no replies"));
+        assert!(!body.content.contains("<div"), "{}", body.content);
+    }
+
+    #[test]
+    fn a_real_html_message_is_still_served_as_html() {
+        let body = body_of(
+            "Content-Type: text/html\r\n\r\n<p>Hello <b>there</b></p>",
+            BodyFormat::Html,
+        );
+
+        assert_eq!(body.format, BodyFormat::Html);
+        assert!(body.content.contains("<b>"), "{}", body.content);
+    }
+
+    #[test]
+    fn a_multipart_alternative_still_prefers_its_html_part() {
+        let raw = "Content-Type: multipart/alternative; boundary=B\r\n\r\n\
+                   --B\r\nContent-Type: text/plain\r\n\r\nplain\r\n\
+                   --B\r\nContent-Type: text/html\r\n\r\n<p>rich</p>\r\n--B--\r\n";
+        let body = body_of(raw, BodyFormat::Html);
+
+        assert_eq!(body.format, BodyFormat::Html);
+        assert!(body.content.contains("rich"), "{}", body.content);
+    }
+
+    #[test]
+    fn asking_for_text_always_gets_text() {
+        let body = body_of(
+            "Content-Type: text/html\r\n\r\n<p>Hello</p>",
+            BodyFormat::Text,
+        );
+        assert_eq!(body.format, BodyFormat::Text);
+    }
+
+    #[test]
+    fn a_message_with_no_body_at_all_is_empty_text() {
+        let body = body_of("Subject: nothing\r\n\r\n", BodyFormat::Html);
+        assert_eq!(body.format, BodyFormat::Text);
+        assert_eq!(body.content.trim(), "");
     }
 }

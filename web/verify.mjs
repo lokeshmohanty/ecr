@@ -82,19 +82,30 @@ const bodyOverflow = await page.evaluate(
 check("page does not scroll horizontally", bodyOverflow <= 0, `${bodyOverflow}px`);
 
 console.log("\nTypography");
+// Three type roles: running text is the body face, data is mono.
 const font = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
-check("body uses Cascadia Code", font.includes("Cascadia Code"), font);
+check("running text uses the body face", font.includes("Nunito"), font.slice(0, 40));
+
+const monoFont = await page.evaluate(() => {
+  const el = document.querySelector("kbd, .mono");
+  return el ? getComputedStyle(el).fontFamily : "";
+});
+check("labels and data use the mono face", monoFont.includes("Cascadia"), monoFont.slice(0, 40));
 
 const loaded = await page.evaluate(() =>
   [...document.fonts].filter((f) => f.status === "loaded").map((f) => f.family),
 );
-check("the webfont actually loaded", loaded.some((f) => f.includes("Cascadia")), loaded.join(","));
+check(
+  "the webfonts actually loaded",
+  ["Nunito", "Cascadia"].every((f) => loaded.some((l) => l.includes(f))),
+  loaded.join(","),
+);
 
 console.log("\nKeyboard navigation");
 const selectedRow = () =>
   page.evaluate(() =>
     [...document.querySelectorAll("[class*='row-grid'][class*='cursor-pointer']")].findIndex(
-      (el) => el.className.includes("bg-bg-selected"),
+      (el) => el.className.includes("bg-obligation-bg"),
     ),
   );
 const before = await selectedRow();

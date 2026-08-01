@@ -81,12 +81,20 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
 
 ## Testing rules
 
+- **`just visual` is the regression net for anything you can see.** 18 states
+  against the fixture maildir, compared pixel by pixel. Real mail cannot be a
+  baseline — it changes. Review `screenshots/visual/diff` before approving.
+- **`just verify-ux` covers what a screenshot cannot**: contrast ratios,
+  accessible names, touch targets, whether state is announced and whether a
+  refused action says so.
+
 - Integration tests build a throwaway notmuch database from `fixtures/` in a
   tempdir. They must never touch the real maildir.
 - Sync and send are tested against stub binaries injected via
   `ServerSettings::{mbsync_bin, msmtp_bin}`. Never let a test reach Gmail.
-- If a change touches the UI, run `./scripts/verify-web.sh`. Unit tests did not
-  catch the empty-list, broken-image or stuck-overlay bugs; the browser did.
+- If a change touches the UI, run `just check` — it includes the browser,
+  visual and UX suites. Unit tests did not catch the empty-list, broken-image,
+  stuck-overlay, white-box or missing-mobile-back bugs; the browser did.
 
 ## Interaction model
 
