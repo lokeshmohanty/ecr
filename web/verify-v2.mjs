@@ -193,20 +193,22 @@ const settingsBody = await page.textContent("body");
 check("the packages tab renders", settingsBody.includes("notmuch") && settingsBody.includes("self-managed"));
 check("every package is listed", ["mbsync", "vdirsyncer", "imapnotify", "msmtp"].every((p) => settingsBody.includes(p)));
 
-const disabled = await page.evaluate(
-  () => document.querySelectorAll("textarea[disabled]").length,
+// A self-managed package offers no config field at all, rather than a
+// disabled one: there is nothing to edit and the stored value is ignored.
+const editable = await page.evaluate(() => document.querySelectorAll("textarea").length);
+check("self-managed packages offer no config field", editable === 0, `${editable} fields`);
+check(
+  "and say why",
+  (await page.textContent("main")).includes("never writes it"),
 );
-check("self-managed packages are disabled in the ui", disabled >= 4, `${disabled} disabled`);
 
 await page.evaluate(() => {
   const buttons = [...document.querySelectorAll("button")];
   buttons.find((b) => b.textContent.trim() === "managed by ecr")?.click();
 });
-await page.waitForTimeout(600);
-const afterEnable = await page.evaluate(
-  () => document.querySelectorAll("textarea[disabled]").length,
-);
-check("switching to ecr-managed enables its config", afterEnable < disabled, `${afterEnable} disabled`);
+await page.waitForTimeout(700);
+const afterEnable = await page.evaluate(() => document.querySelectorAll("textarea").length);
+check("switching to ecr-managed reveals its config", afterEnable === 1, `${afterEnable} fields`);
 
 await page.screenshot({ path: "screenshots/v2-settings.png" });
 

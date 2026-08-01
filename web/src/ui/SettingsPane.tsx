@@ -102,19 +102,33 @@ export function SettingsPane(props: { store: AppStore; onClose: () => void }) {
                     </div>
                   </div>
 
-                  <div class="p-3">
-                    <textarea
-                      class="h-28 w-full resize-y rounded p-2 text-xs disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={!managed()}
-                      placeholder={
-                        managed()
-                          ? `contents of ${label.file}`
-                          : "self-managed — ecr reads your existing configuration and ignores this"
-                      }
-                      value={config()?.config ?? ""}
-                      onChange={(e) => setConfig(id, e.currentTarget.value)}
-                    />
-                  </div>
+                  {/*
+                    A self-managed package has nothing to edit, so it shows one
+                    line rather than a disabled box. Five dead boxes filled the
+                    page and implied the config mattered when it is ignored.
+                  */}
+                  <Show
+                    when={managed()}
+                    fallback={
+                      <p class="px-3 py-2 text-xs text-ink-3">
+                        Your system owns this. ecr reads {label.file} and never writes it.
+                      </p>
+                    }
+                  >
+                    <div class="p-3">
+                      <label class="mb-1 block text-xs text-ink-3" for={`pkg-${id}`}>
+                        {label.file}
+                      </label>
+                      <textarea
+                        id={`pkg-${id}`}
+                        aria-label={`${label.title} configuration`}
+                        class="h-32 w-full resize-y rounded p-2 text-xs"
+                        placeholder={`contents of ${label.file}`}
+                        value={config()?.config ?? ""}
+                        onChange={(e) => setConfig(id, e.currentTarget.value)}
+                      />
+                    </div>
+                  </Show>
                 </section>
               );
             }}
