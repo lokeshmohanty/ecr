@@ -8,7 +8,7 @@ A keyboard-driven mail client for an existing [notmuch](https://notmuchmail.org/
 maildir. A Rust server owns all the mail state; one SolidJS UI ships to the
 browser, the desktop and Android.
 
-![The thread list and a rendered message](screenshots/web-client.png)
+![The thread list and a rendered message](figures/web-desktop.png)
 
 ```
 Browser ─┐
@@ -134,6 +134,71 @@ Reading has a cursor of its own: `Enter` in the detail pane gives you the
 ordinary motions, visual mode, `/` and `y` over the rendered message, HTML or
 plain text alike. Nothing runs inside the message frame — the sandbox never
 grants `allow-scripts`.
+
+## The sidebar
+
+Mailboxes, then whatever the database can tell you about itself: the tags in
+use, the people who write to you, and the mailing lists you are on. Counts come
+from one `notmuch count --batch` for the rows actually on screen.
+
+![The sidebar, with counts and gathered sections](figures/sidebar.png)
+
+Every part of it is optional — icons, the dotted leaders, the counts, which
+sections appear and in what order — and you can add rows of your own:
+
+```toml
+[sidebar]
+sidebar_icons = true
+sidebar_leaders = true
+sidebar_counts = true
+sidebar_sections = ["mailboxes", "tags", "people", "lists"]
+sidebar_custom = [{ name = "Patches", query = "subject:PATCH", icon = "◆" }]
+```
+
+Mailing lists need `index.header.List=List-Id` in your notmuch config and a
+`notmuch reindex '*'`; without it `List:` is not searchable and ecr says so
+rather than showing rows that match nothing. `ecr doctor` checks for it.
+
+## Themes
+
+The palette is a TOML file, linked from `settings.toml`:
+
+```toml
+[appearance]
+theme = "themes/tokyonight.toml"
+```
+
+Ten presets are written into `~/.config/ecr/themes/` on first run — copy one,
+edit it, and point `theme` at your copy. Editing a preset in place works too;
+ecr never overwrites a file you have changed.
+
+| | |
+|---|---|
+| ![Tokyo Night](figures/theme-tokyonight.png) | ![Gruvbox Dark](figures/theme-gruvbox-dark.png) |
+| Tokyo Night | Gruvbox Dark |
+| ![Nord](figures/theme-nord.png) | ![Everforest](figures/theme-everforest.png) |
+| Nord | Everforest |
+| ![ecr Light](figures/theme-ecr-light.png) | ![The reading pane](figures/reading.png) |
+| ecr Light | Reading, in ecr Dark |
+
+A theme names roles rather than widgets — `paper`, `ink`, `rule`, and three
+accents that carry meaning — so changing one changes everything that means that
+thing:
+
+```toml
+name = "Tokyo Night"
+color_scheme = "dark"
+
+[colors]
+paper = "#1a1b26"       # app background
+ink = "#c0caf5"         # primary text
+obligation = "#7aa2f7"  # unread, focus, the accent
+blocking = "#f7768e"    # staged writes, destructive actions
+```
+
+## On a phone
+
+![The list at phone width](figures/web-mobile.png)
 
 ## Documentation
 

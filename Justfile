@@ -65,6 +65,57 @@ desktop: build-web
     fi
     ECR_SERVER_URL="http://{{bind}}" cargo run -q -p ecr-desktop
 
+# Build, install and run the app on a connected Android device over USB.
+android *args:
+    nix develop .#android --command just android-run {{args}}
+
+# The body of `just android`, inside the Android shell. Run `just android` instead.
+[private]
+android-run *args: build-web
+    #!/usr/bin/env bash
+    set -euo pipefail
+    port="{{bind}}"
+    port="${port##*:}"
+
+    adb start-server >/dev/null
+    if [ "$(adb devices | grep -cw device || true)" -eq 0 ]; then
+        echo "no device: plug the phone in, enable USB debugging, and accept the prompt" >&2
+        adb devices >&2
+        exit 1
+    fi
+
+    # --skip-targets-install: the phone's Rust std comes from the flake's
+    # `rustAndroid`, and there is no rustup here to add anything. Without the
+    # flag `init` shells out to `rustup target add` and dies on the first one.
+    [ -d shell/gen/android ] || (cd shell && cargo tauri android init --skip-targets-install)
+
+    server_pid=""
+    trap 'adb reverse --remove tcp:8383 >/dev/null 2>&1 || true
+          [ -n "$server_pid" ] && kill "$server_pid" 2>/dev/null || true' EXIT
+
+    if curl -sf "http://{{bind}}/api/v1/health" >/dev/null 2>&1; then
+        echo "using the server already on {{bind}}"
+    else
+        cargo run -q -p {{pkg}} -- serve --bind {{bind}} &
+        server_pid=$!
+        for _ in $(seq 1 60); do
+            curl -sf "http://{{bind}}/api/v1/health" >/dev/null && break
+            sleep 0.5
+        done
+    fi
+
+    # The APK carries no server address: the shell's built-in default is
+    # localhost:8383, so the phone is pointed at this machine by forwarding that
+    # port back down the cable. The mail never leaves USB and no device token is
+    # needed. ECR_BIND may move the host port; the device side stays 8383.
+    adb reverse tcp:8383 "tcp:$port"
+
+    # --no-dev-server embeds web/dist instead of serving it. Without it, Tauri
+    # puts the assets on this machine's LAN address for a physical device, which
+    # means the phone has to be on the same network as well as the cable — and
+    # picks that address by guessing, or by prompting.
+    cd shell && cargo tauri android dev --no-dev-server {{args}}
+
 # Issue a device token. `just token phone` prints it once, with a pairing QR.
 token name:
     cargo run -q -p {{pkg}} -- token new {{name}} --qr
@@ -87,7 +138,7 @@ build-web:
 # ----------------------------------------------------------------- test ----
 
 # Everything CI runs, plus the browser checks.
-check: fmt-check lint test test-web verify verify-compose verify-view verify-marks verify-ux visual
+check: fmt-check lint test test-web e2e verify verify-compose verify-view verify-marks verify-ux visual
 
 # Everything, including the checks that use your real mail. All read-only bar none.
 check-all: check verify-live verify-live-ui verify-features verify-v2 verify-v3 verify-v4 verify-settings verify-widths verify-desktop
@@ -104,6 +155,11 @@ test-web:
 # Watch the web tests.
 test-watch:
     pnpm --dir web exec vitest
+
+# End-to-end, in a real browser against a real server over the fixture maildir.
+# The suite owns its server and demo dir, so it needs no setup here.
+e2e *args:
+    pnpm --dir web exec playwright test {{args}}
 
 lint:
     cargo clippy --workspace --all-targets -- -D warnings
@@ -256,6 +312,10 @@ verify-v3:
     node web/verify-v3.mjs "http://127.0.0.1:$port"
 
 # Visual regression against the fixture maildir. --approve accepts the current look.
+# Regenerate the figures the README shows, from the fixture maildir.
+figures:
+    ./scripts/figures.sh
+
 visual *args:
     ./scripts/visual.sh {{args}}
 

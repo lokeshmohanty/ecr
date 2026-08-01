@@ -70,6 +70,19 @@ actually loads, Escape closes the help, and there is no horizontal scroll at
 On NixOS Playwright's bundled chromium fails on `libnspr4.so`; the script
 launches `/run/current-system/sw/bin/google-chrome-stable` instead.
 
+**End-to-end** (`just e2e`) is the `@playwright/test` suite in `web/e2e/`. A
+worker-scoped fixture builds its own demo maildir and runs a server on port
+8501, so it does not collide with the `verify-*` recipes. Each worker starts
+against a *cold* config directory, which is what exposed the sidebar counts
+never appearing until something unrelated forced a re-render. Keep `playwright`
+and `@playwright/test` on the same version: two copies in the tree and the
+runner collects nothing.
+
+**Figures** (`just figures`) regenerates the images the README shows, into
+`figures/`. Same fixture maildir as the visual suite, with the clock pinned, so
+re-running it on another day produces the same pictures. Distinct from
+`screenshots/visual/`, which is regression output rather than documentation.
+
 ## Fixtures
 
 Every fixture is synthetic and every address is `@example.com` per RFC 2606. No
@@ -104,6 +117,8 @@ strip `unread` from it. Fixtures use `:2,` so they index as unread.
 
 - **No SQLite cache.** Every request shells out to notmuch. Correct, but it will
   need caching at 45k messages once the UI issues requests per keystroke.
-- **Android is not built.** See [operations.md](operations.md#android).
+- **Android ships no APK.** `just android` runs it on a plugged-in device from
+  the opt-in `.#android` shell; CI does not build one. See
+  [operations.md](operations.md#android).
 - **`ts-rs` type generation** is not wired up; `web/src/api/types.ts` is
   maintained by hand and can drift from `ecr-core`.

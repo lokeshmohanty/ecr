@@ -83,8 +83,25 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   `contentDocument` is null, the resize is a no-op and every message renders
   truncated. `allow-scripts` is the flag that matters and is never granted, so
   same-origin access is inert.
+- **The desktop binary carries its own copy of the web client.**
+  `tauri::generate_context!` embeds `web/dist` at compile time, so rebuilding
+  the web assets changes nothing until the Rust binary is rebuilt too.
+  `shell/build.rs` covers this for `cargo build`/`just desktop`, but running
+  `./target/debug/ecr-desktop` directly happily shows a months-old UI and looks
+  like a rendering bug rather than a stale bundle. WebKitGTK itself renders the
+  client the same as Chrome — fonts, weights, variable-font axes and the dotted
+  leaders all match. If the desktop looks wrong, check the binary's mtime
+  against `web/dist` before suspecting the engine.
 - **An editor that opens must take focus.** Otherwise keystrokes fall through
   to the app and the editor looks inert.
+- **A `createStore` keyed by query does not wake readers of a key that was not
+  there yet.** The sidebar reads a count for `tag:inbox` before any count
+  exists; writing that key later left the number invisible. It looked like it
+  worked, because an unrelated settings update re-rendered the sidebar a moment
+  after — so a warm demo dir showed counts and a cold one did not. Counts live
+  in a `createSignal` holding an immutable record, replaced whole per response.
+  This class of bug is invisible to unit tests and to a warm browser; the cold
+  fixture environment is what exposes it.
 - **Reply picks the account from the message tags**, never `accounts()[0]` —
   that answered Gmail threads from the work address because it sorts first.
 - **WebKitGTK lays out at a negative scale if nothing set the screen DPI.** It
@@ -112,6 +129,13 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   and that staged tags really reach notmuch. Each drives the fixture maildir in
   a real browser.
 
+- **`just e2e` is the `@playwright/test` suite in `web/e2e/`.** A worker-scoped
+  fixture owns its own demo maildir and server on port 8501, so it runs beside
+  the older `verify-*.mjs` scripts rather than competing with them. Each worker
+  starts **cold** — a fresh config directory — which is deliberate: the sidebar
+  count bug above was invisible against a warm one.
+  `playwright` and `@playwright/test` must stay pinned to the *same* version, or
+  the runner loads two copies and refuses to collect any test.
 - Integration tests build a throwaway notmuch database from `fixtures/` in a
   tempdir. They must never touch the real maildir.
 - Sync and send are tested against stub binaries injected via
@@ -148,6 +172,22 @@ result with that document's own selection. Nothing runs inside the message
 frame — the parent reaches into `contentDocument`, which is why the sandbox
 still never grants `allow-scripts`. Keys view mode does not claim fall through,
 so `r` still replies while reading.
+
+The sidebar is one **flat, index-addressable** list — `j`/`k` walk it by index
+and `Enter` acts on whatever `sidebarIndex` lands on, so nesting is expressed by
+each row's `indent`, never by structure. Under the expanded account group come
+the configured sections: `mailboxes` renders the view templates directly, while
+`tags`, `people` and `lists` are foldable and gather their rows from the
+database. Counts come from `POST /api/v1/counts`, backed by one
+`notmuch count --batch` process for every visible row — and only visible rows,
+which is what bounds the work. A blank query is substituted before it reaches
+notmuch, because an empty line there means *everything*, not nothing.
+
+Mailing lists are the awkward one: `List-Id` is not a searchable notmuch prefix
+without `index.header.List=List-Id` **and** a full `notmuch reindex '*'`, and
+notmuch cannot enumerate the values at all — so the server scans `List-Id`
+headers off recent message files. When the prefix is missing, the sidebar says
+so rather than showing rows that would match nothing, and `ecr doctor` warns.
 
 The list formats its own dates. `ThreadSummary.timestamp` drives
 `state/datetime.ts`, not notmuch's `date_relative` — that string is a sentence
