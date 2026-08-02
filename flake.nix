@@ -286,6 +286,19 @@
             # builds rasterise glyphs differently, and the whole point is that
             # CI and a laptop produce the same pixels.
             visual-browser = pkgs.ungoogled-chromium;
+
+            # The font set the visual suite renders with. The client bundles
+            # its three faces, but a message still reaches for an emoji glyph
+            # (the fixtures contain one), and fontconfig's idea of what to
+            # substitute is per-machine. Pinning the whole set is what makes
+            # the last of the drift go away.
+            visual-fonts = pkgs.makeFontsConf {
+              fontDirectories = with pkgs; [
+                dejavu_fonts
+                noto-fonts
+                noto-fonts-color-emoji
+              ];
+            };
           };
 
           checks = {

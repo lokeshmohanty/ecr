@@ -371,9 +371,23 @@ const STATES = [
   },
 ];
 
+// Text rendering is the whole of this suite's noise. Hinting and subpixel
+// positioning are decided by the platform's FreeType and fontconfig, so the
+// same glyph lands on different pixels on two machines that agree on
+// everything else — which is how these baselines drifted 0.4% across every
+// state at once, after pinning the browser had already removed the first 1%.
+// Turning all three off costs nothing here: nobody reads these images, they
+// are only ever compared.
 const browser = await chromium.launch({
   executablePath,
-  args: ["--no-sandbox", "--force-device-scale-factor=1", "--hide-scrollbars"],
+  args: [
+    "--no-sandbox",
+    "--force-device-scale-factor=1",
+    "--hide-scrollbars",
+    "--font-render-hinting=none",
+    "--disable-font-subpixel-positioning",
+    "--disable-lcd-text",
+  ],
 });
 
 const failures = [];

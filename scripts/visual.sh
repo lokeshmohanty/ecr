@@ -30,8 +30,17 @@ if [ -z "${ECR_CHROME:-}" ] && command -v nix > /dev/null; then
   fi
 fi
 
+# And one font set, for the same reason. The client bundles its three faces,
+# but the fixtures contain an emoji, and which glyph fontconfig substitutes —
+# and how it hints the rest — is per-machine.
+if [ -z "${FONTCONFIG_FILE:-}" ] && command -v nix > /dev/null; then
+  fonts=$(nix build --no-link --print-out-paths "$ROOT#visual-fonts" 2>/dev/null || true)
+  [ -n "$fonts" ] && export FONTCONFIG_FILE="$fonts"
+fi
+
 if [ -n "${ECR_CHROME:-}" ]; then
   echo "  browser $ECR_CHROME"
+  echo "  fonts   ${FONTCONFIG_FILE:-<system>}"
 else
   echo "  warning: no pinned chromium; baselines from this run are not portable" >&2
 fi
