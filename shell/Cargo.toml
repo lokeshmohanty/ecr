@@ -6,7 +6,11 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
-rust-version.workspace = true
+# Not the workspace's 1.88: the notification plugin pulls notify-rust, which
+# needs 1.89. That is the desktop shell's problem alone — it is `publish =
+# false` and is built from the toolchain the flake pins, while the four crates
+# that go to crates.io still build on 1.88 and say so.
+rust-version = "1.89"
 description = "Desktop and Android shell for the ecr web client"
 publish = false
 

@@ -60,9 +60,12 @@ jobs:
           toolchain: ${{ steps.msrv.outputs.version }}
       - uses: Swatinem/rust-cache@v2
 
-      # Compiles only. The declared MSRV promises the workspace builds, not that
-      # the whole test harness does.
-      - run: cargo check --workspace --all-targets
+      # Compiles only. The declared MSRV promises the *published* crates build,
+      # not that the whole test harness does — and not the desktop shell, which
+      # is `publish = false`, carries its own higher rust-version, and is built
+      # from the toolchain the flake pins rather than from whatever a consumer
+      # happens to have.
+      - run: cargo check -p ecr-core -p ecr-store -p ecr-server -p ecr-cli --all-targets
 
   web:
     name: web

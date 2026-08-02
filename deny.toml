@@ -34,6 +34,36 @@ wildcards = "deny"
 [advisories]
 yanked = "deny"
 
+# Every entry below is an *unmaintained* notice, not a vulnerability. They are
+# listed one by one rather than silenced with `unmaintained = "allow"` on
+# purpose: a genuinely new unmaintained dependency should still stop CI, and
+# each of these should be revisited when the reason for it goes away.
+ignore = [
+  # The GTK3 bindings, ten crates of them. Tauri v2 draws its Linux window with
+  # WebKitGTK, which is GTK3; there is no GTK4 path to move to, and `shell`
+  # additionally uses gtk directly for `ensure_screen_resolution`. Revisit when
+  # Tauri ships a GTK4 or non-GTK Linux backend.
+  { id = "RUSTSEC-2024-0411", reason = "gtk-rs GTK3 bindings, required by Tauri v2 on Linux" },
+  { id = "RUSTSEC-2024-0412", reason = "gtk-rs GTK3 bindings, required by Tauri v2 on Linux" },
+  { id = "RUSTSEC-2024-0413", reason = "gtk-rs GTK3 bindings, required by Tauri v2 on Linux" },
+  { id = "RUSTSEC-2024-0414", reason = "gtk-rs GTK3 bindings, required by Tauri v2 on Linux" },
+  { id = "RUSTSEC-2024-0415", reason = "gtk-rs GTK3 bindings, required by Tauri v2 on Linux" },
+  { id = "RUSTSEC-2024-0416", reason = "gtk-rs GTK3 bindings, required by Tauri v2 on Linux" },
+  { id = "RUSTSEC-2024-0417", reason = "gtk-rs GTK3 bindings, required by Tauri v2 on Linux" },
+  { id = "RUSTSEC-2024-0418", reason = "gtk-rs GTK3 bindings, required by Tauri v2 on Linux" },
+  { id = "RUSTSEC-2024-0419", reason = "gtk-rs GTK3 bindings, required by Tauri v2 on Linux" },
+  { id = "RUSTSEC-2024-0420", reason = "gtk-rs GTK3 bindings, required by Tauri v2 on Linux" },
+
+  # Transitive, build-time only, and reached through dependencies we do not
+  # choose directly.
+  { id = "RUSTSEC-2024-0370", reason = "proc-macro-error, a transitive build dependency" },
+  { id = "RUSTSEC-2025-0075", reason = "unic-char-range, transitive" },
+  { id = "RUSTSEC-2025-0080", reason = "unic-common, transitive" },
+  { id = "RUSTSEC-2025-0081", reason = "unic-char-property, transitive" },
+  { id = "RUSTSEC-2025-0098", reason = "unic-ucd-version, transitive" },
+  { id = "RUSTSEC-2025-0100", reason = "unic-ucd-ident, transitive" },
+]
+
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
