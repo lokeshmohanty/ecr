@@ -6,3 +6,4 @@
 export * from "./settings/schema";
 export * from "./settings/storage";
 export * from "./settings/toml";
+export * from "./settings/client";

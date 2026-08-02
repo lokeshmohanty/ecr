@@ -1,4 +1,5 @@
 import { handleKey, initialState, selectionSpan, type EditorState } from "../keymap/vim";
+import { openExternal } from "../api/platform";
 import {
   flatten,
   installCursorStyle,
@@ -121,7 +122,7 @@ export function attachViewCursor(target: ViewTarget, options: ViewOptions): () =
       consume();
       if (href) {
         if (options.onOpenLink) options.onOpenLink(href);
-        else window.open(href, "_blank", "noopener,noreferrer");
+        else void openExternal(href);
       } else {
         options.onStatus("no link under the cursor");
       }

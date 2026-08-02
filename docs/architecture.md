@@ -143,3 +143,55 @@ CORS entirely. `--allowed-origin` restricts it where that is wanted.
   replaces a single value in place so a switch on the settings page leaves the
   user's own comments and ordering intact. The server writes it only if it
   parses, so no client can leave behind a file no client can read.
+- **The phone.** A narrow screen shows one pane at a time, and which one it
+  shows is `store.pane()` — the same three names the desktop moves between with
+  `h`/`l`, so there is no second notion of where you are to drift. A `☰` in the
+  top bar reaches the sidebar, because a phone has no `h`; without it views,
+  tags, lists and account switching could only be had by typing a notmuch query
+  by hand. Picking a view there hands over to the list, since on a phone the
+  sidebar *is* the screen and a choice that changed nothing visible reads as a
+  dead control.
+- **Touch is a first-class way in, not a degraded keyboard.** The keymap engine
+  is untouched — a Bluetooth keyboard drives a phone exactly as it drives a
+  desktop — but below `md` the client offers its own vocabulary: the status
+  line becomes an action bar of the current pane's actions, a row answers swipe
+  (left archives, right flags) and long-press (selection mode, the equivalent
+  of `Space`), and compose is a button. `ui/row-gesture.ts` holds the gesture
+  arithmetic as pure functions of `(dx, dy)`, for the same reason the vim
+  motions are pure: a threshold decided inside a handler can only be checked by
+  hand on a real phone. Vertical wins ties, because a list is scrolled far more
+  often than a row is swiped. A long press that turns into a swipe yields to
+  the swipe — touch events arrive in batches, so the hold timer can fire before
+  the movement that disproves it.
+- **The composer is a plain textarea below `md`** (`ui/PlainEditor.tsx`). The
+  vim editor is the point of the client on a desktop and stays there; on a
+  phone there is no way out of normal mode, and routing keystrokes through the
+  state machine costs autocorrect, swipe typing and the selection handles.
+  Anything that names a key is hidden below `md`: a hint you cannot act on is
+  worse than no hint.
+- **Touch reached the store by a different path than keys did.**
+  Every pane-changing action existed only on the keymap: a tap on a sidebar row
+  selected the view but stayed on the sidebar, and a tap on a thread opened it
+  into a pane the phone was not showing. Both now do what their key does, and
+  both stop the click, because the container beneath each one claims focus for
+  its own pane and would otherwise undo the move. None of this is visible on a
+  desktop, where all three panes are on screen and the clobber changes nothing.
+- **The pane wrappers carry `min-w-0`.** The desktop grid bounds each track
+  with `minmax(0, …)`; the single implicit column below `md` has no such bound,
+  so one wide message stretched it past the viewport and every line of the body
+  ran off the right edge — with the top bar, sized independently, still looking
+  correct.
+- **Android's back gesture** is handed to the webview's history — `WryActivity`
+  calls `goBack()` while `canGoBack()` and closes the app when it cannot — and a
+  single-page client has none, so back quit from inside a thread. The panes are
+  a stack (the list, with the sidebar or a thread over it), so one pushed entry
+  describes it: leaving the list pushes, returning to it pops, `popstate` goes
+  back to the list.
+- **Safe areas.** `MainActivity` calls `enableEdgeToEdge()`, and from targetSdk
+  35 there is no opting out, so the status and gesture bars are drawn *over* the
+  app. Only the chrome that touches an edge pays an inset. The insets reach the
+  CSS through `--safe-*` variables that default to `env(safe-area-inset-*)`
+  rather than through `env()` at each use: a headless browser cannot be given a
+  cutout, so the screenshot suite sets those variables instead and the one
+  layout that exists for the phone is the one thing a test could otherwise
+  never render.

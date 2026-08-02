@@ -137,8 +137,20 @@ export const SECTIONS: SectionSpec[] = [
   },
 ];
 
+/**
+ * Who owns an option.
+ *
+ * `server` is anything about the mail itself, and is one answer for everyone:
+ * the query you open on, whether HTML wins, when a message counts as read.
+ * `client` is anything about the device you are reading on — a phone wants a
+ * smaller page, a denser sidebar and a composer that fills the screen, and it
+ * would be wrong to make a laptop agree.
+ */
+export type Scope = "server" | "client";
+
 export interface PreferenceDoc {
   section: string;
+  scope: Scope;
   doc: string;
   /** The permitted values, when they are not simply true or false. */
   values?: string;
@@ -147,85 +159,124 @@ export interface PreferenceDoc {
 export const PREFERENCE_DOCS: Record<keyof Preferences, PreferenceDoc> = {
   startQuery: {
     section: "general",
+    scope: "server",
     doc: "The notmuch query ecr opens on. Any query works: tag:inbox, tag:unread\nand date:today are the usual choices.",
   },
   followSelection: {
     section: "general",
+    scope: "client",
     doc: "Move through a list and the right-hand pane follows as you go. Turn this\noff to open threads only with Enter.",
   },
   theme: {
     section: "appearance",
+    scope: "client",
     doc: "The theme file to load, relative to this file's own directory. The\nshipped presets are written into themes/ on first run; copy one, edit it,\nand point this at your copy. Editing a preset in place works too, but a\nnew release will not update a file you have changed.",
     values: "themes/ecr-dark.toml | themes/tokyonight.toml | any file you write",
   },
   sidebarIcons: {
     section: "sidebar",
+    scope: "client",
     doc: "Show a glyph before each entry. Off gives a plain text list.",
   },
   sidebarLeaders: {
     section: "sidebar",
+    scope: "client",
     doc: "Draw a dotted leader from each label across to its count, so the eye\ncan follow a long row to the right number.",
   },
   sidebarCounts: {
     section: "sidebar",
+    scope: "client",
     doc: "Fetch and show how many messages each entry matches. Turning this off\nmeans the sidebar costs no requests at all.",
   },
   sidebarSections: {
     section: "sidebar",
+    scope: "client",
     doc: "Which sections appear, and in what order. Drop one to hide it entirely;\ntags, people and lists are gathered from the database, so an empty list\nleaves only the mailboxes.",
     values: "a list of: mailboxes, tags, people, lists",
   },
   sidebarCustom: {
     section: "sidebar",
+    scope: "client",
     doc: 'Your own entries, appended below the sections above. Each is a name, a\nnotmuch query and an optional glyph, and each is narrowed to the account\nit appears under:\ncustom = [ { name = "Patches", query = "subject:PATCH", icon = "◆" } ]',
     values: "a list of { name, query, icon } tables",
   },
   preferHtml: {
     section: "reading",
+    scope: "server",
     doc: "Show the HTML part of a message rather than its plain-text alternative.\nEither way, t switches the message in front of you.",
   },
   loadRemoteImages: {
     section: "reading",
+    scope: "server",
     doc: "Load images hosted elsewhere without asking. Leaving this off is what\nstops a sender learning that you opened their mail; i loads them once.",
   },
   expandNewest: {
     section: "reading",
+    scope: "server",
     doc: "Open a thread with its newest message expanded and the rest folded.",
   },
   markReadOnOpen: {
     section: "reading",
+    scope: "server",
     doc: "Drop the unread tag once a message has actually been on screen.",
   },
   markReadDelay: {
     section: "reading",
+    scope: "server",
     doc: "How long it must stay on screen first, in milliseconds. Raise this if\nscrolling past a message is marking it read.",
   },
   listDateFormat: {
     section: "reading",
+    scope: "client",
     doc: "How dates are written in the message list. adaptive shows the clock for\ntoday, day and month for this year, and the full date before that — so the\ncolumn stays narrow without ever being ambiguous.",
     values: "adaptive | time | datetime | iso | relative",
   },
   timezone: {
     section: "reading",
+    scope: "client",
     doc: "The IANA timezone every date is shown in, such as Asia/Kolkata or\nEurope/Berlin. Leave it empty to follow the machine ecr is displayed on.",
     values: "an IANA timezone name, or empty",
   },
   replyAll: {
     section: "composing",
+    scope: "server",
     doc: "Make r reply to everyone. R always replies to everyone regardless.",
   },
   pinnedCompose: {
     section: "composing",
+    scope: "client",
     doc: "Open the composer pinned to the bottom of the reading pane, so you can\nkeep reading while you write. A pinned draft survives navigation and is\nclosed only by sending it or discarding it with ZQ.",
   },
   editorStartMode: {
     section: "composing",
+    scope: "client",
     doc: "Which vim mode the composer and this settings file open in.",
     values: "normal | insert",
   },
   pageSize: {
     section: "performance",
+    scope: "client",
     doc: "How many threads are fetched per query. The list is windowed, so a large\nnumber costs bandwidth rather than frames.",
   },
 };
 
+
+/** The keys each side owns, derived from the table above so they cannot drift. */
+const keysWithScope = (scope: Scope) =>
+  (Object.keys(DEFAULT_PREFERENCES) as (keyof Preferences)[]).filter(
+    (key) => PREFERENCE_DOCS[key].scope === scope,
+  );
+
+export const SERVER_KEYS: (keyof Preferences)[] = keysWithScope("server");
+export const CLIENT_KEYS: (keyof Preferences)[] = keysWithScope("client");
+
+/** Just the half `scope` owns, for writing it where that half is kept. */
+export function preferencesInScope(
+  preferences: Preferences,
+  scope: Scope,
+): Partial<Preferences> {
+  const keys = scope === "server" ? SERVER_KEYS : CLIENT_KEYS;
+  const out: Partial<Preferences> = {};
+  for (const key of keys) out[key] = preferences[key] as never;
+  return out;
+}

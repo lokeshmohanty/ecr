@@ -114,12 +114,71 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   `Xft.dpi`, so a bug like this cannot be reproduced under `GDK_BACKEND=x11`.
 - **The desktop window has no decorations**, so the app's own top bar is the
   only handle it has: `TopBar` carries `data-tauri-drag-region`.
+- **`cargo tauri android dev` cannot serve an embedded frontend, and
+  `--no-dev-server` does not change that.** A `dev` build on mobile sets
+  `PROXY_DEV_SERVER`, so `protocol/tauri.rs` proxies *every* asset request
+  through reqwest to `get_app_url()` — which, with no `devUrl`, is the webview's
+  own `http://tauri.localhost`. The app asks itself for the page over HTTP and
+  paints `Failed to request http://tauri.localhost/: error sending request for
+  url`, which looks like a broken build rather than a proxy pointed at itself.
+  `just android` therefore runs `cargo tauri android build --debug` and installs
+  the APK: no `dev` cfg, so `web/dist` is read out of the binary.
+- **Android draws the app under the status and gesture bars.**
+  `MainActivity` calls `enableEdgeToEdge()` and targetSdk 36 makes it mandatory,
+  so the top bar's text lands under the clock unless the chrome pays a
+  `--safe-*` inset. See `.chrome-top` / `.chrome-bottom` in `components.css`.
+- **The system back gesture is the webview's history.** `WryActivity` calls
+  `goBack()` while `canGoBack()` and closes the app when it cannot, so in a
+  client with no history back quit the app from inside a thread. `App.tsx`
+  pushes one entry when a phone leaves the list and pops it on the way back.
+- **A tap is not a keystroke, and the pane handlers below it undo the pane.**
+  Both the sidebar and the list sit inside a container whose own `onClick`
+  claims focus for that pane, so a row handler that moves *to another pane*
+  bubbles straight into being undone. Row handlers `stopPropagation`. This is
+  invisible on a desktop, where every pane is on screen and the clobber changes
+  nothing you can see.
+- **A Tauri plugin command needs two permissions, not one, and failing without
+  the second is silent.** `opener:allow-open-url` grants the *command*;
+  `opener:allow-default-urls` grants the URL *scope* it is allowed to act on.
+  With only the first, every call is rejected — and `api/platform.ts`'s
+  `invoke` swallows a rejection and answers `null`, so a tapped link simply did
+  nothing, with nothing in logcat. Defining any capability file also replaces
+  the one Tauri generates, so `core:default` has to be listed explicitly or the
+  app's own commands stop working too.
+- **`window.open` is not how a link opens outside the app.** A Tauri webview
+  has no second window to honour `target="_blank"` with, and on Android the
+  click died where it stood. Links go through `openExternal`, which hands the
+  URL to the shell's opener plugin. Message HTML is untrusted, so it filters to
+  http/https/mailto — deliberately narrower than the capability's scope.
+  Message links live inside the sandboxed frame, so the *parent* intercepts the
+  click through `contentDocument`, the same way it measures the document; still
+  no script runs in the frame.
+- **A device-scoped setting cannot be written by editing the shared file's
+  text.** `applySettingsText` deliberately preserves this device's half across
+  an edit — the file no longer carries those keys, so without that a save would
+  reset the theme and keybindings to defaults. The corollary is that routing a
+  *change* to a client-scoped option through `withValue` + `applySettingsText`
+  discards the very change being made: `setTheme` did exactly that, and
+  clicking a preset silently did nothing. Set client-scoped preferences
+  directly through `setSettings`. `withValue` is for `[packages.*]`, which the
+  server owns. Only `just e2e` caught this.
+- **Below `md` the pane wrappers need `min-w-0`, not just `min-h-0`.** The
+  three-column grid pins each track with `minmax(0, …)`; the single implicit
+  column a phone gets has no such bound, so one wide message stretched the
+  column past the viewport and the subject, the date, the message-id and every
+  line of the body ran off the right edge — while the top bar, sized
+  independently, still looked correct.
 
 ## Testing rules
 
-- **`just visual` is the regression net for anything you can see.** 23 states
+- **`just visual` is the regression net for anything you can see.** 26 states
   against the fixture maildir, compared pixel by pixel. Real mail cannot be a
   baseline — it changes. Review `screenshots/visual/diff` before approving.
+  The last three are the phone, at the CSS viewport of a real device rather
+  than a round number, and a state may ask for `insets` — a headless browser has
+  no cutout and cannot be given one, so the suite writes the `--safe-*`
+  variables the chrome reads. Without that, the one layout that exists only for
+  Android is the one nothing can render.
 - **`just verify-ux` covers what a screenshot cannot**: contrast ratios,
   accessible names, touch targets, whether state is announced and whether a
   refused action says so.
@@ -150,6 +209,27 @@ Three panes — `sidebar`, `list`, `detail` — with `h`/`l` moving focus. Bindi
 are pane-scoped: `Enter` opens a thread in the list and selects a view in the
 sidebar. `web/src/keymap/engine.ts` owns the table; a binding without `panes`
 is global.
+
+**A phone is not a small desktop, and the vim layer is not offered there.**
+The keymap engine is untouched and a Bluetooth keyboard still drives
+everything, but a touch screen gets its own way in: the status line becomes an
+**action bar** (`ui/ActionBar.tsx`) carrying the actions of the pane you are
+in, rows answer **swipe** (left archives, right flags — `ui/row-gesture.ts`
+holds the arithmetic) and **long-press** (enters selection mode, the touch
+equivalent of `Space`), and compose is a button rather than `c`. The composer
+is a plain textarea below `md` (`ui/PlainEditor.tsx`): a phone has no way out
+of normal mode, and routing every keystroke through the state machine costs
+autocorrect, swipe typing and the selection handles — the things a soft
+keyboard is actually good at. Anything that names a key is hidden below `md`,
+because a hint you cannot act on is worse than no hint.
+
+**A phone shows one of those three panes, and `store.pane()` says which.** It
+is the same signal focus uses on a desktop, deliberately: a second signal for
+the visible pane can only drift from it, and while one existed the sidebar was
+unreachable on a phone — views, tags, lists and account switching could only be
+had by typing a notmuch query by hand. The `☰` in the top bar is the phone's
+`h`, and picking a view there hands over to the list, because a sidebar that
+fills the screen and then appears to do nothing reads as a broken control.
 
 The right-hand pane shows one of three things (`RightPane` in the store):
 the thread, a composer, or settings. Reply, compose and settings all render
@@ -204,9 +284,19 @@ The list selects before it acts. `Space` picks a row, `v`/`V` draw a range, and
 selected; `x` writes them in one call and `X` clears. Staged tags show in the
 margin as badges, so what is about to be written is readable first.
 
-Settings are one commented TOML file at `~/.config/ecr/settings.toml`, owned by
-the server (`GET`/`PUT /api/v1/config`) so every client reads the same one, and
-edited through that same vim editor. `state/settings.ts` generates the file from
+Settings have **two owners**. The server file at `~/.config/ecr/settings.toml`
+(`GET`/`PUT /api/v1/config`) holds what is about the *mail* and is one answer
+for everyone: the start query, whether HTML wins, when a message counts as
+read, and the packages. What is about the *device* — theme, sidebar, dates and
+timezone, page size, keybindings — lives in `localStorage` on each client, so a
+phone and a desktop can differ without arguing. `PREFERENCE_DOCS` carries a
+`scope` per option and `SERVER_KEYS`/`CLIENT_KEYS` are derived from it, so the
+line cannot drift from the documentation. `withClient` lays the device's half
+over the file's; until a device has saved anything the file still wins, which
+is what carries an existing setup across the split instead of resetting it.
+The shared half is edited as text through the vim editor; the device's half is
+switches and pickers (`ui/DeviceSettings.tsx`), because it is changed by trying
+it and there is no file to open on a phone. `state/settings.ts` generates the file from
 its own tables — an option cannot exist in the code without appearing in the
 file with its explanation and default — and reports errors with line numbers
 rather than silently discarding a bad line. Edits go through `withValue`, which

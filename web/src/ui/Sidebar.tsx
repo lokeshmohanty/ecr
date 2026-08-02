@@ -1,6 +1,7 @@
 import { For, Show, createEffect } from "solid-js";
 import type { AppStore, SidebarRow } from "../state/store";
 import { ALL_ACCOUNTS } from "../state/views";
+import { isNarrow } from "./narrow";
 
 export function Sidebar(props: { store: AppStore; onCompose: () => void; onSettings: () => void }) {
   let scroller: HTMLDivElement | undefined;
@@ -27,14 +28,23 @@ export function Sidebar(props: { store: AppStore; onCompose: () => void; onSetti
   const activate = (index: number) => {
     props.store.setSidebarIndex(index);
     props.store.setPane("sidebar");
-    props.store.activateSidebar();
+
+    // Same hand-over as Enter: on a phone the sidebar fills the screen, so
+    // picking a view has to show the result of picking it.
+    if (props.store.activateSidebar() && isNarrow()) props.store.setPane("list");
   };
 
   return (
     <nav
       class="pane h-full border-r border-rule bg-paper-2"
       classList={{ "pane-focused": focused() }}
-      onClick={() => props.store.setPane("sidebar")}
+      /*
+        On the way *down*, so that a control inside — a view row handing over
+        to the list, compose, settings — has the last word. Bubbling up, this
+        ran after them and put the pane straight back, which on a desktop
+        changes nothing visible and on a phone made every one of them dead.
+      */
+      oncapture:click={() => props.store.setPane("sidebar")}
     >
       <div ref={scroller} class="scroll-y flex-1 px-2 py-2">
         <For each={rows()}>

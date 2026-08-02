@@ -12,18 +12,14 @@ import type { Mode, Pane } from "../keymap/engine";
 import {
 	fromToml,
 	loadSettings,
+	withClient,
+	preferencesInScope,
 	loadSettingsText,
 	saveSettings,
 	toToml,
-	withValue,
 	type Settings,
 } from "./settings";
-import {
-	applyTheme,
-	loadThemeText,
-	parseTheme,
-	saveThemeText,
-} from "./theme";
+import { applyTheme, loadThemeText, parseTheme, saveThemeText } from "./theme";
 import { createCounts } from "./counts";
 import {
 	ALL_ACCOUNTS,
@@ -121,7 +117,13 @@ export function createAppStore() {
 	const [query, setQuery] = createSignal(settings().preferences.startQuery);
 	const [revision, setRevision] = createSignal(0);
 	const [mode, setMode] = createSignal<Mode>("normal");
-	const [pane, setPane] = createSignal<Pane>("list");
+	const [pane, setPaneSignal] = createSignal<Pane>("list");
+	/**
+	 * Fullscreen zooms the detail pane to the whole window, hiding the sidebar
+	 * and the list. It is cleared the moment focus leaves the detail pane, so
+	 * `h`/`l` back out of it rather than landing on a pane you cannot see.
+	 */
+	const [fullscreen, setFullscreen] = createSignal(false);
 	const [right, setRight] = createSignal<RightPane>({ kind: "reading" });
 	const [palette, setPalette] = createSignal("");
 	const [selected, setSelected] = createSignal(0);
@@ -140,6 +142,12 @@ export function createAppStore() {
 	const [marks, setMarks] = createStore<MarkQueue>({});
 	/** Rows picked one at a time with Space, by thread id. */
 	const [picked, setPicked] = createSignal<string[]>([]);
+	/**
+	 * Touch has no Space, and a phone has no room for a cursor you can see. So
+	 * picking rows is a mode you enter — by long-pressing a row, or from the
+	 * action bar — and while it is on, a tap picks instead of opening.
+	 */
+	const [selectionMode, setSelectionModeSignal] = createSignal(false);
 	/** Where a v/V range started, or null when no range is being drawn. */
 	const [visualAnchor, setVisualAnchor] = createSignal<number | null>(null);
 	const [connected, setConnected] = createSignal(false);
@@ -159,9 +167,9 @@ export function createAppStore() {
 	const [viewing, setViewing] = createSignal(false);
 	const [pinnedOpen, setPinnedOpen] = createSignal(true);
 	const [expandedGroup, setExpandedGroup] = createSignal<string>(ALL_ACCOUNTS);
-	const [expandedSections, setExpandedSections] = createSignal<ReadonlySet<string>>(
-		new Set<string>(),
-	);
+	const [expandedSections, setExpandedSections] = createSignal<
+		ReadonlySet<string>
+	>(new Set<string>());
 	// A signal holding an immutable record rather than a store: counts arrive for
 	// keys that were not there when the sidebar first read them, and replacing
 	// the whole record is what reliably wakes those readers.
@@ -282,7 +290,20 @@ export function createAppStore() {
 	function applySettingsText(text: string): string[] {
 		const { settings: parsed, errors } = fromToml(text);
 		if (errors.length === 0) {
-			setSettings(parsed, text);
+			// The edited text is the shared half only, so anything this device
+			// owns has to survive the edit rather than fall back to a default
+			// the file no longer carries.
+			setSettings(
+				{
+					...parsed,
+					preferences: {
+						...parsed.preferences,
+						...preferencesInScope(settings().preferences, "client"),
+					},
+					bindings: settings().bindings,
+				},
+				text,
+			);
 			setSettingsProblem("");
 		}
 		return errors;
@@ -299,7 +320,10 @@ export function createAppStore() {
 					await api.saveConfig(settingsSource());
 					return;
 				}
-				const { settings: parsed, errors } = fromToml(file.raw);
+				// The file is the shared half. This device's own half goes back
+				// over it, or the server would hand every client one theme.
+				const { settings: fromFile, errors } = fromToml(file.raw);
+				const parsed = withClient(fromFile);
 				saveSettings(parsed, file.raw);
 				setSettingsSignal(parsed);
 				setSettingsSource(file.raw);
@@ -308,7 +332,8 @@ export function createAppStore() {
 				// where the thread list would be, so with mail on screen a bad
 				// line in settings.toml would otherwise be discarded in silence —
 				// the one thing this file's design promises not to do.
-				if (errors.length > 0) reportSettingsProblem(`${file.path}: ${errors[0]}`);
+				if (errors.length > 0)
+					reportSettingsProblem(`${file.path}: ${errors[0]}`);
 			} catch {
 				// Offline, or an old server: the local copy stands.
 			} finally {
@@ -323,7 +348,8 @@ export function createAppStore() {
 	// the built-in palette and then flip to the chosen one.
 	createEffect(() => {
 		const cached = loadThemeText();
-		if (cached !== "") applyTheme(parseTheme(cached).theme, document.documentElement);
+		if (cached !== "")
+			applyTheme(parseTheme(cached).theme, document.documentElement);
 	});
 
 	createEffect(() => {
@@ -349,11 +375,14 @@ export function createAppStore() {
 	// Gathered from the database rather than configured. Each is fetched once per
 	// connection and refreshed on a revision bump, since new mail can introduce a
 	// tag, a correspondent or a list that was not there before.
-	const gathered = () => (connection().baseUrl ? `${connection().baseUrl}|${revision()}` : null);
+	const gathered = () =>
+		connection().baseUrl ? `${connection().baseUrl}|${revision()}` : null;
 
 	const [tagList] = createResource(gathered, async () => {
 		const tags = await api.tags();
-		return tags.filter((tag) => !HIDDEN_TAGS.has(tag)).sort((a, b) => a.localeCompare(b));
+		return tags
+			.filter((tag) => !HIDDEN_TAGS.has(tag))
+			.sort((a, b) => a.localeCompare(b));
 	});
 
 	const [peopleList] = createResource(gathered, async () => {
@@ -366,7 +395,11 @@ export function createAppStore() {
 
 	const counts = createCounts(
 		api,
-		(entries) => setCountMap((current) => ({ ...current, ...Object.fromEntries(entries) })),
+		(entries) =>
+			setCountMap((current) => ({
+				...current,
+				...Object.fromEntries(entries),
+			})),
 		(query) => countMap()[query],
 		() => setCountMap({}),
 		{ onError: () => {} },
@@ -381,14 +414,18 @@ export function createAppStore() {
 	 * Writes the one line, so picking a theme on this page never costs the user
 	 * the comments they wrote around it. The effect above does the applying.
 	 */
+	/**
+	 * The theme belongs to the device, not to the shared file, so it is set
+	 * directly rather than by editing the file's text: that path preserves the
+	 * device's half against the edit, which would discard the very change being
+	 * made.
+	 */
 	function setTheme(path: string) {
-		const text = withValue(
-			settingsSource(),
-			"[appearance]",
-			"theme",
-			JSON.stringify(path),
-		);
-		applySettingsText(text);
+		const current = settings();
+		setSettings({
+			...current,
+			preferences: { ...current.preferences, theme: path },
+		});
 	}
 
 	function bumpRevision() {
@@ -588,18 +625,20 @@ export function createAppStore() {
 		setSidebarIndex((i) => Math.min(Math.max(i + delta, 0), total - 1));
 	}
 
-	function activateSidebar() {
+	/** True when the row changed what is being looked at, rather than folding. */
+	function activateSidebar(): boolean {
 		const row = sidebarRows()[sidebarIndex()];
-		if (!row) return;
+		if (!row) return false;
 
 		if (row.kind === "section" && row.section) {
 			toggleSection(row.group, row.section);
-			return;
+			return false;
 		}
 		if (row.kind === "group") {
 			setExpandedGroup(row.group);
 		}
 		selectQuery(row.query);
+		return true;
 	}
 
 	function toggleSection(group: string, section: SectionId) {
@@ -620,7 +659,11 @@ export function createAppStore() {
 	 */
 	function requestVisibleCounts() {
 		if (!configSettled() || !settings().preferences.sidebarCounts) return;
-		counts.request(sidebarRows().filter((r) => r.counted).map((r) => r.query));
+		counts.request(
+			sidebarRows()
+				.filter((r) => r.counted)
+				.map((r) => r.query),
+		);
 	}
 
 	function countOf(query: string): number | undefined {
@@ -645,10 +688,19 @@ export function createAppStore() {
 		});
 	}
 
+	function setPane(next: Pane) {
+		if (next !== "detail") setFullscreen(false);
+		setPaneSignal(next);
+	}
+
 	function focusPane(delta: number) {
 		const index = PANES.indexOf(pane());
 		const next = PANES[Math.min(Math.max(index + delta, 0), PANES.length - 1)];
 		if (next) setPane(next);
+	}
+
+	function toggleFullscreen() {
+		setFullscreen(!fullscreen());
 	}
 
 	/**
@@ -688,6 +740,17 @@ export function createAppStore() {
 
 	function isSelected(index: number): boolean {
 		return selectionIndices().includes(index);
+	}
+
+	/** Leaving the mode drops the selection, so nothing acts on rows you cannot see. */
+	function setSelectionMode(on: boolean) {
+		batch(() => {
+			setSelectionModeSignal(on);
+			if (!on) {
+				setPicked([]);
+				setVisualAnchor(null);
+			}
+		});
 	}
 
 	function toggleSelect() {
@@ -1045,6 +1108,8 @@ export function createAppStore() {
 		pane,
 		setPane,
 		focusPane,
+		fullscreen,
+		toggleFullscreen,
 		right,
 		setRight,
 		leaveRightPane,
@@ -1104,6 +1169,8 @@ export function createAppStore() {
 		stageTags,
 		executeMarks,
 		picked,
+		selectionMode,
+		setSelectionMode,
 		visualAnchor,
 		selectionIndices,
 		isSelected,

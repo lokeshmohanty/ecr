@@ -2,7 +2,18 @@ import { For, Show, createSignal } from "solid-js";
 import type { Attachment, Draft } from "../api/types";
 import type { AppStore } from "../state/store";
 import { formatSize, refuseReason, toAttachment } from "../state/attachments";
-import { VimEditor } from "./VimEditor";
+import { VimEditor, type VimEditorProps } from "./VimEditor";
+import { PlainEditor } from "./PlainEditor";
+import { isNarrow } from "./narrow";
+
+/**
+ * Which editor a surface gets. A phone has no way out of normal mode and no
+ * reason to want one, so it writes in a plain textarea; everywhere else the
+ * vim editor is the point of the client.
+ */
+function Editor(props: VimEditorProps) {
+  return isNarrow() ? <PlainEditor {...props} /> : <VimEditor {...props} />;
+}
 
 export function emptyDraft(): Draft {
   return {
@@ -148,15 +159,32 @@ export function ComposePane(props: {
         <div class="min-w-0 flex-1">
           <h1 class="text-sm text-ink">{props.label}</h1>
           <div class="text-xs text-ink-3">
-            from {account()?.address ?? "no account"} · <kbd>Tab</kbd> field ·{" "}
-            <kbd>ZZ</kbd> send · <kbd>ZQ</kbd> discard · <kbd>C-b</kbd> hide
+            from {account()?.address ?? "no account"}
+            {/* Keys only where there are keys; the buttons beside this do the
+                same three things on a phone. */}
+            <span class="hidden md:inline">
+              {" · "}
+              <kbd>Tab</kbd> field · <kbd>ZZ</kbd> send · <kbd>ZQ</kbd> discard ·{" "}
+              <kbd>C-b</kbd> hide
+            </span>
           </div>
         </div>
+
+        {/* ZZ sends on a desktop. A thumb needs somewhere to press. */}
         <button
           type="button"
-          class="shrink-0 rounded border border-rule px-2 py-0.5 text-xs text-ink-2 hover:bg-neutral-bg"
+          class="touch-target shrink-0 rounded bg-obligation px-3 py-1 text-xs font-semibold text-paper md:hidden"
+          onClick={() => void submit()}
+        >
+          Send
+        </button>
+
+        <button
+          type="button"
+          class="touch-target shrink-0 rounded border border-rule px-2 py-0.5 text-xs text-ink-2 hover:bg-neutral-bg"
           onClick={props.onClose}
           title="Discard (ZQ)"
+          aria-label="Discard"
         >
           ✕
         </button>
@@ -175,7 +203,7 @@ export function ComposePane(props: {
                 {field}
               </span>
               <div class="min-w-0 flex-1">
-                <VimEditor
+                <Editor
                   initial={values()[field]}
                   label={`${field} field`}
                   singleLine
@@ -243,7 +271,7 @@ export function ComposePane(props: {
         <p class="shrink-0 border-b border-rule px-4 py-2 text-xs text-ink-3">sending…</p>
       </Show>
 
-      <VimEditor
+      <Editor
         initial={values().body}
         label={props.label}
         submitLabel="send"

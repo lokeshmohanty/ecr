@@ -1,0 +1,10 @@
+{
+  "identifier": "default",
+  "description": "A link in a message opens in the system browser rather than inside the app.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "opener:allow-open-url",
+    "opener:allow-default-urls"
+  ]
+}

@@ -2,7 +2,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 
 pkg := "ecr-cli"
 bin := "ecr"
-bind := env_var_or_default("ECR_BIND", "127.0.0.1:8383")
+bind := env_var_or_default("ECR_BIND", "0.0.0.0:8383")
 
 # List the available recipes.
 default:
@@ -63,7 +63,13 @@ desktop: build-web
             sleep 0.5
         done
     fi
-    ECR_SERVER_URL="http://{{bind}}" cargo run -q -p ecr-desktop
+    # Use localhost instead of 0.0.0.0 for the connection URL if binding to all interfaces
+    bind="{{bind}}"
+    server_url="http://$bind"
+    if [[ "$bind" == 0.0.0.0:* ]]; then
+        server_url="http://localhost:${bind##*:}"
+    fi
+    env ECR_SERVER_URL="$server_url" cargo run -q -p ecr-desktop
 
 # Build, install and run the app on a connected Android device over USB.
 android *args:
@@ -77,8 +83,31 @@ android-run *args: build-web
     port="{{bind}}"
     port="${port##*:}"
 
+    # `start-server` returns before the daemon has finished enumerating USB, so
+    # a bare `adb devices` right after it reports nothing on a phone that is
+    # plugged in. Wait for one, but bounded: `wait-for-device` alone hangs
+    # forever when there is genuinely nothing attached, which reads as a hang.
+    #
+    # Every later call goes through `on_device`, because a phone renegotiates
+    # USB on its own — a screen lock will do it — and a drop between two adb
+    # calls is not a reason to throw away a build that took five minutes. The
+    # symptom without this is "adb: no devices/emulators found" landing after
+    # the APK is already built.
     adb start-server >/dev/null
-    if [ "$(adb devices | grep -cw device || true)" -eq 0 ]; then
+
+    on_device() {
+        for _ in 1 2 3 4 5; do
+            if timeout 20 adb wait-for-device 2>/dev/null && adb "$@"; then
+                return 0
+            fi
+            sleep 3
+        done
+        echo "the device is not staying connected: adb $1 kept failing" >&2
+        adb devices >&2
+        return 1
+    }
+
+    if ! timeout 20 adb wait-for-device; then
         echo "no device: plug the phone in, enable USB debugging, and accept the prompt" >&2
         adb devices >&2
         exit 1
@@ -108,13 +137,42 @@ android-run *args: build-web
     # localhost:8383, so the phone is pointed at this machine by forwarding that
     # port back down the cable. The mail never leaves USB and no device token is
     # needed. ECR_BIND may move the host port; the device side stays 8383.
-    adb reverse tcp:8383 "tcp:$port"
+    on_device reverse tcp:8383 "tcp:$port"
 
-    # --no-dev-server embeds web/dist instead of serving it. Without it, Tauri
-    # puts the assets on this machine's LAN address for a physical device, which
-    # means the phone has to be on the same network as well as the cable — and
-    # picks that address by guessing, or by prompting.
-    cd shell && cargo tauri android dev --no-dev-server {{args}}
+    # `build`, not `dev`: a `dev` build on mobile proxies *every* asset request
+    # through reqwest to `get_app_url()`, and with no devUrl that resolves to
+    # the webview's own `http://tauri.localhost` — the app asks itself for the
+    # page over HTTP and paints "error sending request for url". This is not
+    # what --no-dev-server turns off. A `build` carries no `dev` cfg, so it
+    # reads web/dist out of the binary the way the desktop shell does.
+    abi="$(on_device shell getprop ro.product.cpu.abi | tr -d '\r\n')"
+    case "$abi" in
+        arm64-v8a) target=aarch64 ;;
+        x86_64)    target=x86_64 ;;
+        *)
+            echo "unsupported device ABI $abi: the flake carries std for arm64 and x86_64" >&2
+            exit 1
+            ;;
+    esac
+    (cd shell && cargo tauri android build --debug --apk true --target "$target" {{args}})
+
+    apk=""
+    for candidate in $(find shell/gen/android/app/build/outputs/apk -name '*.apk'); do
+        if [ -z "$apk" ] || [ "$candidate" -nt "$apk" ]; then apk="$candidate"; fi
+    done
+    if [ -z "$apk" ]; then
+        echo "the build produced no apk" >&2
+        exit 1
+    fi
+
+    id="$(jq -r .identifier shell/tauri.conf.json)"
+    on_device install -r "$apk"
+    on_device shell am start -n "$id/$id.MainActivity" >/dev/null
+
+    echo
+    echo "running on $abi. ctrl-c to stop the server and drop the port forward."
+    on_device logcat -c
+    adb logcat -s RustStdoutStderr chromium
 
 # Issue a device token. `just token phone` prints it once, with a pairing QR.
 token name:

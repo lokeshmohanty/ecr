@@ -4,6 +4,7 @@ import type { AppStore } from "../state/store";
 import { absolutizePartUrls } from "./body-urls";
 import { toggleLabel } from "../state/format";
 import { linkify } from "./linkify";
+import { openExternal } from "../api/platform";
 import { attachViewCursor, type ViewTarget } from "./view-mode";
 
 export function ReadingPane(props: { store: AppStore; onBack?: () => void }) {
@@ -46,8 +47,15 @@ export function ReadingPane(props: { store: AppStore; onBack?: () => void }) {
               <h1 class="text-base text-ink">{loaded().subject || "(no subject)"}</h1>
               <div class="text-xs text-ink-3">
                 {loaded().messages.length} message{loaded().messages.length === 1 ? "" : "s"}
-                {" · "}
-                <kbd>J</kbd>/<kbd>K</kbd> message · <kbd>za</kbd> fold · <kbd>r</kbd> reply
+                {/*
+                  Keys only where there are keys. On a phone these named three
+                  things you cannot do, right under the subject, and the actions
+                  they stand for are on the bar at the bottom instead.
+                */}
+                <span class="hidden md:inline">
+                  {" · "}
+                  <kbd>J</kbd>/<kbd>K</kbd> message · <kbd>za</kbd> fold · <kbd>r</kbd> reply
+                </span>
               </div>
               </div>
             </header>
@@ -238,6 +246,17 @@ function MessageView(props: {
                       class="mono max-w-full overflow-x-auto rounded border border-rule-soft bg-card p-3 text-[13px] leading-relaxed whitespace-pre-wrap text-ink"
                       // Bare URLs become links so Enter opens them here too.
                       innerHTML={linkify(loaded().content)}
+                      // These are in the app's own document, so `target=_blank`
+                      // is the whole plan — and a Tauri webview has no second
+                      // window to honour it with, on Android least of all.
+                      onClick={(event) => {
+                        const target = event.target as Element | null;
+                        const anchor = target?.closest?.("a") ?? null;
+                        const href = anchor?.getAttribute("href");
+                        if (!href) return;
+                        event.preventDefault();
+                        void openExternal(href);
+                      }}
                     />
                   }
                 >
@@ -346,6 +365,33 @@ function BodyFrame(props: {
     if (!frame || !doc?.body) return;
 
     props.onReady?.(doc, frame);
+
+    /*
+     * A tapped link had nowhere to go. The frame is sandboxed without
+     * `allow-top-navigation`, so following one either replaced the message with
+     * the page or did nothing at all — and in a Tauri webview, nothing at all.
+     * The parent already reaches into `contentDocument` to measure the
+     * document, and reaches in here to hand the URL to the system browser.
+     * Still no script runs inside the frame.
+     */
+    const follow = (event: MouseEvent) => {
+      // `instanceof Element` is a lie across realms: this node belongs to the
+      // frame's window, so it is an instance of *its* Element and not of ours,
+      // and the guard threw every click away. Ask the node what it can do
+      // instead of which constructor it came from.
+      const target = event.target as Element | null;
+      if (typeof target?.closest !== "function") return;
+
+      const anchor = target.closest("a");
+      const href = anchor?.getAttribute("href");
+      if (!href) return;
+
+      event.preventDefault();
+      void openExternal(href);
+    };
+
+    doc.addEventListener("click", follow);
+    onCleanup(() => doc.removeEventListener("click", follow));
 
     const measure = () => {
       const height = Math.max(

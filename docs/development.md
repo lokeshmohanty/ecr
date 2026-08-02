@@ -117,8 +117,11 @@ strip `unread` from it. Fixtures use `:2,` so they index as unread.
 
 - **No SQLite cache.** Every request shells out to notmuch. Correct, but it will
   need caching at 45k messages once the UI issues requests per keystroke.
-- **Android ships no APK.** `just android` runs it on a plugged-in device from
-  the opt-in `.#android` shell; CI does not build one. See
+- **The Android APK is unsigned unless the secrets are set.** `release.yml`
+  builds and attaches one on every tag, but signs it only when
+  `ANDROID_KEYSTORE` is present — and an unsigned build cannot be upgraded in
+  place by a later signed one. Locally, `just android` runs it on a plugged-in
+  device from the opt-in `.#android` shell. See
   [operations.md](operations.md#android).
 - **`ts-rs` type generation** is not wired up; `web/src/api/types.ts` is
   maintained by hand and can drift from `ecr-core`.

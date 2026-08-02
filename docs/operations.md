@@ -121,20 +121,28 @@ just android
 ```
 
 That builds the web client, starts a server if one is not already listening,
-installs a debug APK on the connected phone and runs it, streaming its logs
-until you interrupt it. `cargo tauri android init` runs the first time, if
-`shell/gen/android` is not there yet.
+builds a debug APK for the ABI the phone actually reports, installs it with
+`adb install -r`, launches it and streams its logs until you interrupt it.
+`cargo tauri android init` runs the first time, if `shell/gen/android` is not
+there yet.
 
 The phone reaches the server over the cable: `adb reverse` forwards
 `localhost:8383` on the device to this machine, which is the shell's built-in
 default address, so nothing is baked into the APK and no device token is
 needed. `ECR_BIND` can move the host port; the device side stays 8383.
 
-The UI is embedded in the APK (`--no-dev-server`) rather than served from this
-machine, so a web change means running the recipe again — but the phone needs
-nothing but the cable. Left to itself, Tauri serves the assets from this
-machine's LAN address on a physical device, which puts the phone on your
-network and picks that address by guessing or by asking.
+**It is `cargo tauri android build`, not `android dev`.** A `dev` build on
+mobile proxies *every* asset request through reqwest to `get_app_url()`, and
+with no `devUrl` that resolves to the webview's own `http://tauri.localhost` —
+the app asks itself for the page over HTTP and paints `error sending request
+for url`. `--no-dev-server` does not turn that off; only a build without the
+`dev` cfg does, and it then reads `web/dist` out of the binary the way the
+desktop shell does. So the UI is embedded in the APK: a web change means
+running the recipe again, but the phone needs nothing but the cable.
+
+The target is chosen from `ro.product.cpu.abi` rather than assumed —
+`arm64-v8a` and `x86_64` are the two the flake carries a Rust std for, and any
+other ABI stops the recipe with that fact instead of failing inside Gradle.
 
 The device needs USB debugging on, and the authorisation prompt accepted — the
 recipe stops with what to do if `adb devices` reports nothing usable.

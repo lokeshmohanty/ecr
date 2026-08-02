@@ -8,6 +8,7 @@ import {
   selectionSpan,
   type EditorState,
 } from "../keymap/vim";
+import { softKeys } from "../keymap/soft-keys";
 import {
   currentRecipientFragment,
   rankAddresses,
@@ -173,6 +174,13 @@ export function VimEditor(props: VimEditorProps) {
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.metaKey || event.altKey) return;
 
+    // A soft keyboard does not report which key was pressed: Android's IME
+    // fires keydown with `Unidentified` and delivers the text itself in
+    // `beforeinput`. Letting this one through without `preventDefault` is what
+    // makes that event fire at all — handled below. Everything a hardware
+    // keyboard sends is named, and never reaches here.
+    if (event.isComposing || event.key === "Unidentified") return;
+
     // Ctrl chords are the app's unless the editor claims them, which is what
     // lets C-c C-c finish a message from inside an insert session while C-b
     // still hides the pane.
@@ -220,6 +228,18 @@ export function VimEditor(props: VimEditorProps) {
         shift: event.shiftKey,
       }),
     );
+  };
+
+  // A hardware key never arrives here: `onKeyDown` calls `preventDefault`, and
+  // that is precisely what stops this event from firing. What is left is the
+  // soft keyboard, whose keys `softKeys` names.
+  const onBeforeInput = (event: InputEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    for (const key of softKeys(event.inputType, event.data)) {
+      setState((current) => handleKey(current, { key }));
+    }
   };
 
   const onPaste = (event: ClipboardEvent) => {
@@ -305,6 +325,7 @@ export function VimEditor(props: VimEditorProps) {
           spellcheck={false}
           autocomplete="off"
           onKeyDown={onKeyDown}
+          onBeforeInput={onBeforeInput}
           onClick={syncCaretFromClick}
           onScroll={() => {
             if (mirror && area) mirror.scrollTop = area.scrollTop;

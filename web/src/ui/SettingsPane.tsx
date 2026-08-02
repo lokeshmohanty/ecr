@@ -1,13 +1,14 @@
 import { For, Show, createSignal } from "solid-js";
+import { DeviceSettings } from "./DeviceSettings";
 import type { AppStore } from "../state/store";
 import { defaultToml, tomlString, withValue } from "../state/settings";
 import { PACKAGE_IDS, PACKAGE_LABELS, type PackageId } from "../state/packages";
 import { VimEditor } from "./VimEditor";
 
-type Tab = "theme" | "packages" | "text";
+type Tab = "theme" | "device" | "packages" | "text";
 
 export function SettingsPane(props: { store: AppStore; onClose: () => void }) {
-  const [tab, setTab] = createSignal<Tab>("packages");
+  const [tab, setTab] = createSignal<Tab>("device");
   const [errors, setErrors] = createSignal<string[]>([]);
   const [source, setSource] = createSignal(props.store.settingsSource());
 
@@ -62,6 +63,10 @@ export function SettingsPane(props: { store: AppStore; onClose: () => void }) {
           <Tabs current={tab()} onSelect={setTab} />
         </div>
       </header>
+
+      <Show when={tab() === "device"}>
+        <DeviceSettings store={props.store} />
+      </Show>
 
       <Show when={tab() === "theme"}>
         <div class="scroll-y flex-1 p-4">
@@ -135,7 +140,13 @@ export function SettingsPane(props: { store: AppStore; onClose: () => void }) {
 
               return (
                 <section class="mb-3 rounded border border-rule bg-card">
-                  <div class="flex flex-wrap items-center gap-3 border-b border-rule-soft px-3 py-2">
+                  {/*
+                    Stacked until there is room for a row. The pair of choices
+                    is wide and does not shrink, so beside it the description
+                    was squeezed to a column one word wide and the card became
+                    taller than the screen.
+                  */}
+                  <div class="flex flex-col gap-2 border-b border-rule-soft px-3 py-2 md:flex-row md:flex-wrap md:items-center md:gap-3">
                     <div class="min-w-0 flex-1">
                       <div class="text-ink">{label.title}</div>
                       <div class="text-xs text-ink-3">
@@ -143,7 +154,7 @@ export function SettingsPane(props: { store: AppStore; onClose: () => void }) {
                       </div>
                     </div>
 
-                    <div class="flex shrink-0 overflow-hidden rounded border border-rule">
+                    <div class="flex shrink-0 self-start overflow-hidden rounded border border-rule md:self-auto">
                       <Choice
                         label="self-managed"
                         active={!managed()}
@@ -232,9 +243,12 @@ export function SettingsPane(props: { store: AppStore; onClose: () => void }) {
 
 function Tabs(props: { current: Tab; onSelect: (tab: Tab) => void }) {
   const tabs: { id: Tab; label: string }[] = [
+    { id: "device", label: "This device" },
     { id: "theme", label: "Theme" },
     { id: "packages", label: "Packages" },
-    { id: "text", label: "Preferences & keys" },
+    // Keybindings left this file with the split, so the label no longer claims
+    // them: they belong to the device and are edited on its own page.
+    { id: "text", label: "Shared file" },
   ];
 
   return (

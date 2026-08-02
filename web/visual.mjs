@@ -32,6 +32,9 @@ const MAX_DIFFERING_RATIO = 0.002;
 
 const ROW = "[class*='row-grid'][class*='cursor-pointer']";
 
+/** The device this was built against: 1240x2772 at 560dpi, so 3.5 CSS to one. */
+const PHONE = { width: 354, height: 792 };
+
 const press = async (page, ...keys) => {
   for (const key of keys) {
     await page.keyboard.press(key);
@@ -281,6 +284,82 @@ const STATES = [
       await page.waitForTimeout(500);
     },
   },
+
+  /*
+   * The phone. `PHONE` is the CSS viewport of the device this was built
+   * against — 1240x2772 at 560dpi, so 3.5 device pixels to one CSS pixel — not
+   * a round number chosen to look like a phone.
+   */
+  {
+    name: "24-mobile-sidebar",
+    description: "the sidebar as the phone's third pane",
+    viewport: PHONE,
+    async setup(page) {
+      await page.getByRole("button", { name: "Views" }).click();
+      await page.waitForTimeout(700);
+    },
+  },
+  {
+    name: "25-mobile-insets",
+    description: "the chrome held clear of the status and gesture bars",
+    viewport: PHONE,
+    insets: { top: 48, bottom: 24 },
+    async setup(page) {
+      await press(page, "Enter");
+      await page.waitForTimeout(1800);
+    },
+  },
+  {
+    name: "26-mobile-compose",
+    description: "writing a message on a phone",
+    viewport: PHONE,
+    insets: { top: 48, bottom: 24 },
+    async setup(page) {
+      await press(page, "c");
+      await page.waitForTimeout(900);
+    },
+  },
+  {
+    name: "27-mobile-settings",
+    description: "the package cards at phone width",
+    viewport: PHONE,
+    insets: { top: 48, bottom: 24 },
+    async setup(page) {
+      await press(page, ",");
+      await page.waitForTimeout(1200);
+    },
+  },
+  {
+    name: "28-mobile-actions",
+    description: "the action bar that replaces the keys on a phone",
+    viewport: PHONE,
+    insets: { top: 48, bottom: 24 },
+    async setup() {},
+  },
+  {
+    name: "29-mobile-selection",
+    description: "rows picked by hand, with the checkboxes a phone needs",
+    viewport: PHONE,
+    insets: { top: 48, bottom: 24 },
+    async setup(page) {
+      await page.getByRole("button", { name: "Select" }).click();
+      await page.waitForTimeout(400);
+      const rows = page.locator(ROW);
+      await rows.nth(0).click();
+      await rows.nth(2).click();
+      await page.waitForTimeout(500);
+    },
+  },
+  {
+    name: "30-mobile-detail-actions",
+    description: "a thread, with reply and the rest under the thumb",
+    viewport: PHONE,
+    insets: { top: 48, bottom: 24 },
+    async setup(page) {
+      await page.locator(ROW).first().click();
+      await page.waitForTimeout(1800);
+    },
+  },
 ];
 
 const browser = await chromium.launch({
@@ -319,6 +398,21 @@ for (const state of STATES) {
       /* sandboxed frame */
     }
   }, url);
+
+  // A headless browser has no cutout and no way to be given one, so the state
+  // asks for the insets it wants and they arrive the way the phone's would:
+  // through the variables the chrome reads. `env()` supplies the real numbers.
+  if (state.insets) {
+    await page.addInitScript((insets) => {
+      addEventListener("DOMContentLoaded", () => {
+        const root = document.documentElement.style;
+        root.setProperty("--safe-top", `${insets.top ?? 0}px`);
+        root.setProperty("--safe-bottom", `${insets.bottom ?? 0}px`);
+        root.setProperty("--safe-left", `${insets.left ?? 0}px`);
+        root.setProperty("--safe-right", `${insets.right ?? 0}px`);
+      });
+    }, state.insets);
+  }
 
   await page.goto(url, { waitUntil: "networkidle" });
   await page.waitForSelector(ROW, { timeout: 20000 }).catch(() => {});

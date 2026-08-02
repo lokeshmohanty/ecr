@@ -4,10 +4,12 @@ import type { AppStore } from "../state/store";
 import { badgesFor } from "../state/store";
 import { formatListDate } from "../state/datetime";
 import { windowRange } from "./window";
+import { isNarrow } from "./narrow";
+import { LONG_PRESS, drag, stillPressing, type Swipe } from "./row-gesture";
 
 const ROW_HEIGHT = 58;
 
-export function ThreadList(props: { store: AppStore }) {
+export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
   const [scroller, setScroller] = createSignal<HTMLDivElement | null>(null);
   const [scrollTop, setScrollTop] = createSignal(0);
   const [viewport, setViewport] = createSignal(0);
@@ -53,9 +55,10 @@ export function ThreadList(props: { store: AppStore }) {
 
   return (
     <section
-      class="pane h-full border-r border-rule"
+      class="pane relative h-full border-r border-rule"
       classList={{ "pane-focused": focused() }}
-      onClick={() => props.store.setPane("list")}
+      /* On capture, so a row opening a thread has the last word. */
+      oncapture:click={() => props.store.setPane("list")}
     >
       <header class="row-grid shrink-0 border-b border-rule bg-paper-2 px-3 py-2 text-xs uppercase tracking-wide text-ink-3">
         <span />
@@ -68,6 +71,9 @@ export function ThreadList(props: { store: AppStore }) {
       <div
         ref={attach}
         class="scroll-y flex-1"
+        // Room for the compose button to sit over, so the last thread in the
+        // list is never the one hidden under it.
+        classList={{ "max-md:pb-20": true }}
         onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
       >
         <Show
@@ -122,6 +128,23 @@ export function ThreadList(props: { store: AppStore }) {
           </div>
         </Show>
       </div>
+
+      {/*
+        Compose is `c` on a desktop and the sidebar's button on any screen, but
+        on a phone the sidebar is a place you have to travel to — and writing a
+        message is the one thing you should never have to travel for.
+      */}
+      <button
+        type="button"
+        class="absolute right-4 bottom-4 flex size-14 items-center justify-center rounded-full bg-obligation text-xl text-paper shadow-lg md:hidden"
+        onClick={(event) => {
+          event.stopPropagation();
+          props.onCompose();
+        }}
+        aria-label="Compose"
+      >
+        ✎
+      </button>
     </section>
   );
 }
@@ -148,22 +171,161 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
     );
   };
 
+  const open = () => {
+    props.store.setSelected(props.index);
+    props.store.setOpenThread(props.thread.id);
+    props.store.leaveRightPane();
+    props.store.setMessageIndex(0);
+
+    // A phone shows one pane, so opening a thread has to show it — exactly
+    // what Enter does. On a desktop the thread is already beside the list
+    // and focus deliberately stays here.
+    if (isNarrow()) props.store.setPane("detail");
+  };
+
+  const [offset, setOffset] = createSignal(0);
+  const [pending, setPending] = createSignal<Swipe>(null);
+  let start: { x: number; y: number } | null = null;
+  let sliding = false;
+  let held = false;
+  let moved = false;
+  /** Whether this press is what turned selection mode on, so it can be undone. */
+  let enteredMode = false;
+  let holdTimer: number | undefined;
+
+  const endHold = () => {
+    if (holdTimer !== undefined) clearTimeout(holdTimer);
+    holdTimer = undefined;
+  };
+
+  const onTouchStart = (event: TouchEvent) => {
+    const touch = event.touches[0];
+    if (!touch) return;
+    start = { x: touch.clientX, y: touch.clientY };
+    sliding = false;
+    held = false;
+    moved = false;
+    enteredMode = false;
+
+    // A press that rests picks the row, which is what Space does on a desktop.
+    // The guard matters: touch events are delivered in batches, so a swipe that
+    // crosses this deadline can have its movement arrive *after* the timer, and
+    // a flick would otherwise both archive the row and put the list into
+    // selection mode.
+    holdTimer = window.setTimeout(() => {
+      if (moved) return;
+      held = true;
+      enteredMode = !props.store.selectionMode();
+      props.store.setSelectionMode(true);
+      props.store.setSelected(props.index);
+      props.store.toggleSelect();
+    }, LONG_PRESS);
+  };
+
+  const onTouchMove = (event: TouchEvent) => {
+    const touch = event.touches[0];
+    if (!touch || !start) return;
+
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (!stillPressing(dx, dy)) {
+      moved = true;
+      endHold();
+    }
+
+    // Swiping a row you are picking would be two answers to one gesture.
+    if (held || props.store.selectionMode()) return;
+
+    const move = drag(dx, dy);
+    if (!move.horizontal) return;
+
+    sliding = true;
+    setOffset(move.offset);
+    setPending(move.commit);
+    // The row has claimed the gesture, so the list must stop scrolling under it.
+    if (event.cancelable) event.preventDefault();
+  };
+
+  const onTouchEnd = () => {
+    endHold();
+    const commit = pending();
+    setOffset(0);
+    setPending(null);
+    start = null;
+
+    if (!sliding) return;
+    sliding = false;
+
+    // The press was long enough to fire the hold and then turned into a swipe.
+    // One gesture, one meaning: the swipe wins, and the mode it opened closes.
+    if (held) {
+      props.store.toggleSelect();
+      if (enteredMode) props.store.setSelectionMode(false);
+      held = false;
+    }
+
+    if (commit) {
+      // One row, one intention: staged and written, not left owing.
+      props.store.setSelected(props.index);
+      props.store.mark(commit === "archive" ? "archive" : "flag");
+      void props.store.executeMarks();
+    }
+  };
+
   return (
     <div
       class="row-grid touch-target relative cursor-pointer border-b border-rule-soft px-3 py-2"
-      style={{ height: `${ROW_HEIGHT}px` }}
+      style={{
+        height: `${ROW_HEIGHT}px`,
+        transform: offset() === 0 ? undefined : `translateX(${offset()}px)`,
+        // Sliding sideways must not also drag the row out of the list.
+        "touch-action": "pan-y",
+      }}
       classList={{
         "bg-obligation-bg text-ink": selected(),
         "bg-neutral-bg": !selected() && picked(),
         "hover:bg-neutral-bg": !selected(),
       }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
+      onContextMenu={(event) => {
+        // The long press already picked the row; the menu on top of it is the
+        // browser answering the same gesture a second time.
+        if (isNarrow()) event.preventDefault();
+      }}
       onClick={() => {
-        props.store.setSelected(props.index);
-        props.store.setOpenThread(props.thread.id);
-        props.store.leaveRightPane();
-        props.store.setMessageIndex(0);
+        // The press that picked this row must not also open it.
+        if (held) {
+          held = false;
+          return;
+        }
+        if (props.store.selectionMode()) {
+          props.store.setSelected(props.index);
+          props.store.toggleSelect();
+          return;
+        }
+        open();
       }}
     >
+      {/*
+        What lifting the finger now would do. Shown on the edge the row is
+        moving away from, so it is uncovered by the movement itself.
+      */}
+      <Show when={pending()}>
+        <span
+          aria-hidden="true"
+          class="absolute top-0 flex h-full items-center px-3 text-lg"
+          classList={{
+            "right-0 -mr-12 text-obligation": pending() === "archive",
+            "left-0 -ml-12 text-proved": pending() === "flag",
+          }}
+        >
+          {pending() === "archive" ? "⤓" : "⚑"}
+        </span>
+      </Show>
+
       {/* The margin tape: the row's state as a rule rather than a badge. */}
       <span
         class="tape"
@@ -181,7 +343,21 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
         <span class="mono absolute left-6 text-[10px] text-blocking">{badges()}</span>
       </Show>
 
-      <div class="min-w-0">
+      <div class="flex min-w-0 items-center gap-2">
+        <Show when={props.store.selectionMode()}>
+          <span
+            aria-hidden="true"
+            class="flex size-5 shrink-0 items-center justify-center rounded border text-xs"
+            classList={{
+              "border-obligation bg-obligation text-paper": picked(),
+              "border-rule text-transparent": !picked(),
+            }}
+          >
+            ✓
+          </span>
+        </Show>
+
+        <div class="min-w-0 flex-1">
         <div
           class="truncate-cell"
           classList={{
@@ -193,6 +369,7 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
         </div>
         <div class="truncate-cell text-ink-3">
           {props.thread.subject || "(no subject)"}
+        </div>
         </div>
       </div>
 

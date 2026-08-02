@@ -8,8 +8,25 @@ export function TopBar(props: { store: AppStore; onSync: () => void; onSettings:
     // drag it by. The attribute is inert everywhere else.
     <header
       data-tauri-drag-region
-      class="flex items-center gap-3 border-b border-rule bg-paper-2 px-3 py-2"
+      class="chrome-top flex items-center gap-3 border-b border-rule bg-paper-2 px-3"
     >
+      {/*
+        `h` reaches the sidebar on a desktop; a phone has no keyboard and shows
+        one pane at a time, so without this the views, tags and lists cannot be
+        reached at all. It toggles, because the way back is the same journey.
+      */}
+      <button
+        type="button"
+        class="touch-target shrink-0 rounded px-2 py-1 text-ink-2 hover:bg-neutral-bg md:hidden"
+        onClick={() =>
+          props.store.setPane(props.store.pane() === "sidebar" ? "list" : "sidebar")
+        }
+        aria-label={props.store.pane() === "sidebar" ? "Close views" : "Views"}
+        aria-expanded={props.store.pane() === "sidebar"}
+      >
+        ☰
+      </button>
+
       <span
         data-tauri-drag-region
         class="hidden shrink-0 font-semibold tracking-widest text-obligation sm:block"
@@ -17,23 +34,18 @@ export function TopBar(props: { store: AppStore; onSync: () => void; onSettings:
         ECR
       </span>
 
-      <div class="flex min-w-0 flex-1 items-center gap-2.5 rounded border border-rule bg-paper-2 px-3 py-1.5">
-        <label for="ecr-query" class="shrink-0 text-ink-3">
-          query:
-        </label>
-        <input
-          id="ecr-query"
-          aria-label="notmuch query"
-          class="w-full border-0 bg-transparent py-0.5 pr-1 pl-0 outline-none"
-          value={props.store.query()}
-          onChange={(e) => {
-            props.store.setQuery(e.currentTarget.value);
-            props.store.setSelected(0);
-          }}
-          onFocus={() => props.store.setMode("insert")}
-          onBlur={() => props.store.setMode("normal")}
-        />
-      </div>
+      <input
+        id="ecr-query"
+        aria-label="notmuch query"
+        class="query-input mono min-w-0 flex-1 px-4 py-1.5 text-center font-semibold"
+        value={props.store.query()}
+        onChange={(e) => {
+          props.store.setQuery(e.currentTarget.value);
+          props.store.setSelected(0);
+        }}
+        onFocus={() => props.store.setMode("insert")}
+        onBlur={() => props.store.setMode("normal")}
+      />
 
       <button
         type="button"
@@ -81,10 +93,31 @@ export function StatusBar(props: { store: AppStore }) {
     ["?", "help"],
   ];
 
+  /*
+   * On a phone this strip costs a row of screen to say "all accounts" and
+   * nothing else, above a bar that is already there. So it appears only when it
+   * has something to report — a staged count, a failure, a bad line in the
+   * settings file — and the account moves to the sidebar, where it is chosen.
+   */
+  const quiet = () =>
+    !props.store.settingsProblem() &&
+    props.store.status() === "" &&
+    markCount() === 0 &&
+    props.store.pendingKeys() === "";
+
   return (
-    <footer class="flex items-center gap-3 border-t border-rule bg-paper-2 px-3 py-1 text-xs">
+    <footer
+      class="chrome-bottom flex items-center gap-3 border-t border-rule bg-paper-2 px-3 text-xs"
+      classList={{ "max-md:hidden": quiet() }}
+    >
+      {/*
+        The vim mode, and which pane has focus. Both are desktop facts: without
+        a keyboard there is no mode to be in, and a phone shows one pane at a
+        time so naming it says nothing you cannot see. The bar below carries
+        the actions instead.
+      */}
       <span
-        class="shrink-0 rounded px-1.5 py-0.5 font-semibold uppercase"
+        class="hidden shrink-0 rounded px-1.5 py-0.5 font-semibold uppercase md:inline-block"
         classList={{
           "bg-obligation text-paper": props.store.mode() === "normal",
           "bg-proved text-paper": props.store.mode() === "insert",
@@ -95,7 +128,7 @@ export function StatusBar(props: { store: AppStore }) {
       </span>
 
       <span
-        class="shrink-0 rounded border px-1.5 py-0.5 uppercase"
+        class="hidden shrink-0 rounded border px-1.5 py-0.5 uppercase md:inline-block"
         classList={{
           "border-obligation text-obligation": props.store.viewing(),
           "border-rule text-ink-3": !props.store.viewing(),
@@ -105,7 +138,7 @@ export function StatusBar(props: { store: AppStore }) {
       </span>
 
       <span
-        class="shrink-0 rounded bg-neutral-bg px-1.5 py-0.5 text-ink-2"
+        class="hidden shrink-0 rounded bg-neutral-bg px-1.5 py-0.5 text-ink-2 md:inline-block"
         title="account this view is scoped to"
       >
         {accountName(props.store)}
@@ -207,7 +240,7 @@ export function ConnectionSetup(props: { store: AppStore }) {
   let tokenInput: HTMLInputElement | undefined;
 
   return (
-    <div class="flex h-full items-center justify-center p-6">
+    <div class="chrome-sides flex h-full items-center justify-center p-6">
       <form
         class="w-full max-w-md rounded border border-rule bg-paper-2 p-5"
         onSubmit={(e) => {

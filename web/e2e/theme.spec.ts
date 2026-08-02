@@ -40,7 +40,7 @@ test.describe("themes", () => {
     expect(scheme).toBe("light");
   });
 
-  test("the choice survives a reload, because it lives in settings.toml", async ({
+  test("the choice survives a reload, because it belongs to this device", async ({
     page,
     server,
   }) => {
@@ -51,8 +51,14 @@ test.describe("themes", () => {
     await page.getByRole("button", { name: /nord\.toml/ }).click();
     await expect.poll(() => paperOf(page)).toBe("#2e3440");
 
+    // The theme is one of the settings a phone and a desktop are allowed to
+    // disagree about, so it is kept here and never written to the file every
+    // client shares.
+    const stored = await page.evaluate(() => localStorage.getItem("ecr.client"));
+    expect(stored).toContain("themes/nord.toml");
+
     const config = await server.api<{ raw: string }>("/api/v1/config");
-    expect(config.raw).toContain('theme = "themes/nord.toml"');
+    expect(config.raw).not.toContain("themes/nord.toml");
 
     await page.reload({ waitUntil: "networkidle" });
     await expect.poll(() => paperOf(page)).toBe("#2e3440");

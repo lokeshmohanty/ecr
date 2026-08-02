@@ -1,0 +1,13 @@
+# The Android library is packaged whole into the APK, so a debug build's
+# debuginfo is not a file on disk — it is 150MB of the thing being pushed down
+# a USB cable on every `just android`. That made the install the slowest and by
+# far the most fragile step, and a phone that renegotiates USB mid-transfer
+# fails it outright, with `adb` reporting nothing after the colon.
+#
+# Nothing reads those symbols on the phone: what comes back is logcat. The
+# host targets are untouched, so a backtrace on this machine still resolves.
+[target.aarch64-linux-android]
+rustflags = ["-C", "strip=debuginfo"]
+
+[target.x86_64-linux-android]
+rustflags = ["-C", "strip=debuginfo"]
