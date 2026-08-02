@@ -1,3 +1,9 @@
++++
+title = "Releasing"
+description = "How a release is cut, what CI produces, and what has to be true first."
+weight = 6
++++
+
 # Releasing
 
 How a release is cut, what CI produces, and what has to be true first.
@@ -9,7 +15,7 @@ Semantic versioning. One version number for the whole workspace, set in
 `shell/tauri.conf.json` and `web/package.json`.
 
 Before v1.0.0 the HTTP API and the settings file format may change in a minor
-release. Both freeze at v1.0.0. The roadmap in the [README](../README.md#roadmap)
+release. Both freeze at v1.0.0. The roadmap in the [README](https://github.com/lokeshmohanty/ecr/blob/main/README.md#roadmap)
 carries the markers for what each release must contain.
 
 ## Cutting a release
@@ -84,7 +90,7 @@ server and the client. It needs a `CACHIX_AUTH_TOKEN` secret; without it the
 push step is skipped and CI still passes, which is also what happens for pull
 requests from forks.
 
-See [installing.md](installing.md) for the consumer's side of this.
+See [installing.md](@/installing.md) for the consumer's side of this.
 
 ### crates.io
 

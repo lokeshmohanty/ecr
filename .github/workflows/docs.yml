@@ -1,0 +1,48 @@
+name: docs
+
+# The published site is the documentation itself, not a copy of it: docs/content
+# holds the same pages an agent reads out of the repository, with front matter
+# added for Zola's sake. Anything that changes them republishes.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+# Deploying to gh-pages needs to write to the repository, and only one deploy
+# may be in flight at a time or two runs race to force-push the same branch.
+permissions:
+  contents: write
+
+concurrency:
+  group: docs
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build and publish
+    runs-on: ubuntu-latest
+    steps:
+      # The reticle theme is a submodule; without this the checkout leaves
+      # docs/themes/reticle empty and zola fails on a theme it cannot find.
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: zola
+
+      # Zola fails the build on a dangling `@/page.md` link, which is why the
+      # docs link that way: a page renamed without its references being updated
+      # cannot reach the site.
+      - run: zola --root docs build
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/public
+          force_orphan: true

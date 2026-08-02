@@ -53,7 +53,7 @@ Builds:
     # The web client is compiled into the binary by `tauri::generate_context!`,
     # so it has to be built first; and `scripts/android-overlay.sh` has to run
     # after `android init`, or the APK cannot reach an http server and wears
-    # the wrong icon. See docs/releasing.md#android.
+    # the wrong icon. See docs/content/releasing.md#android.
     prebuild:
       - cd $$SRC$$ && pnpm install --frozen-lockfile --dir web
       - cd $$SRC$$ && pnpm --dir web build

@@ -1,3 +1,9 @@
++++
+title = "Installing"
+description = "The two published channels, Home Manager, NixOS, and what each release artifact carries."
+weight = 1
++++
+
 # Installing
 
 Two channels are published from this repository, and they differ only in which

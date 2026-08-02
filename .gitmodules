@@ -1,0 +1,3 @@
+[submodule "docs/themes/reticle"]
+	path = docs/themes/reticle
+	url = https://github.com/lokeshmohanty/reticle.git

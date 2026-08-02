@@ -1,0 +1,36 @@
+# Zola configuration for the ecr documentation site.
+#
+# The pages under content/ are the project's documentation, not a separate
+# marketing copy of it: an agent reading the repository and a person reading
+# the published site are looking at the same files. Front matter is the only
+# thing added for Zola's sake.
+base_url = "https://lokeshmohanty.github.io/ecr"
+title = "ecr"
+description = "A keyboard-driven mail client for an existing notmuch maildir"
+theme = "reticle"
+compile_sass = true
+build_search_index = true
+generate_feeds = false
+
+[markdown]
+insert_anchor_links = "left"
+
+# Class-based rather than inline styles, because the theme has a light/dark
+# toggle and inline colours cannot follow it. reticle's base.html looks for
+# exactly this `style = "class"` before linking the two stylesheets.
+[markdown.highlighting]
+style = "class"
+# Required even though the theme ships its own .z-* stylesheet: `style` alone
+# does not parse. Zola writes the CSS it generates from these into
+# docs/static/giallo-*.css, which the theme's template does not link and which
+# is therefore gitignored rather than committed.
+light_theme = "github-light"
+dark_theme = "github-dark"
+
+[extra]
+mode = "docs"
+github = "https://github.com/lokeshmohanty/ecr"
+edit_url = "https://github.com/lokeshmohanty/ecr/edit/main/docs/content"
+show_theme_toggle = true
+favicon = "favicon.png"
+logo = "logo.png"

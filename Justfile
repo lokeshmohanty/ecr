@@ -389,6 +389,14 @@ icons:
 store-metadata:
     ./scripts/store-metadata.sh
 
+# Serve the documentation site locally, with live reload.
+docs:
+    zola --root docs serve
+
+# Build the documentation site the way CI does. Fails on a dangling @/ link.
+docs-build:
+    zola --root docs build
+
 # Build what Nix users actually install. Catches the whole class of failure a
 # cargo build cannot see: a file the crates read at compile time that the
 # derivation's fileset does not carry, and a pnpm lockfile the pinned

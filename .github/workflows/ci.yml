@@ -249,7 +249,7 @@ jobs:
 
       # Unsigned, and not installable on a device. This job catches bitrot in the
       # iOS target; shipping needs an Apple Developer account, a certificate and
-      # a provisioning profile. See docs/releasing.md#ios.
+      # a provisioning profile. See docs/content/releasing.md#ios.
       - run: cargo tauri ios init --ci
         working-directory: shell
       - run: cargo tauri ios build --debug -- -CODE_SIGNING_ALLOWED=NO

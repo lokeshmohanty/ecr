@@ -1,3 +1,9 @@
++++
+title = "Development"
+description = "Building, testing and verifying a change."
+weight = 5
++++
+
 # Development
 
 ## Environment
@@ -122,6 +128,6 @@ strip `unread` from it. Fixtures use `:2,` so they index as unread.
   `ANDROID_KEYSTORE` is present — and an unsigned build cannot be upgraded in
   place by a later signed one. Locally, `just android` runs it on a plugged-in
   device from the opt-in `.#android` shell. See
-  [operations.md](operations.md#android).
+  [operations.md](@/operations.md#android).
 - **`ts-rs` type generation** is not wired up; `web/src/api/types.ts` is
   maintained by hand and can drift from `ecr-core`.

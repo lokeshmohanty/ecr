@@ -9,6 +9,12 @@ release; both are frozen at v1.0.0.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.1.0] — 2026-08-03
+
+First public release. See the [roadmap](README.md#roadmap) for what it covers.
+
 ### Added
 
 - Dual MIT / Apache-2.0 licensing, third-party notices in `THIRD-PARTY.md`, and
@@ -23,7 +29,7 @@ release; both are frozen at v1.0.0.
   newest release — CI fast-forwards that branch to each tag once its artifacts
   have built — and `github:lokeshmohanty/ecr` follows `main`. Both stamp the git
   revision into the version, so `ecr --version` and `nix profile list` say which
-  one is installed. See [docs/installing.md](docs/installing.md).
+  one is installed. See [docs/content/installing.md](docs/content/installing.md).
 - A **home-manager module**, `programs.ecr`, which installs the client and can
   run `ecr serve` as a systemd *user* service — the maildir and the notmuch
   database live in `$HOME`, so a user service is the correct shape.
@@ -86,10 +92,6 @@ release; both are frozen at v1.0.0.
   addresses and account names that had been used as test fixtures.
 - `fixtures/notmuch-config`, which nothing referenced and which hardcoded an
   absolute home directory.
-
-## [0.1.0] — unreleased
-
-First public release. See the [roadmap](README.md#roadmap) for what it covers.
 
 [Unreleased]: https://github.com/lokeshmohanty/ecr/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/lokeshmohanty/ecr/releases/tag/v0.1.0

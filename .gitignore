@@ -38,3 +38,7 @@ web/blob-report/
 /tmp.json
 *.log
 web/dist/
+
+# Zola output; the site is built by CI and published to gh-pages.
+docs/public/
+docs/static/giallo-*.css

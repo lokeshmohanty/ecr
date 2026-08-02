@@ -1,3 +1,9 @@
++++
+title = "Operations"
+description = "Running the server, device tokens, doctor, Android, and troubleshooting."
+weight = 2
++++
+
 # Operations
 
 ## Prerequisites
@@ -71,7 +77,7 @@ ecr serve --bind 127.0.0.1:8383
 | `--read-only` | Refuse every write: no tagging, syncing or sending. Good for a first run against real mail |
 | `--no-watch` | Do not watch the maildir; new mail then needs an explicit sync |
 | `--web-dir` | Where the built client lives. Found automatically; `ECR_WEB_DIR` also works |
-| `--allowed-origin` | Restrict browser origins. Repeatable. Default allows any — see [architecture.md](architecture.md#auth) |
+| `--allowed-origin` | Restrict browser origins. Repeatable. Default allows any — see [architecture.md](@/architecture.md#auth) |
 | `--tokens` | Alternate token store path |
 
 ## The client is served by the server
@@ -143,7 +149,7 @@ elsewhere — over Tailscale, typically. Pair it with `ecr token new phone --qr`
 If the release APK is unsigned — which it is until the signing secrets are set,
 and the release notes say which — Android will refuse to upgrade it in place from
 a later signed build. Uninstall first in that case. See
-[releasing.md](releasing.md#android).
+[releasing.md](@/releasing.md#android).
 
 ### Running it on a device you have plugged in
 
@@ -205,11 +211,11 @@ The web client is also a working PWA and can be added to the home screen today.
 Not built. CI compiles the iOS target on every push to catch bitrot, but the
 output is unsigned and cannot be installed. Shipping one needs an Apple Developer
 account, a distribution certificate and a provisioning profile. See
-[releasing.md](releasing.md#ios).
+[releasing.md](@/releasing.md#ios).
 
 ## Installing a release
 
-[installing.md](installing.md) is the full account — the two channels, the
+[installing.md](@/installing.md) is the full account — the two channels, the
 Home Manager module and what each artifact carries. In short:
 
 | Method | Command |

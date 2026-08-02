@@ -1,3 +1,9 @@
++++
+title = "HTTP API"
+description = "Every endpoint ecr-server exposes, with its shapes and status codes."
+weight = 4
++++
+
 # HTTP API
 
 Base path `/api/v1`. Every route except `/health` requires

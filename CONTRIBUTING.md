@@ -6,7 +6,7 @@ records them so a pull request does not have to discover them by rejection.
 ## Before a large change
 
 Open an issue first. The architecture has reasons behind it — several of them
-are scars — and [docs/architecture.md](docs/architecture.md) explains most. A
+are scars — and [docs/content/architecture.md](docs/content/architecture.md) explains most. A
 change that cuts against one of those reasons is worth a conversation before it
 is worth an afternoon.
 

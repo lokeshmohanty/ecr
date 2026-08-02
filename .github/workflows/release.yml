@@ -225,7 +225,7 @@ jobs:
       # Signed if the keystore secrets are present, unsigned otherwise. An
       # unsigned APK sideloads fine but cannot be upgraded in place by a later
       # signed build. This runs after `android init` because that regenerates
-      # gen/android and would discard the file. See docs/releasing.md#android.
+      # gen/android and would discard the file. See docs/content/releasing.md#android.
       - name: Decode the keystore
         id: keystore
         if: env.ANDROID_KEYSTORE != ''

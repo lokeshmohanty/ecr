@@ -179,6 +179,8 @@
               just # task runner; see the Justfile
               hurl # API-level tests against ecr-server
               jq
+              zola # the documentation site under docs/
+              librsvg # rsvg-convert, for `just icons` and the store metadata
 
               # Licence compliance; see THIRD-PARTY.md and deny.toml
               cargo-deny

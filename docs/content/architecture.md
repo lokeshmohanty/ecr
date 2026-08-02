@@ -1,3 +1,9 @@
++++
+title = "Architecture"
+description = "The crates, the data flow, and why the pieces are shaped this way."
+weight = 3
++++
+
 # Architecture
 
 ## Crates

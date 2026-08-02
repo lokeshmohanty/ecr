@@ -95,7 +95,7 @@ serve mail with nobody logged in, the NixOS module is still there:
 
 `flake.nix` advertises `lokeshmohanty.cachix.org`, which CI populates on every
 push to `main`; without it, tracking main means compiling the server and the
-client on every update. Full detail in [docs/installing.md](docs/installing.md).
+client on every update. Full detail in [docs/content/installing.md](docs/content/installing.md).
 
 ### Debian / Ubuntu
 
@@ -138,7 +138,7 @@ the release artifacts, not on crates.io. Build it with `just build` from a clone
 
 Sideload the APK from the release page. It is a client — point it at a server
 you run, over a tailnet typically. See
-[docs/operations.md](docs/operations.md#android).
+[docs/content/operations.md](docs/content/operations.md#android).
 
 The store page lives in [`metadata/`](metadata/) and the F-Droid build recipe in
 [`packaging/fdroid/`](packaging/fdroid/); F-Droid builds and signs from source
@@ -257,12 +257,16 @@ blocking = "#f7768e"    # staged writes, destructive actions
 
 ## Documentation
 
-- [docs/index.md](docs/index.md) — start here
-- [docs/architecture.md](docs/architecture.md) — crates, data flow, why the pieces are shaped this way
-- [docs/api.md](docs/api.md) — the HTTP surface
-- [docs/operations.md](docs/operations.md) — running the server, tokens, doctor, troubleshooting
-- [docs/development.md](docs/development.md) — building, testing, verifying
-- [docs/releasing.md](docs/releasing.md) — how a release is cut
+Published at **<https://lokeshmohanty.github.io/ecr>**, built from the same
+files an agent reads out of `docs/content/`:
+
+- [docs/content/_index.md](docs/content/_index.md) — start here
+- [docs/content/architecture.md](docs/content/architecture.md) — crates, data flow, why the pieces are shaped this way
+- [docs/content/api.md](docs/content/api.md) — the HTTP surface
+- [docs/content/installing.md](docs/content/installing.md) — the two channels, Home Manager, NixOS
+- [docs/content/operations.md](docs/content/operations.md) — running the server, tokens, doctor, troubleshooting
+- [docs/content/development.md](docs/content/development.md) — building, testing, verifying
+- [docs/content/releasing.md](docs/content/releasing.md) — how a release is cut
 - [CONTRIBUTING.md](CONTRIBUTING.md) — how to work on it
 - [SECURITY.md](SECURITY.md) — reporting a vulnerability
 
@@ -271,7 +275,7 @@ blocking = "#f7768e"    # staged writes, destructive actions
 Releases are marked here. A box ticks when the work is on `main` **and** covered
 by a test that runs in CI.
 
-### v0.1.0 — first public release &nbsp;·&nbsp; `[ ]` not yet cut
+### v0.1.0 — first public release &nbsp;·&nbsp; `[x]` released 2026-08-03
 
 The client is complete for daily reading and writing; this release is about
 making it installable by someone who is not the author.
@@ -298,7 +302,7 @@ making it installable by someone who is not the author.
 - [ ] Frozen HTTP API, versioned and documented
 - [ ] Settings file format stable across upgrades
 - [ ] macOS desktop build
-- [ ] iOS client (needs an Apple Developer account — see [docs/releasing.md](docs/releasing.md#ios))
+- [ ] iOS client (needs an Apple Developer account — see [docs/content/releasing.md](docs/content/releasing.md#ios))
 - [ ] Notmuch database access without a subprocess per request
 
 ### Not planned
