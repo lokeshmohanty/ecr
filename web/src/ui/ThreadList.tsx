@@ -160,6 +160,10 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
   };
 
   const picked = () => props.store.isSelected(props.index);
+  // `picked` is the whole selection — Space-picked rows *and* the v range.
+  // The tape belongs to what Space actually marked, so a range being drawn
+  // reads as a range (the background) rather than as a column of marks.
+  const isPicked = () => props.store.picked().includes(props.thread.id);
 
   // Falls back to notmuch's own phrasing when the server sent no timestamp, so
   // an older server still shows something rather than an empty column.
@@ -331,11 +335,20 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
         class="tape"
         classList={{
           "tape-marked": badges() !== "",
-          "tape-selected": badges() === "" && picked(),
+          "tape-selected": badges() === "" && isPicked(),
           "tape-unread": badges() === "" && !picked() && unread(),
           "tape-flagged": badges() === "" && !picked() && !unread() && flagged(),
         }}
-        title={badges() || (picked() ? "selected" : unread() ? "unread" : flagged() ? "flagged" : "")}
+        title={
+          badges() ||
+          (isPicked()
+            ? "selected"
+            : !picked() && unread()
+              ? "unread"
+              : !picked() && !unread() && flagged()
+                ? "flagged"
+                : "")
+        }
       />
 
       {/* What is staged, so it can be read before x writes it. */}
@@ -349,8 +362,8 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
             aria-hidden="true"
             class="flex size-5 shrink-0 items-center justify-center rounded border text-xs"
             classList={{
-              "border-obligation bg-obligation text-paper": picked(),
-              "border-rule text-transparent": !picked(),
+              "border-obligation bg-obligation text-paper": isPicked(),
+              "border-rule text-transparent": !isPicked(),
             }}
           >
             ✓

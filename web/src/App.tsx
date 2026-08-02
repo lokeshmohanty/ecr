@@ -126,6 +126,22 @@ export function App() {
 			return;
 		}
 
+		// With no range on screen, Escape clears what Space picked and what is
+		// staged — but only in normal mode, where no palette is open and no
+		// pending sequence waits. The keymap still owns those, and view mode's
+		// own Escape handler stops propagation before this can run.
+		if (
+			event.key === "Escape" &&
+			store.mode() === "normal" &&
+			!isEditing(event.target) &&
+			keymap.sequence === "" &&
+			(store.picked().length > 0 || Object.keys(store.marks).length > 0)
+		) {
+			event.preventDefault();
+			store.clearSelection();
+			return;
+		}
+
 		const outcome = keymap.handle(
 			{
 				key: event.key,

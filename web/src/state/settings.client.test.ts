@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	CLIENT_KEYS,
 	DEFAULT_PREFERENCES,
@@ -23,7 +23,7 @@ describe("the client/server line", () => {
 
 	it("keeps the mail on the server and the screen on the device", () => {
 		expect(SERVER_KEYS).toContain("startQuery");
-		expect(SERVER_KEYS).toContain("preferHtml");
+		expect(SERVER_KEYS).toContain("markReadOnOpen");
 		expect(CLIENT_KEYS).toContain("theme");
 		expect(CLIENT_KEYS).toContain("pageSize");
 		expect(CLIENT_KEYS).toContain("sidebarSections");
@@ -120,4 +120,47 @@ describe("a device with settings of its own", () => {
 			true,
 		);
 	});
+});
+
+describe("what a phone assumes before anyone tells it", () => {
+  const phone = () =>
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width: 767px"),
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("reads mail as HTML even where the shared file prefers text", () => {
+    phone();
+    const shared = defaultSettings();
+    shared.preferences.preferHtml = false;
+
+    // The file was written at a desk. A phone has one column and no keyboard,
+    // and the plain-text alternative is a flattened shadow of the message.
+    expect(withClient(shared).preferences.preferHtml).toBe(true);
+  });
+
+  it("leaves a desktop's own choice alone", () => {
+    const shared = defaultSettings();
+    shared.preferences.preferHtml = false;
+    expect(withClient(shared).preferences.preferHtml).toBe(false);
+  });
+
+  it("yields to what this phone was actually told", () => {
+    phone();
+    saveClientSettings({ preferences: { preferHtml: false }, bindings: [] });
+
+    const shared = defaultSettings();
+    shared.preferences.preferHtml = true;
+    // Turning it off here outranks both the file and the form factor.
+    expect(withClient(shared).preferences.preferHtml).toBe(false);
+  });
+
+  it("is a device setting, so it never reaches the shared file", () => {
+    expect(CLIENT_KEYS).toContain("preferHtml");
+    expect(SERVER_KEYS).not.toContain("preferHtml");
+  });
 });

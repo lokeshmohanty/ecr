@@ -11,6 +11,7 @@
  */
 import { DEFAULT_BINDINGS, type Binding } from "../../keymap/engine";
 import { mergeBindings } from "./toml";
+import { isNarrow } from "../../ui/narrow";
 import {
 	CLIENT_KEYS,
 	DEFAULT_PREFERENCES,
@@ -20,6 +21,24 @@ import {
 
 const STORAGE_KEY = "ecr.client";
 
+/**
+ * Where a phone disagrees with the shipped defaults before anyone has touched
+ * it.
+ *
+ * Real mail is authored as HTML, and the plain-text alternative is usually a
+ * flattened shadow of it — bearable on a wide screen beside a keyboard, poor on
+ * a phone where it is the whole view. A desktop can go on preferring text,
+ * which is why this setting had to belong to the device at all.
+ */
+const PHONE_DEFAULTS: Partial<Preferences> = {
+	preferHtml: true,
+};
+
+/** The defaults for the screen this is running on. */
+export function deviceDefaults(): Partial<Preferences> {
+	return isNarrow() ? PHONE_DEFAULTS : {};
+}
+
 export interface ClientSettings {
 	preferences: Partial<Preferences>;
 	bindings: Binding[];
@@ -27,7 +46,7 @@ export interface ClientSettings {
 
 export function defaultClientSettings(): ClientSettings {
 	return {
-		preferences: preferencesInScope(DEFAULT_PREFERENCES, "client"),
+		preferences: { ...preferencesInScope(DEFAULT_PREFERENCES, "client"), ...deviceDefaults() },
 		bindings: [...DEFAULT_BINDINGS],
 	};
 }

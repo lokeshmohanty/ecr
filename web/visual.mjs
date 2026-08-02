@@ -156,19 +156,28 @@ const STATES = [
     async setup(page) {
       await press(page, ",");
       await page.waitForTimeout(900);
+      // Settings open on the device tab, so a state that does not pick its own
+      // tab photographs the wrong one — which is how both of these spent a
+      // release claiming to cover a page they never showed.
+      await page.getByRole("button", { name: "Packages" }).click();
+      await page.waitForTimeout(600);
+    },
+  },
+  {
+    name: "12b-settings-device",
+    description: "the settings this device keeps to itself",
+    async setup(page) {
+      await press(page, ",");
+      await page.waitForTimeout(900);
     },
   },
   {
     name: "13-settings-text",
-    description: "preferences and keybindings in the editor",
+    description: "the shared file in the editor",
     async setup(page) {
       await press(page, ",");
       await page.waitForTimeout(700);
-      await page.evaluate(() => {
-        [...document.querySelectorAll("button")]
-          .find((b) => b.textContent.includes("Preferences"))
-          ?.click();
-      });
+      await page.getByRole("button", { name: "Shared file" }).click();
       await page.waitForTimeout(800);
     },
   },

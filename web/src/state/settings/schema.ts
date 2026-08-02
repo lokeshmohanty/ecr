@@ -202,7 +202,7 @@ export const PREFERENCE_DOCS: Record<keyof Preferences, PreferenceDoc> = {
   },
   preferHtml: {
     section: "reading",
-    scope: "server",
+    scope: "client",
     doc: "Show the HTML part of a message rather than its plain-text alternative.\nEither way, t switches the message in front of you.",
   },
   loadRemoteImages: {

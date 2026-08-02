@@ -59,7 +59,12 @@ export function SettingsPane(props: { store: AppStore; onClose: () => void }) {
           </button>
         </div>
 
-        <div class="mt-3 flex gap-1">
+        {/*
+          Wrapped, not scrolled: four tabs do not fit one phone-width row, and
+          a tab that runs off the edge is a tab nobody finds — the shared file
+          was unreachable there.
+        */}
+        <div class="mt-3 flex flex-wrap gap-1">
           <Tabs current={tab()} onSelect={setTab} />
         </div>
       </header>
@@ -256,7 +261,7 @@ function Tabs(props: { current: Tab; onSelect: (tab: Tab) => void }) {
       {(tab) => (
         <button
           type="button"
-          class="rounded px-3 py-1 text-xs uppercase tracking-wide"
+          class="touch-target shrink-0 rounded px-3 py-1 text-xs uppercase tracking-wide"
           classList={{
             "bg-obligation text-paper": props.current === tab.id,
             "text-ink-2 hover:bg-neutral-bg": props.current !== tab.id,

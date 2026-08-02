@@ -60,8 +60,13 @@ export function DeviceSettings(props: { store: AppStore }) {
                   <div class="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
                     <label class="min-w-0 flex-1" for={`pref-${key}`}>
                       <div class="text-ink">{title(key)}</div>
+                      {/*
+                        The whole explanation, unwrapped. The file's prose is
+                        hard-wrapped for a terminal, so taking the first line
+                        cut every sentence in half.
+                      */}
                       <div class="text-xs leading-relaxed text-ink-3">
-                        {PREFERENCE_DOCS[key].doc.split("\n")[0]}
+                        {PREFERENCE_DOCS[key].doc.replace(/\n/g, " ")}
                       </div>
                     </label>
 

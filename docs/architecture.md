@@ -3,7 +3,7 @@
 ## Crates
 
 | Crate | Responsibility |
-|---|---|
+| --- | --- |
 | `ecr-core` | Wire types only — no I/O. `Account`, `ThreadSummary`, `Message`, `PartMeta`, `TagOp`, `Query`, `Revision`, `Draft`, `Doctor`. |
 | `ecr-store` | Everything that touches the mail: config discovery, the `MailStore` trait, the notmuch backend, MIME parsing, sync and send. |
 | `ecr-server` | axum: REST, SSE, bearer auth, the maildir watcher. A library — it builds no binary. |
@@ -36,12 +36,20 @@ lastmod)` pair is the `Revision`, and it is used three ways:
 
 - as the `ETag` on thread listings, so `If-None-Match` yields `304`
 - as the invalidation token in SSE `mail:changed` / `tags:changed`
-- as the cache key on the client, where resources are keyed by `(query, revision)`
+- as the cache key on the client, where the sidebar counts, the open
+  thread and the gathered tags/people/lists are keyed by `revision`, and the
+  list pane is keyed by a separate `listRevision` that a server event bumps
+  only for an inbox view
 
 A `notify` watcher on the maildir debounces deliveries, runs `notmuch new` — so
 the `post-new` hook keeps doing its tag routing — and publishes the new
 revision. Mail arriving from a cron `mbsync` therefore appears in every
-connected client with no polling and no refresh button.
+connected client with no polling and no refresh button — but only the inbox
+view's list refreshes on its own. Every other view holds still until the user
+acts (executing a command, syncing, or navigating away and back), so a list
+being read is not reshuffled under the reader. The sidebar counts and the
+open thread still refresh everywhere, so the inbox badge still rises the
+moment mail lands.
 
 ## Message content
 
@@ -112,7 +120,11 @@ CORS entirely. `--allowed-origin` restricts it where that is wanted.
   container only exists after data arrives — so it rendered nothing.
 - **Keymap.** A pure module with an explicit mode state machine. One rule
   prevents the stuck-mode class of bugs: while a text field holds focus, only
-  Escape is ours. Transient overlays claim Escape before the keymap sees it.
+  Escape is ours. Transient overlays claim Escape before the keymap sees it:
+  help closes, help, a visual range is abandoned, and with no range on screen
+  Escape clears what `Space` picked and what is staged. The keymap itself
+  reports idle-normal Escape as ignored, so those clearances live in `App.tsx`
+  ahead of `keymap.handle`.
 - **Vim.** `keymap/motions.ts` holds the motions and text objects as functions
   of `(text, caret)` and nothing else; `keymap/vim.ts` is the state machine over
   them — visual mode, operators, registers, `.`, in-buffer search, `C-c`
@@ -133,8 +145,12 @@ CORS entirely. `--allowed-origin` restricts it where that is wanted.
   on, and paints the cursor with the frame document's own selection. Resolve
   that document lazily: Solid builds nodes from a `<template>`, whose contents
   belong to an inert document with no selection until they are inserted.
-- **Data.** Resources keyed by `(query, revision)`; SSE bumps the revision
-  signal and exactly the affected resources refetch.
+- **Data.** Resources keyed by `revision` (sidebar counts, open thread,
+  gathered tags/people/lists) and `listRevision` (the list pane). SSE bumps
+  `revision` for every event, but bumps `listRevision` only when the list is
+  showing an inbox view, so a server-pushed change never reshuffles a list the
+  reader is not looking at. User actions (`bumpRevision`) bump both, so
+  executing a command or syncing refreshes whatever is on screen.
 - **Settings.** One commented TOML file at `~/.config/ecr/settings.toml`, held
   by the server so browser, desktop and phone read the same one. The client
   generates it from the tables in `state/settings.ts`, so every option reaches

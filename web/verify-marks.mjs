@@ -45,6 +45,14 @@ const tapes = () =>
     }),
   );
 
+/** The row's class list, in order, so a range is read by its background, not its tape. */
+const rowClasses = () =>
+  page.evaluate(() =>
+    [...document.querySelectorAll("[class*='row-grid'][class*='cursor-pointer']")].map(
+      (row) => row.className,
+    ),
+  );
+
 const status = () =>
   page.evaluate(() => document.querySelector("footer")?.textContent ?? "");
 
@@ -67,16 +75,40 @@ check("Space again unpicks it", !marked[1]?.includes("tape-selected"), marked[1]
 console.log("\nA visual range");
 await press("X");
 await press("v", "j", "j");
-marked = await tapes();
-const inRange = marked.filter((t) => t.includes("tape-selected")).length;
+let rows = await rowClasses();
+const inRange = rows.filter((c) => {
+  const set = new Set(c.split(/\s+/));
+  return set.has("bg-obligation-bg") || set.has("bg-neutral-bg");
+}).length;
 check("v extends a range as the cursor moves", inRange === 3, `${inRange} rows`);
 
-await press("Escape");
 marked = await tapes();
 check(
-  "Escape abandons the range",
-  marked.filter((t) => t.includes("tape-selected")).length === 0,
+  "the range shows no tape (only picks do)",
+  marked.every((t) => !t.includes("tape-selected")),
+  marked.join("|"),
 );
+
+console.log("\nSpace picks a visual range");
+await press("X");
+await press("v", "j", "j");
+await press("Space");
+marked = await tapes();
+const pickedCount = marked.filter((t) => t.includes("tape-selected")).length;
+check("Space picks every row in the range", pickedCount === 3, `${pickedCount} picked`);
+
+await press("Space");
+marked = await tapes();
+const unpickedCount = marked.filter((t) => t.includes("tape-selected")).length;
+check("Space again unpicks the range", unpickedCount === 0, `${unpickedCount} picked`);
+
+await press("Escape");
+rows = await rowClasses();
+const afterEscape = rows.filter((c) => {
+  const set = new Set(c.split(/\s+/));
+  return set.has("bg-obligation-bg") || set.has("bg-neutral-bg");
+}).length;
+check("Escape abandons the range", afterEscape === 1, `${afterEscape} highlighted`);
 
 console.log("\nStaging on a selection");
 await press("g", "g");

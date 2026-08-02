@@ -11,6 +11,7 @@ import {
 	type Settings,
 } from "./schema";
 import {
+	deviceDefaults,
 	hasClientSettings,
 	loadClientSettings,
 	saveClientSettings,
@@ -59,12 +60,22 @@ function serverSettings(): Settings {
  * resetting someone's theme and keybindings to the defaults.
  */
 export function withClient(settings: Settings): Settings {
-	if (!hasClientSettings()) return settings;
+	// Four layers, weakest first: the shipped default, then whatever the shared
+	// file says, then what this *kind* of screen wants, then what this device was
+	// actually told. The third is why a phone reads HTML while the desktop that
+	// set `prefer_html = false` keeps its text — inheriting the file wholesale
+	// would hand a phone a preference chosen for a keyboard and a wide window.
+	const withDevice = {
+		...settings,
+		preferences: { ...settings.preferences, ...deviceDefaults() },
+	};
+
+	if (!hasClientSettings()) return withDevice;
 
 	const client = loadClientSettings();
 	return {
-		...settings,
-		preferences: { ...settings.preferences, ...client.preferences },
+		...withDevice,
+		preferences: { ...withDevice.preferences, ...client.preferences },
 		bindings: client.bindings,
 	};
 }

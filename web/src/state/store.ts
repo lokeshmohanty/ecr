@@ -116,6 +116,12 @@ export function createAppStore() {
 
 	const [query, setQuery] = createSignal(settings().preferences.startQuery);
 	const [revision, setRevision] = createSignal(0);
+	// The list pane keys on this, not `revision`: a server-pushed change
+	// bumps it only for an inbox view, so a list you are reading is not
+	// reshuffled under you. User actions bump it unconditionally via
+	// `bumpRevision`, so executing a command or syncing still refreshes
+	// whatever view is on screen.
+	const [listRevision, setListRevision] = createSignal(0);
 	const [mode, setMode] = createSignal<Mode>("normal");
 	const [pane, setPaneSignal] = createSignal<Pane>("list");
 	/**
@@ -196,7 +202,7 @@ export function createAppStore() {
 	);
 
 	const [threads] = createResource(
-		() => [query(), revision(), connection().baseUrl] as const,
+		() => [query(), listRevision(), connection().baseUrl] as const,
 		async ([q, , baseUrl]) => {
 			if (!baseUrl) {
 				return {
@@ -432,6 +438,32 @@ export function createAppStore() {
 		api.invalidate();
 		counts.invalidate();
 		setRevision((r) => r + 1);
+		setListRevision((r) => r + 1);
+	}
+
+	/**
+	 * The inbox view — `tag:inbox` for all accounts, `(tag:inbox) and
+	 * (tag:<id>)` for one — is the only view that refreshes on a
+	 * server-pushed change. Every other view holds still until the user acts.
+	 */
+	function isInboxQuery(q: string): boolean {
+		for (const group of tree()) {
+			const inbox = group.views[0];
+			if (inbox && inbox.query === q) return true;
+		}
+		return false;
+	}
+
+	/**
+	 * A server-pushed change: the sidebar counts, the open thread and the
+	 * gathered tags/people/lists refresh everywhere, but the list pane refreshes
+	 * only when it is showing an inbox view.
+	 */
+	function bumpForServerEvent() {
+		api.invalidate();
+		counts.invalidate();
+		setRevision((r) => r + 1);
+		if (isInboxQuery(query())) setListRevision((r) => r + 1);
 	}
 
 	function items(): ThreadSummary[] {
@@ -754,13 +786,43 @@ export function createAppStore() {
 	}
 
 	function toggleSelect() {
+		const list = items();
+		if (list.length === 0) return;
+
+		const anchor = visualAnchor();
+		if (anchor !== null) {
+			// A range is being drawn: Space toggles every row it covers as
+			// one, so a visual selection becomes a set of picks (and back)
+			// without leaving visual mode — Escape still cancels only the
+			// range, and the marks it made stay behind.
+			const from = Math.min(anchor, selected());
+			const to = Math.max(anchor, selected());
+			const range: string[] = [];
+			for (let i = from; i <= to && i < list.length; i++) {
+				const id = list[i]?.id;
+				if (id) range.push(id);
+			}
+			if (range.length === 0) return;
+
+			const existing = new Set(picked());
+			const allPicked = range.every((id) => existing.has(id));
+			const next = new Set(existing);
+			for (const id of range) {
+				if (allPicked) next.delete(id);
+				else next.add(id);
+			}
+			setPicked([...next]);
+			setStatus(`${selectionIndices().length} selected`);
+			return;
+		}
+
 		const thread = current();
 		if (!thread) return;
 
-		setPicked((list) =>
-			list.includes(thread.id)
-				? list.filter((id) => id !== thread.id)
-				: [...list, thread.id],
+		setPicked((prior) =>
+			prior.includes(thread.id)
+				? prior.filter((id) => id !== thread.id)
+				: [...prior, thread.id],
 		);
 		setStatus(`${selectionIndices().length} selected`);
 	}
@@ -1063,7 +1125,7 @@ export function createAppStore() {
 		switch (event.type) {
 			case "mail_changed":
 			case "tags_changed":
-				bumpRevision();
+				bumpForServerEvent();
 				break;
 			case "sync_started":
 				setSyncing(true);
@@ -1075,7 +1137,7 @@ export function createAppStore() {
 			case "sync_finished":
 				setSyncing(false);
 				setStatus(`synced: ${event.new_messages} new`);
-				bumpRevision();
+				bumpForServerEvent();
 				break;
 			case "error":
 				setStatus(event.detail);

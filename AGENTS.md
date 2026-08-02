@@ -282,7 +282,13 @@ changed the UI.
 The list selects before it acts. `Space` picks a row, `v`/`V` draw a range, and
 `d`/`a`/`u`/`f` and `t` (any tag, `+work -inbox`) *stage* against everything
 selected; `x` writes them in one call and `X` clears. Staged tags show in the
-margin as badges, so what is about to be written is readable first.
+margin as badges, so what is about to be written is readable first. A range is
+shown by a background highlight, not the margin tape — the tape belongs to what
+`Space` actually picked, so a range being drawn never reads as a column of
+marks. `Space` inside a range toggles every row it covers as one, turning the
+range into picks (and back) without leaving visual mode. `Escape` in a range
+cancels only the range, leaving the picks behind; `Escape` with no range on
+screen clears the picks and what is staged.
 
 Settings have **two owners**. The server file at `~/.config/ecr/settings.toml`
 (`GET`/`PUT /api/v1/config`) holds what is about the *mail* and is one answer
@@ -296,7 +302,14 @@ over the file's; until a device has saved anything the file still wins, which
 is what carries an existing setup across the split instead of resetting it.
 The shared half is edited as text through the vim editor; the device's half is
 switches and pickers (`ui/DeviceSettings.tsx`), because it is changed by trying
-it and there is no file to open on a phone. `state/settings.ts` generates the file from
+it and there is no file to open on a phone.
+
+A preference resolves through **four layers**, weakest first: the shipped
+default, the shared file, `deviceDefaults()` for the kind of screen in use, and
+whatever this device was actually told. The third layer is why `prefer_html` is
+a device setting — a desktop that set it false chose that beside a keyboard, on
+a wide window, and inheriting it would hand a phone the flattened plain-text
+shadow of every message as its whole view. `state/settings.ts` generates the file from
 its own tables — an option cannot exist in the code without appearing in the
 file with its explanation and default — and reports errors with line numbers
 rather than silently discarding a bad line. Edits go through `withValue`, which

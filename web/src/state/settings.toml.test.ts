@@ -132,8 +132,8 @@ describe("round-tripping", () => {
 	});
 
 	it("carries an edited preference through", () => {
-		const edited = TEXT.replace("prefer_html = true", "prefer_html = false");
-		expect(fromToml(edited).settings.preferences.preferHtml).toBe(false);
+		const edited = TEXT.replace("expand_newest = true", "expand_newest = false");
+		expect(fromToml(edited).settings.preferences.expandNewest).toBe(false);
 	});
 
 	it("keeps a package's own config text", () => {
