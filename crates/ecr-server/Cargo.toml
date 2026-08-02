@@ -11,6 +11,12 @@ keywords.workspace = true
 categories.workspace = true
 description = "The ecr mail server: REST, SSE, bearer auth and a maildir watcher over ecr-store"
 
+# The integration tests build a throwaway notmuch database from fixtures/ at
+# the repository root, which a published .crate cannot carry. Shipping them
+# would mean shipping a test suite that fails on the first path lookup, so the
+# crate carries the library and the repository carries the tests.
+exclude = ["tests/"]
+
 [dependencies]
 ecr-core = { workspace = true }
 ecr-store = { workspace = true }

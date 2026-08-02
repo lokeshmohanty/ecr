@@ -28,9 +28,6 @@ rustPlatform.buildRustPackage (finalAttrs: {
       ../shell
       # The integration tests build a throwaway notmuch database from these.
       ../fixtures
-      # `ecr-store::themes` include_str!s every shipped palette, so they are
-      # source, not data: without them the crate does not compile.
-      ../themes
       # The systemd user unit, installed for whoever is not on NixOS.
       ../packaging
     ];

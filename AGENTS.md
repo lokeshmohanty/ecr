@@ -190,7 +190,8 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
 - **A Nix build sees only what the fileset lists, and `include_str!` is
   source.** `nix/ecr.nix` names each path that enters the sandbox, so adding a
   file the crates read at *compile* time — `crates/ecr-store/src/themes.rs`
-  `include_str!`s every palette in `themes/` — breaks `nix build .#ecr` while
+  `include_str!`s every palette in `crates/ecr-store/themes/` — breaks `nix
+  build .#ecr` while
   `cargo build` stays green, because cargo can see the whole worktree. The same
   goes the other way: `nix/desktop.nix` deliberately omits `web/`, because
   `shell/build.rs` treats a `web/src` newer than `web/dist` as a stale bundle
@@ -459,7 +460,7 @@ crates/ecr-cli     the `ecr` binary: doctor, serve, tokens, help
 shell              Tauri v2 desktop shell — the `ecr-desktop` binary
 shell/android      overlay laid over the generated gen/android on every build
 web                SolidJS client — the only UI code
-themes             the shipped palettes, embedded into the server
+crates/ecr-store/themes   the shipped palettes, embedded into the server
 packaging          desktop entry, AppStream metainfo, systemd user unit, F-Droid recipe
 metadata           the F-Droid store page, read from this repo at the tag
 nix                the derivations, the NixOS module and the home-manager module

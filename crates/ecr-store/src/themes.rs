@@ -5,37 +5,28 @@ use std::path::Path;
 /// themes and a fresh install has something to choose from before the user has
 /// written anything.
 pub const PRESETS: &[(&str, &str)] = &[
-    ("ecr-dark", include_str!("../../../themes/ecr-dark.toml")),
-    ("ecr-light", include_str!("../../../themes/ecr-light.toml")),
-    (
-        "tokyonight",
-        include_str!("../../../themes/tokyonight.toml"),
-    ),
+    ("ecr-dark", include_str!("../themes/ecr-dark.toml")),
+    ("ecr-light", include_str!("../themes/ecr-light.toml")),
+    ("tokyonight", include_str!("../themes/tokyonight.toml")),
     (
         "tokyonight-storm",
-        include_str!("../../../themes/tokyonight-storm.toml"),
+        include_str!("../themes/tokyonight-storm.toml"),
     ),
-    (
-        "gruvbox-dark",
-        include_str!("../../../themes/gruvbox-dark.toml"),
-    ),
+    ("gruvbox-dark", include_str!("../themes/gruvbox-dark.toml")),
     (
         "gruvbox-light",
-        include_str!("../../../themes/gruvbox-light.toml"),
+        include_str!("../themes/gruvbox-light.toml"),
     ),
-    ("nord", include_str!("../../../themes/nord.toml")),
+    ("nord", include_str!("../themes/nord.toml")),
     (
         "solarized-dark",
-        include_str!("../../../themes/solarized-dark.toml"),
+        include_str!("../themes/solarized-dark.toml"),
     ),
     (
         "solarized-light",
-        include_str!("../../../themes/solarized-light.toml"),
+        include_str!("../themes/solarized-light.toml"),
     ),
-    (
-        "everforest",
-        include_str!("../../../themes/everforest.toml"),
-    ),
+    ("everforest", include_str!("../themes/everforest.toml")),
 ];
 
 pub const DEFAULT_THEME: &str = "themes/ecr-dark.toml";
