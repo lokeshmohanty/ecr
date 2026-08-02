@@ -4,7 +4,7 @@
 # marketing copy of it: an agent reading the repository and a person reading
 # the published site are looking at the same files. Front matter is the only
 # thing added for Zola's sake.
-base_url = "https://lokeshmohanty.github.io/ecr"
+base_url = "https://www.lokeshmohanty.in/ecr"
 title = "ecr"
 description = "A keyboard-driven mail client for an existing notmuch maildir"
 theme = "reticle"

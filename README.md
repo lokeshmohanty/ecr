@@ -257,7 +257,7 @@ blocking = "#f7768e"    # staged writes, destructive actions
 
 ## Documentation
 
-Published at **<https://lokeshmohanty.github.io/ecr>**, built from the same
+Published at **<https://www.lokeshmohanty.in/ecr>**, built from the same
 files an agent reads out of `docs/content/`:
 
 - [docs/content/_index.md](docs/content/_index.md) — start here

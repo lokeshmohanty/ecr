@@ -3,7 +3,7 @@
 Instructions for AI coding agents working on this codebase.
 Full documentation lives in [`docs/content/`](docs/content/) — answer questions
 from there. Those pages are also the published site
-(<https://lokeshmohanty.github.io/ecr>), so they carry TOML front matter and
+(<https://www.lokeshmohanty.in/ecr>), so they carry TOML front matter and
 link to each other as `@/page.md`, which Zola resolves and fails the build on
 when it dangles.
 
