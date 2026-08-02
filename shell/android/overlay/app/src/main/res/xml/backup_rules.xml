@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and below. The webview's localStorage holds the server address
+     *and* the bearer token that reaches the whole mailbox; none of it should
+     leave the device in a cloud backup. Settings are cheap to retype and the
+     shared half lives on the server anyway. -->
+<full-backup-content>
+    <exclude domain="root" />
+    <exclude domain="file" />
+    <exclude domain="database" />
+    <exclude domain="sharedpref" />
+    <exclude domain="external" />
+</full-backup-content>

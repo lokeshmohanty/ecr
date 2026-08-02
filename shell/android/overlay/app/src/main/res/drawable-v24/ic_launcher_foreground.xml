@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The mark from figures/logo.svg, in its own 512 coordinates.
+
+     The viewport is 768 rather than 512 and the art is translated by 128 on
+     both axes: an adaptive icon keeps only the central 72 of its 108dp, and
+     everything outside that is cropped by whichever mask the launcher applies.
+     768 = 512 * 108 / 72, so the art lands exactly inside the safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="768"
+    android:viewportHeight="768">
+    <group android:translateX="128" android:translateY="128">
+        <path
+            android:pathData="M116,144 L396,144 A28,28 0 0 1 424,172 L424,340 A28,28 0 0 1 396,368 L116,368 A28,28 0 0 1 88,340 L88,172 A28,28 0 0 1 116,144 Z"
+            android:strokeColor="#a99bf5"
+            android:strokeWidth="32"
+            android:strokeLineJoin="round"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M120,180 L256,288 L392,180"
+            android:strokeColor="#a99bf5"
+            android:strokeWidth="32"
+            android:strokeLineJoin="round"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M400,106 A46,46 0 1 1 400,198 A46,46 0 1 1 400,106 Z"
+            android:fillColor="#0c151a" />
+        <path
+            android:pathData="M400,122 A30,30 0 1 1 400,182 A30,30 0 1 1 400,122 Z"
+            android:fillColor="#5fc9b6" />
+    </group>
+</vector>

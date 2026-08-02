@@ -1,4 +1,10 @@
-import { createEffect, batch, createResource, createSignal } from "solid-js";
+import {
+	createEffect,
+	batch,
+	createMemo,
+	createResource,
+	createSignal,
+} from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import {
 	Api,
@@ -6,7 +12,7 @@ import {
 	saveConnection,
 	type Connection,
 } from "../api/client";
-import { shellServerUrl } from "../api/platform";
+import { notify, shellServerUrl } from "../api/platform";
 import type { Account, Draft, ServerEvent, ThreadSummary } from "../api/types";
 import type { Mode, Pane } from "../keymap/engine";
 import {
@@ -27,6 +33,7 @@ import {
 	accountLabel,
 	buildTree,
 	scopeQuery,
+	type CustomView,
 	type SectionId,
 	type ViewGroup,
 } from "./views";
@@ -44,10 +51,10 @@ import {
 	type Staged,
 } from "./store/marks";
 import {
-	HIDDEN_TAGS,
-	PEOPLE_SHOWN,
 	sectionKey,
 	quoteTerm,
+	tagsWithoutAccounts,
+	titleCase,
 	type SidebarRow,
 } from "./store/sidebar";
 
@@ -59,6 +66,7 @@ export {
 	markToOps,
 	parseTagInput,
 	sectionKey,
+	titleCase,
 	type Mark,
 	type MarkQueue,
 	type SidebarRow,
@@ -85,15 +93,46 @@ export interface View {
 }
 
 export const DEFAULT_VIEWS: View[] = [
-	{ name: "INBOX", query: "tag:inbox" },
-	{ name: "UNREAD", query: "tag:unread" },
-	{ name: "FLAGGED", query: "tag:flagged" },
-	{ name: "TODAY", query: "date:today" },
-	{ name: "SENT", query: "tag:sent" },
-	{ name: "DRAFTS", query: "tag:draft" },
-	{ name: "ARCHIVE", query: "not tag:inbox and not tag:trash" },
-	{ name: "ALL", query: "*" },
+	{ name: "Inbox", query: "tag:inbox" },
+	{ name: "Unread", query: "tag:unread" },
+	{ name: "Flagged", query: "tag:flagged" },
+	{ name: "Today", query: "date:today" },
+	{ name: "Sent", query: "tag:sent" },
+	{ name: "Drafts", query: "tag:draft" },
+	{ name: "Archive", query: "not tag:inbox and not tag:trash" },
+	{ name: "All", query: "*" },
 ];
+
+/** A row kept in the list, and the position it was read at. */
+export interface HeldRow {
+	index: number;
+	row: ThreadSummary;
+}
+
+export interface HeldRows {
+	query: string;
+	rows: HeldRow[];
+}
+
+/**
+ * Puts the held rows back into a page that no longer carries them, at the
+ * index each was last seen at. A row the query matches again is left alone —
+ * the server's copy is the current one.
+ */
+export function mergeHeld(
+	fetched: ThreadSummary[],
+	rows: HeldRow[],
+): ThreadSummary[] {
+	if (rows.length === 0) return fetched;
+
+	const present = new Set(fetched.map((thread) => thread.id));
+	const merged = [...fetched];
+	for (const { index, row } of rows) {
+		if (present.has(row.id)) continue;
+		merged.splice(Math.min(index, merged.length), 0, row);
+	}
+	return merged;
+}
 
 export const PANES: Pane[] = ["sidebar", "list", "detail"];
 
@@ -116,12 +155,22 @@ export function createAppStore() {
 
 	const [query, setQuery] = createSignal(settings().preferences.startQuery);
 	const [revision, setRevision] = createSignal(0);
-	// The list pane keys on this, not `revision`: a server-pushed change
-	// bumps it only for an inbox view, so a list you are reading is not
-	// reshuffled under you. User actions bump it unconditionally via
-	// `bumpRevision`, so executing a command or syncing still refreshes
-	// whatever view is on screen.
+	// The list pane keys on this, not `revision`: a tag change (marking a
+	// message read, or a `tags_changed` SSE from another client) bumps
+	// `revision` only, so the sidebar counts and the open thread refresh but
+	// the list is not re-fetched and reshuffled. New mail and user actions
+	// bump both, so the list reflects them.
 	const [listRevision, setListRevision] = createSignal(0);
+	/**
+	 * Rows the list goes on showing after they stopped matching its query.
+	 * Reading a message drops `unread`, which takes it straight out of
+	 * `tag:unread` — the row would disappear from under the cursor as a
+	 * side-effect of looking at it. The query is held with the rows, so moving
+	 * to another view drops them; a sync or writing staged tags clears them
+	 * outright. Nothing here changes what the server matched: the rows are put
+	 * back where they were, on top of the page that no longer carries them.
+	 */
+	const [held, setHeld] = createSignal<HeldRows>({ query: "", rows: [] });
 	const [mode, setMode] = createSignal<Mode>("normal");
 	const [pane, setPaneSignal] = createSignal<Pane>("list");
 	/**
@@ -386,15 +435,11 @@ export function createAppStore() {
 
 	const [tagList] = createResource(gathered, async () => {
 		const tags = await api.tags();
-		return tags
-			.filter((tag) => !HIDDEN_TAGS.has(tag))
-			.sort((a, b) => a.localeCompare(b));
+		return [...tags].sort((a, b) => a.localeCompare(b));
 	});
 
-	const [peopleList] = createResource(gathered, async () => {
-		const people = await api.addresses();
-		return [...people].sort((a, b) => b.count - a.count).slice(0, PEOPLE_SHOWN);
-	});
+	const sidebarTags = () =>
+		tagsWithoutAccounts(tagList() ?? [], accounts() ?? []);
 
 	const [listInfo] = createResource(gathered, async () => await api.lists());
 	const listList = () => listInfo()?.lists;
@@ -434,6 +479,38 @@ export function createAppStore() {
 		});
 	}
 
+	/** Same reason as the theme: client-scoped, so it is set, never written as text. */
+	function setCustomQueries(rows: CustomView[]) {
+		const current = settings();
+		setSettings({
+			...current,
+			preferences: { ...current.preferences, sidebarCustom: rows },
+		});
+	}
+
+	/**
+	 * Saves whatever the list is showing as a row of its own. The query is stored
+	 * as it stands, including any account it was already narrowed to — a row that
+	 * silently widened to every account would not be the thing that was saved.
+	 */
+	function saveQuery(name: string) {
+		const label = name.trim();
+		if (label === "") {
+			setStatus("usage: :save <name>");
+			return;
+		}
+
+		const rows = settings().preferences.sidebarCustom;
+		const row: CustomView = { name: label, query: query(), icon: "◆" };
+		const at = rows.findIndex((r) => r.name === label);
+
+		setCustomQueries(at === -1 ? [...rows, row] : rows.with(at, row));
+		setExpandedSections((open) =>
+			new Set(open).add(sectionKey(expandedGroup(), "queries")),
+		);
+		setStatus(`saved ${label}`);
+	}
+
 	function bumpRevision() {
 		api.invalidate();
 		counts.invalidate();
@@ -442,33 +519,70 @@ export function createAppStore() {
 	}
 
 	/**
-	 * The inbox view — `tag:inbox` for all accounts, `(tag:inbox) and
-	 * (tag:<id>)` for one — is the only view that refreshes on a
-	 * server-pushed change. Every other view holds still until the user acts.
+	 * A tag change — a `tags_changed` SSE from another client, or the reader
+	 * marking a message read once it has been on screen. The sidebar counts,
+	 * the open thread and the gathered tags/people/lists refresh, but the list
+	 * pane does not: a list being read is not re-fetched and reshuffled because
+	 * a message's tags changed. A message physically removed from the maildir
+	 * fires `mail_changed`, which goes through `bumpRevision` and does refresh
+	 * the list.
 	 */
-	function isInboxQuery(q: string): boolean {
-		for (const group of tree()) {
-			const inbox = group.views[0];
-			if (inbox && inbox.query === q) return true;
-		}
-		return false;
-	}
-
-	/**
-	 * A server-pushed change: the sidebar counts, the open thread and the
-	 * gathered tags/people/lists refresh everywhere, but the list pane refreshes
-	 * only when it is showing an inbox view.
-	 */
-	function bumpForServerEvent() {
+	function bumpForTagChange() {
 		api.invalidate();
 		counts.invalidate();
 		setRevision((r) => r + 1);
-		if (isInboxQuery(query())) setListRevision((r) => r + 1);
 	}
 
+	const displayed = createMemo(() => {
+		const fetched = threads()?.items ?? [];
+		const kept = held();
+		return kept.query === query() ? mergeHeld(fetched, kept.rows) : fetched;
+	});
+
 	function items(): ThreadSummary[] {
-		return threads()?.items ?? [];
+		return displayed();
 	}
+
+	/**
+	 * Keeps the row a message was read from where it was, tagged as it now is.
+	 * The thread stays unread if another of its messages still is.
+	 */
+	function holdCurrentRow(readMessage: string) {
+		const list = items();
+		const index = list.findIndex((thread) => thread.id === openThread());
+		const row = list[index];
+		if (!row) return;
+
+		const kept = held();
+		const rows = kept.query === query() ? kept.rows : [];
+		if (rows.some((entry) => entry.row.id === row.id)) return;
+
+		const unread = (thread()?.messages ?? []).some(
+			(message) => message.id !== readMessage && message.tags.includes("unread"),
+		);
+		const entry = {
+			index,
+			row: unread
+				? row
+				: { ...row, tags: row.tags.filter((tag) => tag !== "unread") },
+		};
+		setHeld({
+			query: query(),
+			rows: [...rows, entry].sort((a, b) => a.index - b.index),
+		});
+	}
+
+	/** Forgets them, so the next list is what the query actually matches now. */
+	function releaseHeld() {
+		setHeld({ query: "", rows: [] });
+	}
+
+	// Leaving a view drops what it was holding, rather than parking it until the
+	// reader comes back to find rows the query stopped matching a session ago.
+	createEffect(() => {
+		query();
+		releaseHeld();
+	});
 
 	function current(): ThreadSummary | undefined {
 		return items()[selected()];
@@ -513,15 +627,15 @@ export function createAppStore() {
 	 * without this the detail pane stayed empty until the next keystroke.
 	 */
 	createEffect(() => {
-		const page = threads();
-		if (!page || page.items.length === 0) return;
+		const list = displayed();
+		if (list.length === 0) return;
 		if (!settings().preferences.followSelection) return;
 		if (right().kind !== "reading") return;
 
 		const open = openThread();
-		if (open && page.items.some((t) => t.id === open)) return;
+		if (open && list.some((t) => t.id === open)) return;
 
-		const target = page.items[selected()] ?? page.items[0];
+		const target = list[selected()] ?? list[0];
 		if (target) {
 			setOpenThread(target.id);
 			setMessageIndex(0);
@@ -598,6 +712,15 @@ export function createAppStore() {
 
 				if (!expandedSections().has(key)) continue;
 				for (const entry of sectionEntries(section, group.account)) {
+					// The query is already scoped to this account, so a count of zero
+					// means the tag or list has no mail here. Undefined means the count
+					// has not arrived yet, so the row shows until it does; hiding only
+					// confirmed empties keeps "All Accounts" from flashing, since every
+					// tag is non-empty under its unscoped query. A saved query is the
+					// exception: it was written down on purpose, and a row that
+					// disappears the moment it matches nothing reads as the setting
+					// having been lost.
+					if (section !== "queries" && countOf(entry.query) === 0) continue;
 					rows.push({
 						kind: "view",
 						name: entry.name,
@@ -609,18 +732,6 @@ export function createAppStore() {
 					});
 				}
 			}
-
-			for (const custom of preferences.sidebarCustom) {
-				rows.push({
-					kind: "view",
-					name: custom.name,
-					group: group.account,
-					query: scopeQuery(custom.query, group.account),
-					icon: custom.icon,
-					indent: 1,
-					counted: true,
-				});
-			}
 		}
 		return rows;
 	}
@@ -631,17 +742,19 @@ export function createAppStore() {
 		account: string,
 	): { name: string; query: string; icon: string }[] {
 		if (section === "tags") {
-			return (tagList() ?? []).map((tag) => ({
+			return sidebarTags().map((tag) => ({
 				name: tag,
 				query: scopeQuery(`tag:${quoteTerm(tag)}`, account),
 				icon: "◇",
 			}));
 		}
-		if (section === "people") {
-			return (peopleList() ?? []).map((person) => ({
-				name: person.name?.trim() || person.email,
-				query: scopeQuery(`from:${quoteTerm(person.email)}`, account),
-				icon: "◔",
+		if (section === "queries") {
+			return settings().preferences.sidebarCustom.map((custom) => ({
+				// A row still being typed on the settings page has no name yet, and a
+				// blank line in the sidebar is unreachable rather than merely untidy.
+				name: custom.name || custom.query,
+				query: scopeQuery(custom.query, account),
+				icon: custom.icon || SECTION_LABELS.queries.icon,
 			}));
 		}
 		return (listList() ?? []).map((list) => ({
@@ -651,10 +764,37 @@ export function createAppStore() {
 		}));
 	}
 
+	let sidebarFollowTimer: number | undefined;
+
 	function moveSidebar(delta: number) {
 		const total = sidebarRows().length;
 		if (total === 0) return;
 		setSidebarIndex((i) => Math.min(Math.max(i + delta, 0), total - 1));
+
+		// Like the list, the mailbox under the cursor is what the list pane
+		// shows, so a burst of j/k lands on one request rather than one per row.
+		if (sidebarFollowTimer !== undefined) clearTimeout(sidebarFollowTimer);
+		sidebarFollowTimer = window.setTimeout(
+			() => followSidebar(sidebarIndex()),
+			FOLLOW_DELAY,
+		);
+	}
+
+	/**
+	 * Loads the mailbox under the cursor without leaving the sidebar. Only a
+	 * view row changes the list; a group or section header does not, so folding
+	 * stays an explicit act. The right pane is left untouched, so a draft or
+	 * the settings page is not closed by browsing.
+	 */
+	function followSidebar(index: number) {
+		if (!settings().preferences.followSelection) return;
+		const row = sidebarRows()[index];
+		if (!row || row.kind !== "view") return;
+		batch(() => {
+			setQuery(row.query);
+			setSelected(0);
+			setOpenThread(null);
+		});
 	}
 
 	/** True when the row changed what is being looked at, rather than folding. */
@@ -700,6 +840,21 @@ export function createAppStore() {
 
 	function countOf(query: string): number | undefined {
 		return settings().preferences.sidebarCounts ? counts.get(query) : undefined;
+	}
+
+	/**
+	 * Opens the composer on a draft. The three steps are one action because a
+	 * composer that is not pinned open, or that a phone is not looking at, has
+	 * been opened invisibly — which is what happens when a `mailto:` link
+	 * arrives from outside the app and the window comes to the front showing
+	 * the list.
+	 */
+	function composeDraft(draft: Draft, label: string) {
+		batch(() => {
+			setRight({ kind: "compose", draft, label });
+			setPinnedOpen(true);
+			setPane("detail");
+		});
 	}
 
 	/**
@@ -792,9 +947,9 @@ export function createAppStore() {
 		const anchor = visualAnchor();
 		if (anchor !== null) {
 			// A range is being drawn: Space toggles every row it covers as
-			// one, so a visual selection becomes a set of picks (and back)
-			// without leaving visual mode — Escape still cancels only the
-			// range, and the marks it made stay behind.
+			// one, turning the range into picks (and back), then leaves
+			// visual mode. The picks stay behind, so a second key acts on
+			// them — Escape with no range on screen clears them.
 			const from = Math.min(anchor, selected());
 			const to = Math.max(anchor, selected());
 			const range: string[] = [];
@@ -802,7 +957,11 @@ export function createAppStore() {
 				const id = list[i]?.id;
 				if (id) range.push(id);
 			}
-			if (range.length === 0) return;
+			if (range.length === 0) {
+				setVisualAnchor(null);
+				setStatus("");
+				return;
+			}
 
 			const existing = new Set(picked());
 			const allPicked = range.every((id) => existing.has(id));
@@ -812,6 +971,7 @@ export function createAppStore() {
 				else next.add(id);
 			}
 			setPicked([...next]);
+			setVisualAnchor(null);
 			setStatus(`${selectionIndices().length} selected`);
 			return;
 		}
@@ -914,6 +1074,7 @@ export function createAppStore() {
 				setPicked([]);
 				setVisualAnchor(null);
 				setStatus(`applied ${ops.length}`);
+				releaseHeld();
 				bumpRevision();
 			});
 		} catch (error) {
@@ -951,6 +1112,7 @@ export function createAppStore() {
 		try {
 			const report = await api.sync();
 			setStatus(`synced: ${report.new_messages} new`);
+			releaseHeld();
 			bumpRevision();
 		} catch (error) {
 			setStatus(error instanceof Error ? error.message : "sync failed");
@@ -1033,7 +1195,8 @@ export function createAppStore() {
 			markReadTimers.delete(id);
 			try {
 				await api.tag([{ id, add: [], remove: ["unread"] }]);
-				bumpRevision();
+				holdCurrentRow(id);
+				bumpForTagChange();
 			} catch {
 				// A read-only server refuses this; it is not worth a message.
 			}
@@ -1121,11 +1284,49 @@ export function createAppStore() {
 		setStatus(`account ${next.id}`);
 	}
 
+	/**
+	 * The last moment mail was announced, so one delivery is not announced
+	 * twice.
+	 *
+	 * A sync writes files into the maildir, which the watcher sees, so
+	 * `sync:finished` and `mail:changed` can both describe the same arrival —
+	 * the second arriving a beat late, after `syncing` has already gone false
+	 * and can no longer suppress it.
+	 */
+	let announcedAt = 0;
+
+	/**
+	 * Nothing here may throw. This runs inside the server-event handler, ahead
+	 * of the revision bump that refetches the list, so an exception on the way
+	 * to a notification would stop new mail from appearing at all — the failure
+	 * being to not show the thing the notification was about.
+	 */
+	function announceNewMail(text: string) {
+		try {
+			if (!settings().preferences.notifyNewMail) return;
+			// Whoever is looking at the window can already see the list change.
+			if (typeof document !== "undefined" && document.hasFocus()) return;
+
+			const now = Date.now();
+			if (now - announcedAt < 5000) return;
+			announcedAt = now;
+
+			void notify("ecr", text);
+		} catch {
+			// A notification is the least important thing happening here.
+		}
+	}
+
 	function onServerEvent(event: ServerEvent) {
 		switch (event.type) {
 			case "mail_changed":
+				// During a sync the count is worth waiting for; `sync:finished`
+				// carries it and this event does not.
+				if (!syncing()) announceNewMail("New mail");
+				bumpRevision();
+				break;
 			case "tags_changed":
-				bumpForServerEvent();
+				bumpForTagChange();
 				break;
 			case "sync_started":
 				setSyncing(true);
@@ -1137,7 +1338,14 @@ export function createAppStore() {
 			case "sync_finished":
 				setSyncing(false);
 				setStatus(`synced: ${event.new_messages} new`);
-				bumpForServerEvent();
+				if (event.new_messages > 0) {
+					announceNewMail(
+						event.new_messages === 1
+							? "1 new message"
+							: `${event.new_messages} new messages`,
+					);
+				}
+				bumpRevision();
 				break;
 			case "error":
 				setStatus(event.detail);
@@ -1160,6 +1368,8 @@ export function createAppStore() {
 		applySettingsText,
 		themeList,
 		setTheme,
+		saveQuery,
+		setCustomQueries,
 		query,
 		setQuery,
 		selectQuery,
@@ -1190,7 +1400,6 @@ export function createAppStore() {
 		requestVisibleCounts,
 		countOf,
 		tagList,
-		peopleList,
 		listList,
 		listsSearchable: () => listInfo()?.searchable ?? true,
 		setExpandedGroup,
@@ -1224,6 +1433,8 @@ export function createAppStore() {
 		threads,
 		thread,
 		items,
+		held,
+		releaseHeld,
 		current,
 		move,
 		marks,
@@ -1258,6 +1469,7 @@ export function createAppStore() {
 		toggleCollapsed,
 		setAllCollapsed,
 		cycleAccount,
+		composeDraft,
 		subscribe,
 	};
 }

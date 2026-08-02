@@ -118,6 +118,13 @@ android-run *args: build-web
     # flag `init` shells out to `rustup target add` and dies on the first one.
     [ -d shell/gen/android ] || (cd shell && cargo tauri android init --skip-targets-install)
 
+    # Unconditionally, not only after an init: shell/gen is disposable and
+    # nothing edited inside it survives, so the manifest, the network security
+    # config and the launcher icon are copied over it on every build. Without
+    # this the app wears the Tauri logo and the *release* APK cannot reach an
+    # http server at all. See scripts/android-overlay.sh.
+    ./scripts/android-overlay.sh
+
     server_pid=""
     trap 'adb reverse --remove tcp:8383 >/dev/null 2>&1 || true
           [ -n "$server_pid" ] && kill "$server_pid" 2>/dev/null || true' EXIT
@@ -373,6 +380,24 @@ verify-v3:
 # Regenerate the figures the README shows, from the fixture maildir.
 figures:
     ./scripts/figures.sh
+
+# Regenerate every raster icon from figures/logo.svg.
+icons:
+    ./scripts/icons.sh
+
+# Regenerate the images F-Droid shows, from the logo and the visual baselines.
+store-metadata:
+    ./scripts/store-metadata.sh
+
+# Build what Nix users actually install. Catches the whole class of failure a
+# cargo build cannot see: a file the crates read at compile time that the
+# derivation's fileset does not carry, and a pnpm lockfile the pinned
+# pnpmDeps.hash no longer matches. Not part of `check` — it is minutes, not
+# seconds — but run it before touching nix/, web/package.json or anything a
+# crate include_str!s.
+nix-build:
+    nix flake check --print-build-logs
+    nix build .#ecr .#ecr-web .#ecr-desktop --print-build-logs
 
 visual *args:
     ./scripts/visual.sh {{args}}

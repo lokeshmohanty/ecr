@@ -85,45 +85,71 @@ export interface EditorState {
 }
 
 export function initialState(
-  text: string,
-  mode: VimMode = "insert",
-  singleLine = false,
+	text: string,
+	mode: VimMode = "insert",
+	singleLine = false,
 ): EditorState {
-  return {
-    text,
-    // Normal mode rests *on* a character, as in vim. Past the last one there is
-    // nothing for the block cursor to cover, so it would look like no cursor.
-    caret: mode === "normal" ? Math.max(text.length - 1, 0) : text.length,
-    mode,
-    history: [],
-    redo: [],
-    insertAnchor: null,
-    count: "",
-    anchor: null,
-    visualLine: false,
-    lastVisual: null,
-    pending: "",
-    register: "",
-    registerLinewise: false,
-    registers: {},
-    pendingRegister: null,
-    lastFind: null,
-    search: null,
-    promptKind: null,
-    prompt: "",
-    replay: null,
-    replayFrom: null,
-    lastChange: null,
-    replaying: false,
-    singleLine,
-    clipboard: null,
-    command: null,
-    submit: false,
-    cancel: false,
-    next: false,
-    previous: false,
-    status: "",
-  };
+	return {
+		text,
+		// Normal mode rests *on* a character, as in vim. Past the last one there is
+		// nothing for the block cursor to cover, so it would look like no cursor.
+		caret: mode === "normal" ? Math.max(text.length - 1, 0) : text.length,
+		mode,
+		history: [],
+		redo: [],
+		insertAnchor: null,
+		count: "",
+		anchor: null,
+		visualLine: false,
+		lastVisual: null,
+		pending: "",
+		register: "",
+		registerLinewise: false,
+		registers: {},
+		pendingRegister: null,
+		lastFind: null,
+		search: null,
+		promptKind: null,
+		prompt: "",
+		replay: null,
+		replayFrom: null,
+		lastChange: null,
+		replaying: false,
+		singleLine,
+		clipboard: null,
+		command: null,
+		submit: false,
+		cancel: false,
+		next: false,
+		previous: false,
+		status: "",
+	};
+}
+
+/**
+ * Switch to a mode without a keystroke, for the focus handoff between header
+ * fields. Entering insert records an anchor so the session undoes as one;
+ * entering normal steps the caret back onto a character, as `Escape` does.
+ */
+export function switchMode(state: EditorState, mode: VimMode): EditorState {
+	if (state.mode === mode) return state;
+	if (mode === "insert") {
+		return {
+			...state,
+			mode: "insert",
+			anchor: null,
+			visualLine: false,
+			insertAnchor: { text: state.text, caret: state.caret },
+		};
+	}
+	return {
+		...state,
+		mode,
+		anchor: null,
+		visualLine: false,
+		insertAnchor: null,
+		caret: Math.max(state.caret - 1, lineStart(state.text, state.caret)),
+	};
 }
 
 export interface VimKey {
@@ -504,8 +530,13 @@ function normalMode(state: EditorState, event: VimKey): EditorState {
       return move(Math.max(caret, Math.min(caret + times, limit)));
     }
     case "j":
+      // A single-line field has no second line to move to, so j/k walk the
+      // header rows instead — the same surface Tab does, for a hand on the
+      // home row that never left it.
+      if (state.singleLine && !visual) return { ...state, ...CLEAR, next: true };
       return move(repeat((at) => down(text, at)));
     case "k":
+      if (state.singleLine && !visual) return { ...state, ...CLEAR, previous: true };
       return move(repeat((at) => up(text, at)));
     case "0":
       return move(lineStart(text, caret));

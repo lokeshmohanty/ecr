@@ -18,6 +18,16 @@ impl TokenState {
     }
 }
 
+/// Appended to a send failure when the account authenticates with OAuth: a
+/// token expiry is the most likely cause, so the fix is named rather than
+/// leaving the user to decode msmtp's stderr.
+pub fn authorize_hint(profile: &str) -> String {
+    format!(
+        "this account authenticates with OAuth; if the token has expired, \
+         run `oauthman authorize {profile}`"
+    )
+}
+
 pub async fn token_state(profile: &str) -> TokenState {
     let output = match tokio::process::Command::new(OAUTHMAN)
         .arg("status")
@@ -126,5 +136,15 @@ mod tests {
     async fn a_missing_profile_does_not_panic() {
         let state = token_state("definitely-not-a-profile-xyzzy").await;
         assert!(!state.is_usable());
+    }
+
+    #[test]
+    fn authorize_hint_names_the_profile_and_stays_conditional() {
+        let hint = authorize_hint("main");
+        assert!(hint.contains("oauthman authorize main"), "{hint}");
+        assert!(
+            hint.contains("if"),
+            "must not assert the token expired: {hint}"
+        );
     }
 }

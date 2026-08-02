@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, untrack } from "solid-js";
 import type { AppStore } from "../state/store";
 import { suggestQuery } from "../state/suggest";
 
@@ -7,6 +7,8 @@ export interface CommandResult {
   status?: string;
   sync?: boolean;
   quit?: boolean;
+  /** The name to file the current query under in the sidebar. */
+  save?: string;
 }
 
 /** Pure so the command grammar can be tested without a DOM. */
@@ -27,6 +29,8 @@ export function runCommand(input: string): CommandResult {
     case "search":
     case "s":
       return argument ? { query: argument } : { status: "usage: :search <query>" };
+    case "save":
+      return argument ? { save: argument } : { status: "usage: :save <name>" };
     case "inbox":
       return { query: "tag:inbox" };
     case "unread":
@@ -74,11 +78,18 @@ export function Palette(props: { store: AppStore }) {
 
   createEffect(() => {
     if (!active()) return;
+    // Untracked: this effect runs when the palette opens, and reading the value
+    // reactively would re-run it on every keystroke — which re-selects what has
+    // just been typed, so each character replaces the last.
+    const opened = untrack(() => props.store.palette());
     queueMicrotask(() => {
       input?.focus();
       // Selected, not just placed: typing replaces the prefilled query, while
-      // End or an arrow key keeps it to edit.
-      input?.select();
+      // End or an arrow key keeps it to edit. A prefill ending in a space is a
+      // command still missing its argument, so there the caret goes to the end
+      // — selecting it would mean the first keystroke deleted the command.
+      if (opened.endsWith(" ")) input?.setSelectionRange(opened.length, opened.length);
+      else input?.select();
     });
   });
 
@@ -105,6 +116,7 @@ export function Palette(props: { store: AppStore }) {
       const result = runCommand(value);
       if (result.query) apply(result.query);
       if (result.sync) void props.store.sync();
+      if (result.save) props.store.saveQuery(result.save);
       if (result.status) props.store.setStatus(result.status);
     }
 

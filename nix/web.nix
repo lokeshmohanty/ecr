@@ -3,11 +3,12 @@
   stdenv,
   nodejs,
   pnpm,
+  version,
 }:
 
 stdenv.mkDerivation (finalAttrs: {
   pname = "ecr-web";
-  version = "0.1.0";
+  inherit version;
 
   src = lib.fileset.toSource {
     root = ../.;
@@ -29,11 +30,16 @@ stdenv.mkDerivation (finalAttrs: {
     pnpm.configHook
   ];
 
+  # The version carries the git revision on a `main` build, and the dependency
+  # set does not change with every commit. Pinning the name to the lockfile's
+  # own version keeps one store path across the channel, instead of a fresh
+  # fetch named after each revision.
   pnpmDeps = pnpm.fetchDeps {
-    inherit (finalAttrs) pname version src;
+    inherit (finalAttrs) pname src;
+    version = "lock";
     sourceRoot = "${finalAttrs.src.name}/web";
     fetcherVersion = 2;
-    hash = "sha256-1PfZEhJsGUAoDOnOfuDF9G6sZ805xztXg4NQUKVbEHo=";
+    hash = "sha256-nc6cvLEmOuDXizC9Vb6+tYvsvuly37VNI3eRr4jGVdg=";
   };
 
   pnpmRoot = "web";

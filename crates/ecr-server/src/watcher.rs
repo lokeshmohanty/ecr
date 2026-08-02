@@ -53,6 +53,19 @@ async fn debounce_loop(state: AppState, mut rx: mpsc::UnboundedReceiver<()>) {
 
         match state.store.notmuch().index_new().await {
             Ok(revision) => {
+                // A tag write of our own renames the file behind it — notmuch
+                // synchronises maildir flags — and that rename arrives here
+                // looking exactly like a delivery. The database standing where
+                // that write left it is the proof nothing was delivered:
+                // `notmuch new` had nothing to add, so it moved no further.
+                // Announcing it as new mail would refresh every client's list
+                // for the one tag change that happens by itself, taking the
+                // row being read out from under the reader.
+                if state.own_write(&revision).await {
+                    tracing::debug!(%revision, "maildir changed to match our own tag write");
+                    continue;
+                }
+
                 tracing::info!(%revision, "indexed newly delivered mail");
                 state.events.publish(ServerEvent::MailChanged { revision });
             }

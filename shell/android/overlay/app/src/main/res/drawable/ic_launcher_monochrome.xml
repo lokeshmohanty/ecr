@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The themed-icon layer, from figures/logo-mono.svg. Android tints this whole
+     drawable one colour, so the unread dot is left off: the ring that separates
+     it from the envelope would tint with everything else and the two would read
+     as a single blob. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="768"
+    android:viewportHeight="768">
+    <group android:translateX="128" android:translateY="128">
+        <path
+            android:pathData="M116,144 L396,144 A28,28 0 0 1 424,172 L424,340 A28,28 0 0 1 396,368 L116,368 A28,28 0 0 1 88,340 L88,172 A28,28 0 0 1 116,144 Z"
+            android:strokeColor="#ffffff"
+            android:strokeWidth="32"
+            android:strokeLineJoin="round"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M120,180 L256,288 L392,180"
+            android:strokeColor="#ffffff"
+            android:strokeWidth="32"
+            android:strokeLineJoin="round"
+            android:strokeLineCap="round" />
+    </group>
+</vector>

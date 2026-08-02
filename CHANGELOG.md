@@ -19,6 +19,43 @@ release; both are frozen at v1.0.0.
 - Release workflow producing a Linux tarball, a `.deb`, an AppImage, an Android
   APK and `SHA256SUMS`.
 - Nix flake packages (`ecr`, `ecr-desktop`) and a `services.ecr` NixOS module.
+- **Two published channels.** `github:lokeshmohanty/ecr/release` follows the
+  newest release — CI fast-forwards that branch to each tag once its artifacts
+  have built — and `github:lokeshmohanty/ecr` follows `main`. Both stamp the git
+  revision into the version, so `ecr --version` and `nix profile list` say which
+  one is installed. See [docs/installing.md](docs/installing.md).
+- A **home-manager module**, `programs.ecr`, which installs the client and can
+  run `ecr serve` as a systemd *user* service — the maildir and the notmuch
+  database live in `$HOME`, so a user service is the correct shape.
+- CI pushes Nix builds to `lokeshmohanty.cachix.org`, which `flake.nix` already
+  advertised as a substituter but nothing populated.
+- A logo. `figures/logo.svg` is the source of truth and `just icons` generates
+  every raster from it: the desktop icons, the README mark and the Android
+  launcher bitmaps.
+- Linux desktop integration: a validated desktop entry with `StartupWMClass`,
+  AppStream metainfo, a full hicolor icon set, and a systemd user unit for
+  installs that are not on NixOS.
+- `ecr man` and `ecr completions <shell>`, hidden subcommands that packaging
+  runs against the binary it just built. The Nix package and the release tarball
+  both install a man page and bash/zsh/fish completions.
+- An Android overlay (`shell/android/`, applied by `scripts/android-overlay.sh`)
+  carrying everything the generated `gen/android` tree cannot keep: the app's own
+  adaptive launcher icon with a monochrome layer, backup and data-extraction
+  rules that keep the bearer token out of cloud backups, and the removal of the
+  template's AndroidTV entries.
+- An AAB alongside the APK in each release.
+- **`mailto:` handling.** ecr offers itself as the system's mail client on both
+  the desktop and Android, and opens a prefilled composer. A mailto link inside
+  a message is handled in the client rather than handed to the system, so it
+  never leaves the app. The parser follows RFC 6068, including the detail that
+  `+` in an address is a literal and not a space.
+- **New-mail notifications**, while the app is open, governed by a new
+  device-scoped `notify_new_mail` preference. There is no background service and
+  the server never reaches out to a client, so nothing is announced while ecr is
+  closed — said plainly in the docs rather than implied.
+- F-Droid store metadata in `metadata/en-US/`, a build recipe draft in
+  `packaging/fdroid/`, and a privacy policy in `PRIVACY.md`.
+- `just nix-build`, `just icons` and `just store-metadata`.
 
 ### Changed
 
@@ -30,6 +67,18 @@ release; both are frozen at v1.0.0.
   `dependencies`; it ships in the bundle and was misdeclared.
 - Workspace path dependencies carry explicit versions, which `cargo publish`
   requires.
+
+### Fixed
+
+- `nix build .#ecr` had been failing since the e2e suite landed: `themes/` is
+  `include_str!`d by `ecr-store` but was missing from the derivation's fileset,
+  and `pnpmDeps.hash` no longer matched a lockfile that had gained Playwright.
+- The **release** Android build could not reach an `http://` server at all. The
+  gradle template permits cleartext for debug builds only, and `just android`
+  builds debug, so every APK CI published was unable to talk to a self-hosted
+  server. A network security config now permits it deliberately.
+- The Android app shipped wearing the Tauri logo.
+- `packages.ecr-desktop` was documented but did not exist.
 
 ### Removed
 

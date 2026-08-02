@@ -52,7 +52,7 @@ impl Fixture {
         std::fs::write(
             home.path().join(".config/isyncrc"),
             format!(
-                "IMAPAccount main\nUser test@example.com\n\n\
+                "IMAPAccount main\nUser test@example.com\nPassCmd \"oauthman token main\"\n\n\
                  IMAPStore main-remote\nAccount main\n\n\
                  MaildirStore main-local\nPath {}/main/\n\n\
                  Channel main\nFar :main-remote:\nNear :main-local:\n",

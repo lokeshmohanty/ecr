@@ -19,6 +19,8 @@ import { SettingsPane } from "./ui/SettingsPane";
 import { ConnectionSetup, Help, StatusBar, TopBar } from "./ui/Chrome";
 import type { Draft, Message } from "./api/types";
 import { quoteBody, replyAttribution } from "./state/quote";
+import { parseMailto } from "./state/mailto";
+import { takeLaunchMailto } from "./api/platform";
 import { isNarrow } from "./ui/narrow";
 import { ActionBar } from "./ui/ActionBar";
 
@@ -86,6 +88,29 @@ export function App() {
 		store.connection().baseUrl;
 		const unsubscribe = store.subscribe();
 		onCleanup(unsubscribe);
+	});
+
+	/**
+	 * A `mailto:` handed to the app from outside it.
+	 *
+	 * Collected on mount, which covers being launched *by* a link, and again on
+	 * focus, which covers one arriving while ecr was already running: following
+	 * a link raises the window, so the focus event is the moment a URL is
+	 * waiting. The shell yields each one exactly once, so this cannot reopen a
+	 * draft the reader already dismissed.
+	 */
+	async function collectMailto() {
+		const url = await takeLaunchMailto();
+		if (!url) return;
+		const draft = parseMailto(url);
+		if (draft) store.composeDraft(draft, "compose");
+	}
+
+	onMount(() => {
+		void collectMailto();
+		const onFocus = () => void collectMailto();
+		window.addEventListener("focus", onFocus);
+		onCleanup(() => window.removeEventListener("focus", onFocus));
 	});
 
 	function onKeyDown(event: KeyboardEvent) {
@@ -445,12 +470,20 @@ export function App() {
 			case "enterCommand":
 				store.setMode("command");
 				break;
+			case "saveQuery":
+				// The command it would have been typed as, so the one grammar stays
+				// the only way a query is saved. Only the name is left to type.
+				store.setPalette("save ");
+				store.setMode("command");
+				break;
 			case "enterSearch":
 				// Prefilled with the mailbox's own query so it can be refined rather
 				// than retyped. The palette selects it on open, so the first keystroke
 				// still replaces — that selection is what makes prefilling safe.
-				store.setMode("search");
+				// The value goes in before the mode: opening is what the palette reads
+				// the prefill on, so setting the mode first shows it an empty one.
 				store.setPalette(store.query());
+				store.setMode("search");
 				break;
 			case "help":
 				setShowHelp(true);
@@ -590,6 +623,7 @@ export function App() {
 					store={store}
 					onCompose={() => openCompose(emptyDraft(), "compose")}
 					onReply={(all) => void dispatch({ kind: "reply", all })}
+					onSaveQuery={() => void dispatch({ kind: "saveQuery" })}
 				/>
 
 				<Palette store={store} />

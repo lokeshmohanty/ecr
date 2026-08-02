@@ -39,6 +39,45 @@ export async function composeInEditor(initial: string): Promise<string | null> {
 }
 
 /**
+ * A `mailto:` the app was launched with or handed while running, or null.
+ *
+ * The shell hands each URL over exactly once, so this can be called as often as
+ * there is reason to: at boot, for the cold start, and whenever the window
+ * regains focus, which is what happens the instant a link is followed from
+ * another application.
+ */
+export async function takeLaunchMailto(): Promise<string | null> {
+  return invoke<string>("take_launch_mailto");
+}
+
+/**
+ * Shows a system notification. Answers whether one was actually shown.
+ *
+ * Under Tauri this is the shell's own command, which owns the permission
+ * handshake; in a browser it is the Notification API, where permission has to
+ * be asked for here. Both refuse silently rather than throwing — a notification
+ * is the least important thing happening at the moment it fires.
+ */
+export async function notify(title: string, body: string): Promise<boolean> {
+  if (isTauri()) {
+    return (await invoke<boolean>("notify", { title, body })) ?? false;
+  }
+
+  if (typeof Notification === "undefined") return false;
+
+  try {
+    let permission = Notification.permission;
+    if (permission === "default") permission = await Notification.requestPermission();
+    if (permission !== "granted") return false;
+
+    new Notification(title, { body });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Opens a link outside the app.
  *
  * `window.open` is right in a browser and wrong everywhere else: a Tauri

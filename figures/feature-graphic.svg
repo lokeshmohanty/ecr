@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 500" width="1024" height="500">
+  <title>ecr</title>
+  <rect width="1024" height="500" fill="#0c151a"/>
+
+  <!-- The mark from logo.svg, scaled to 200 and set on the left third. -->
+  <g transform="translate(96, 150) scale(0.390625)">
+    <g fill="none" stroke="#a99bf5" stroke-width="32" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="88" y="144" width="336" height="224" rx="28"/>
+      <path d="M120 180 L256 288 L392 180"/>
+    </g>
+    <circle cx="400" cy="152" r="46" fill="#0c151a"/>
+    <circle cx="400" cy="152" r="30" fill="#5fc9b6"/>
+  </g>
+
+  <text x="336" y="238" font-family="Cascadia Code" font-size="96" font-weight="600" fill="#e6eef1">ecr</text>
+  <text x="340" y="292" font-family="Cascadia Code" font-size="27" fill="#9fb2bb">a mail client for your notmuch maildir</text>
+  <text x="340" y="334" font-family="Cascadia Code" font-size="27" fill="#5fc9b6">self-hosted &#183; no cloud &#183; vim keys</text>
+</svg>

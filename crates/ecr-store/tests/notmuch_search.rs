@@ -178,6 +178,36 @@ async fn tagging_moves_the_revision_forward() {
     assert!(!message.tags.contains("unread"));
 }
 
+/// What the delivery watcher tells a real delivery from its own tag write by.
+/// Dropping `unread` renames the file — notmuch synchronises maildir flags —
+/// and that rename reaches the watcher looking exactly like a delivery. The
+/// database already carries the new name, so the `notmuch new` that follows
+/// has nothing to do and the revision stands still. If that ever stops
+/// holding, reading a message announces itself as new mail again and the row
+/// being read disappears from every client's list.
+#[tokio::test]
+async fn reindexing_after_a_tag_write_leaves_the_revision_alone() {
+    let fixture = fixture_or_skip!();
+    let store = fixture.store();
+
+    let written = store
+        .tag(&[TagOp::new("msg1@example.com".into()).removing("unread")])
+        .await
+        .expect("tag");
+
+    let path = store
+        .message_file(&"msg1@example.com".into())
+        .await
+        .expect("message file");
+    assert!(
+        path.to_string_lossy().ends_with(":2,S"),
+        "the maildir flag was not synchronised: {}",
+        path.display()
+    );
+
+    assert_eq!(store.index_new().await.expect("index"), written);
+}
+
 #[tokio::test]
 async fn a_batch_applies_to_several_messages_at_once() {
     let fixture = fixture_or_skip!();

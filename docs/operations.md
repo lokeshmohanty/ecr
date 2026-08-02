@@ -19,6 +19,17 @@ ecr token new|list|revoke
 ecr help [topic]        worked examples: start, phone, accounts, trouble
 ```
 
+Two more exist for whoever is packaging ecr rather than reading mail, and are
+hidden from `--help` for that reason: `ecr man` prints the manual page in roff
+and `ecr completions <shell>` prints a completion script. Every packaging path
+generates both by running the binary it just built, so they cannot describe a
+command tree other than the one being shipped. Installing them by hand:
+
+```bash
+ecr man > ~/.local/share/man/man1/ecr.1
+ecr completions fish > ~/.config/fish/completions/ecr.fish
+```
+
 `ecr init`, `ecr web`, `ecr qr`, `ecr oauth`, `ecr logs` and the background
 lifecycle (`stop`, `status`, `restart`) are declared but not yet implemented;
 each says so and names what to use meanwhile. The desktop client is a separate
@@ -103,7 +114,27 @@ TLS and a reverse proxy in front — this is a mail store.
 ## Android
 
 An APK is built by CI on every tagged release and attached to it. Sideload it;
-there is no Play Store listing.
+there is no Play Store listing. An AAB is attached to the same release, which is
+the only format Play accepts if there ever is one.
+
+It offers itself as a mail client: a `mailto:` link tapped in another app opens
+a draft here, prefilled. That is a `SENDTO`/`VIEW` intent filter in the overlay
+manifest, and the same handling covers the desktop, where it is
+`MimeType=x-scheme-handler/mailto;` in the desktop entry.
+
+New mail is announced through the system's notifications while the app is open,
+controlled by the device setting **Notify new mail**. There is no background
+service and the server never reaches out to a client, so nothing is announced
+while ecr is closed — on a phone that means notifications are worth much less
+than they are on a desktop you leave running.
+
+The app talks to your server over plain HTTP unless you have gone to the trouble
+of giving it a certificate. That is deliberate and is configured in
+`shell/android/overlay/.../network_security_config.xml`: the server address is
+whatever you type in, a LAN or tailnet address can hold no public-CA
+certificate, and requiring HTTPS would mean requiring a private PKI before the
+app could fetch one message. The bearer token is what protects the API; keep it
+on a tailnet, which is encrypted a layer below.
 
 It is a **client only**. `ecr-server` shells out to `notmuch`, `mbsync` and
 `msmtp`, none of which exist on Android, so the app points at a server you run
@@ -178,12 +209,17 @@ account, a distribution certificate and a provisioning profile. See
 
 ## Installing a release
 
+[installing.md](installing.md) is the full account — the two channels, the
+Home Manager module and what each artifact carries. In short:
+
 | Method | Command |
 |---|---|
-| Nix | `nix profile install github:lokeshmohanty/ecr` |
-| NixOS module | `services.ecr.enable = true;` — see the [README](../README.md#nix--nixos) |
-| Debian/Ubuntu | `sudo apt install ./ecr_amd64.deb` |
-| Generic Linux | untar the release tarball; `bin/ecr` finds `share/ecr/web` beside it |
+| Nix, tracking main | `nix profile install github:lokeshmohanty/ecr` |
+| Nix, newest release | `nix profile install github:lokeshmohanty/ecr/release` |
+| Home Manager | `programs.ecr.enable = true;` — installs and can run the user service |
+| NixOS module | `services.ecr.enable = true;` — a system service, for a machine nobody logs into |
+| Debian/Ubuntu | `sudo apt install ./ecr_amd64.deb` — the *desktop client*, not the server |
+| Generic Linux | untar the release tarball; `bin/ecr` finds `share/ecr/web` beside it, and `share/systemd/user/ecr.service` starts it |
 | From source | `cargo install ecr-cli` — builds the binary only, not the web client |
 
 ## Troubleshooting

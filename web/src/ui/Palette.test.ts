@@ -26,6 +26,15 @@ describe("command grammar", () => {
     expect(runCommand("search").status).toMatch(/usage/);
   });
 
+  it("takes the name a query is saved under, spaces and all", () => {
+    expect(runCommand("save Work threads").save).toBe("Work threads");
+  });
+
+  it("reports usage when save has no name", () => {
+    expect(runCommand("save").status).toMatch(/usage/);
+    expect(runCommand("save").save).toBeUndefined();
+  });
+
   it("reports unknown commands rather than failing silently", () => {
     expect(runCommand("frobnicate").status).toMatch(/unknown command/);
   });

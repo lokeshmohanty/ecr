@@ -10,30 +10,47 @@ export interface ViewTemplate {
 }
 
 export const VIEW_TEMPLATES: ViewTemplate[] = [
-  { name: "INBOX", query: "tag:inbox", icon: "▣" },
-  { name: "UNREAD", query: "tag:unread", icon: "✉" },
-  { name: "FLAGGED", query: "tag:flagged", icon: "⚑" },
-  { name: "TODAY", query: "date:today", icon: "◷" },
-  { name: "SENT", query: "tag:sent", icon: "➤" },
-  { name: "DRAFTS", query: "tag:draft", icon: "▤" },
-  { name: "ARCHIVE", query: "not tag:inbox and not tag:trash", icon: "▨" },
-  { name: "ALL MAIL", query: "*", icon: "∗" },
+  { name: "Inbox", query: "tag:inbox", icon: "▣" },
+  { name: "Unread", query: "tag:unread", icon: "✉" },
+  { name: "Flagged", query: "tag:flagged", icon: "⚑" },
+  { name: "Today", query: "date:today", icon: "◷" },
+  { name: "Sent", query: "tag:sent", icon: "➤" },
+  { name: "Drafts", query: "tag:draft", icon: "▤" },
+  { name: "Archive", query: "not tag:inbox and not tag:trash", icon: "▨" },
+  { name: "All Mail", query: "*", icon: "∗" },
 ];
 
 /** The foldable groups of rows below the mailboxes, in their default order. */
-export type SectionId = "mailboxes" | "tags" | "people" | "lists";
+export type SectionId = "mailboxes" | "tags" | "lists" | "queries";
 
-export const SECTION_IDS: SectionId[] = ["mailboxes", "tags", "people", "lists"];
+export const SECTION_IDS: SectionId[] = ["mailboxes", "tags", "lists", "queries"];
 
 export const SECTION_LABELS: Record<SectionId, { title: string; icon: string }> = {
   mailboxes: { title: "Mailboxes", icon: "▤" },
   tags: { title: "Tags", icon: "◇" },
-  people: { title: "People", icon: "◔" },
-  lists: { title: "Mailing lists", icon: "≡" },
+  lists: { title: "Mailing Lists", icon: "≡" },
+  queries: { title: "Queries", icon: "◆" },
 };
+
+/**
+ * Sections that used to exist. A settings file or a device that still names one
+ * is not wrong, it is old, so it is dropped rather than reported — and dropping
+ * it is what keeps the sidebar from looking up a label that is no longer there.
+ */
+const RETIRED_SECTIONS = new Set(["people"]);
 
 export function isSectionId(value: string): value is SectionId {
   return (SECTION_IDS as string[]).includes(value);
+}
+
+export function isRetiredSection(value: unknown): boolean {
+  return typeof value === "string" && RETIRED_SECTIONS.has(value);
+}
+
+/** Whatever of a stored list still names a section, in its stored order. */
+export function knownSections(values: unknown): SectionId[] {
+  if (!Array.isArray(values)) return [...SECTION_IDS];
+  return values.filter((v): v is SectionId => typeof v === "string" && isSectionId(v));
 }
 
 /** A row the user defined in settings.toml. */
@@ -94,7 +111,7 @@ export function buildTree(accounts: AccountLike[]): ViewGroup[] {
       name: v.name,
       icon: v.icon,
       query:
-        v.name === "SENT"
+        v.name === "Sent"
           ? sentQuery(account, addresses)
           : scopeQuery(v.query, account),
     })),

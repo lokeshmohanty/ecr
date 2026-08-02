@@ -3,6 +3,7 @@ import type { Attachment, Draft } from "../api/types";
 import type { AppStore } from "../state/store";
 import { formatSize, refuseReason, toAttachment } from "../state/attachments";
 import { VimEditor, type VimEditorProps } from "./VimEditor";
+import type { VimMode } from "../keymap/vim";
 import { PlainEditor } from "./PlainEditor";
 import { isNarrow } from "./narrow";
 
@@ -66,6 +67,11 @@ export function ComposePane(props: {
   const [dragging, setDragging] = createSignal(false);
   const [focus, setFocus] = createSignal<Field>(
     props.draft.to.length > 0 ? "body" : "to",
+  );
+  // The mode a field arrives in when Tab/Enter moves to it, so an insert
+  // session is not cut short by the field boundary.
+  const [focusMode, setFocusMode] = createSignal<VimMode>(
+    props.store.settings().preferences.editorStartMode,
   );
 
   const [values, setValues] = createSignal({
@@ -131,8 +137,14 @@ export function ComposePane(props: {
     onSubmit: () => void submit(),
     onCancel: props.onClose,
     onChange: (text: string) => set(field, text),
-    onNextField: () => setFocus(nextField(field, 1)),
-    onPreviousField: () => setFocus(nextField(field, -1)),
+    onNextField: (mode: VimMode) => {
+      setFocusMode(mode);
+      setFocus(nextField(field, 1));
+    },
+    onPreviousField: (mode: VimMode) => {
+      setFocusMode(mode);
+      setFocus(nextField(field, -1));
+    },
     onCommand: (command: string) => {
       if (command === "attach" || command === "a") picker?.click();
       else setError(`unknown command: ${command}`);
@@ -158,15 +170,11 @@ export function ComposePane(props: {
       <header class="flex shrink-0 items-start gap-3 border-b border-rule bg-paper-2 px-4 py-2">
         <div class="min-w-0 flex-1">
           <h1 class="text-sm text-ink">{props.label}</h1>
-          <div class="text-xs text-ink-3">
-            from {account()?.address ?? "no account"}
-            {/* Keys only where there are keys; the buttons beside this do the
-                same three things on a phone. */}
-            <span class="hidden md:inline">
-              {" · "}
-              <kbd>Tab</kbd> field · <kbd>ZZ</kbd> send · <kbd>ZQ</kbd> discard ·{" "}
-              <kbd>C-b</kbd> hide
-            </span>
+          {/* Keys only where there are keys; the buttons beside this do the
+              same three things on a phone. */}
+          <div class="hidden text-xs text-ink-3 md:block">
+            <kbd>Tab</kbd> field · <kbd>ZZ</kbd> send · <kbd>ZQ</kbd> discard ·{" "}
+            <kbd>C-b</kbd> hide
           </div>
         </div>
 
@@ -191,6 +199,18 @@ export function ComposePane(props: {
       </header>
 
       <div class="shrink-0 border-b border-rule">
+        {/* The sending account, shown not edited: reply picks it from the
+            thread's tags, and a compose uses the one the view is on. */}
+        <div class="flex items-center gap-2 border-b border-rule-soft px-3">
+          <span class="w-14 shrink-0 text-xs uppercase tracking-wide text-ink-3">
+            from
+          </span>
+          <div class="min-w-0 flex-1 h-7 flex items-center px-2 py-0.5">
+            <span class="truncate-cell text-sm text-ink-3">
+              {account()?.address ?? "no account"}
+            </span>
+          </div>
+        </div>
         <For each={FIELDS}>
           {(field) => (
             <div
@@ -208,6 +228,7 @@ export function ComposePane(props: {
                   label={`${field} field`}
                   singleLine
                   startMode={props.store.settings().preferences.editorStartMode}
+                  focusMode={focusMode()}
                   addressBook={field === "subject" ? undefined : props.store.addressBook() ?? []}
                   {...shared(field)}
                   focused={focus() === field}
@@ -276,6 +297,7 @@ export function ComposePane(props: {
         label={props.label}
         submitLabel="send"
         startMode={props.store.settings().preferences.editorStartMode}
+        focusMode={focusMode()}
         onModeChange={(mode) => props.store.setMode(mode === "insert" ? "insert" : "normal")}
         {...shared("body")}
         focused={focus() === "body"}

@@ -13,7 +13,10 @@ use std::path::PathBuf;
 #[command(
     name = "ecr",
     about = "a mail client",
-    version,
+    // Two channels are published from this repository — the newest release and
+    // whatever `main` is at. They can carry the same Cargo version, so a build
+    // that cannot name its own commit cannot answer "which one am I running".
+    version = option_env!("ECR_BUILD_VERSION").unwrap_or(env!("CARGO_PKG_VERSION")),
     disable_help_subcommand = true,
     after_help = "Run `ecr help` for worked examples."
 )]
@@ -107,6 +110,20 @@ enum Command {
         #[arg(help = "one of: start, phone, autostart, accounts, trouble")]
         topic: Option<String>,
     },
+
+    // Hidden because they are for whoever is packaging ecr, not for whoever is
+    // reading mail. Every packaging path — the Nix derivation, the release
+    // tarball — generates its man page and completions by running the binary it
+    // just built, so the two can never describe a different command tree than
+    // the one being shipped.
+    #[command(about = "print a shell completion script", hide = true)]
+    Completions {
+        #[arg(help = "bash, elvish, fish, powershell or zsh")]
+        shell: clap_complete::Shell,
+    },
+
+    #[command(about = "print this manual page in roff", hide = true)]
+    Man,
 }
 
 #[derive(Subcommand)]
@@ -195,6 +212,18 @@ async fn dispatch() -> anyhow::Result<()> {
         },
 
         Command::Help { topic } => help::run(topic.as_deref()),
+
+        Command::Completions { shell } => {
+            let mut command = <Cli as clap::CommandFactory>::command();
+            clap_complete::generate(shell, &mut command, "ecr", &mut std::io::stdout());
+            Ok(())
+        }
+
+        Command::Man => {
+            clap_mangen::Man::new(<Cli as clap::CommandFactory>::command())
+                .render(&mut std::io::stdout())?;
+            Ok(())
+        }
 
         Command::Init { .. } => not_yet(
             "`ecr init` is not implemented yet",

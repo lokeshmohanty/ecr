@@ -1,0 +1,25 @@
+[Desktop Entry]
+Type=Application
+Name=ecr
+GenericName=Mail Client
+Comment=A keyboard-driven mail client for an existing notmuch maildir
+Exec=ecr-desktop
+Icon=ecr
+Terminal=false
+Categories=Network;Email;
+Keywords=mail;email;notmuch;maildir;vim;
+StartupNotify=true
+# Declared because it is handled: the shell registers the `mailto` scheme with
+# the deep-link plugin and opens the composer prefilled. Declaring it without
+# that would make ecr offer itself as the system's mail client and then do
+# nothing when chosen, which is worse than not offering.
+MimeType=x-scheme-handler/mailto;
+# X11 takes the WM class from the program name, which is the binary and not the
+# product name — without this the running window does not match its own launcher
+# entry and the shell draws a second, unnamed icon beside it.
+#
+# This file is Tauri's `desktopTemplate` for the deb and the AppImage, and is
+# installed verbatim by the Nix package, so all three carry the same entry. It
+# is a Handlebars template as far as Tauri is concerned; there is nothing to
+# substitute, which is why it contains no {{...}}.
+StartupWMClass=ecr-desktop

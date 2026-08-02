@@ -40,6 +40,22 @@
             overlays = [ fenix.overlays.default ];
           };
 
+          # Two channels are published from this repository — `release`, which
+          # CI moves to each tag, and `main`. Both can sit at the same Cargo
+          # version for weeks, so the version alone cannot say which one is
+          # installed and the revision has to be part of it. `ecr --version`
+          # reports this string, and so does `nix profile list`.
+          # Both fall back rather than throwing: `self` carries a revision and a
+          # timestamp for the ordinary case of a flake fetched from git, but
+          # neither is guaranteed — a `path:` input, or a tree with no git, has
+          # no revision, and reading a missing attribute here would fail the
+          # evaluation of every consumer's configuration rather than of this
+          # file alone.
+          cargoVersion = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).workspace.package.version;
+          revision = self.shortRev or self.dirtyShortRev or "unknown";
+          stamp = builtins.substring 0 8 (self.lastModifiedDate or "00000000");
+          version = "${cargoVersion}+${stamp}.${revision}";
+
           rustToolchain = pkgs.fenix.stable.withComponents [
             "cargo"
             "clippy"
@@ -248,13 +264,18 @@
             default = ecr;
 
             ecr-web = pkgs.callPackage ./nix/web.nix {
+              inherit version;
               nodejs = pkgs.nodejs_22;
               pnpm = pkgs.pnpm_10;
             };
 
             ecr = pkgs.callPackage ./nix/ecr.nix {
-              inherit ecr-web;
+              inherit ecr-web version;
               isync = pkgs.isync;
+            };
+
+            ecr-desktop = pkgs.callPackage ./nix/desktop.nix {
+              inherit ecr-web version;
             };
           };
 
@@ -272,5 +293,8 @@
     // {
       nixosModules.default = import ./nix/module.nix self;
       nixosModules.ecr = self.nixosModules.default;
+
+      homeManagerModules.default = import ./nix/hm-module.nix self;
+      homeManagerModules.ecr = self.homeManagerModules.default;
     };
 }

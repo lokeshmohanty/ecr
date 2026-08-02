@@ -154,8 +154,26 @@ jobs:
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
+
+      # flake.nix advertises this cache as a substituter, so it has to actually
+      # hold something: the `main` channel is consumed straight from git, and
+      # without a populated cache every `nix flake update` is a full rebuild of
+      # the client and the server for whoever is tracking it.
+      #
+      # Pull requests from forks cannot see the token. The push is skipped there
+      # rather than failed — a fork should not need a secret to run CI.
+      - uses: cachix/cachix-action@v16
+        if: env.CACHIX_AUTH_TOKEN != ''
+        env:
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+        with:
+          name: lokeshmohanty
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
       - run: nix flake check --print-build-logs
-      - run: nix build .#ecr --print-build-logs
+      # ecr-desktop as well as ecr: it is the expensive one to build, it is what
+      # `programs.ecr.desktop` installs, and it is the whole WebKitGTK closure.
+      - run: nix build .#ecr .#ecr-web .#ecr-desktop --print-build-logs
 
   android:
     name: android
@@ -197,6 +215,11 @@ jobs:
           tool: tauri-cli
       - run: cargo tauri android init --ci
         working-directory: shell
+      # Lays ecr's manifest, network security config and launcher icon over the
+      # generated tree, and warns if Tauri's template moved underneath it. This
+      # is where that warning is meant to be seen — CI builds Android on every
+      # push, so a template change surfaces here rather than at release time.
+      - run: ./scripts/android-overlay.sh
       - run: cargo tauri android build --debug
         working-directory: shell
 

@@ -6,6 +6,11 @@ import { createAppStore } from "./store";
 // `shellServerUrl` is async; mock it so it never overrides the persisted URL.
 vi.mock("../api/platform", () => ({
 	shellServerUrl: vi.fn(),
+	// A factory mock replaces the whole module, so anything the store imports
+	// from it has to appear here. Leaving `notify` out made it `undefined`, and
+	// calling it threw straight through the server-event handler — the list
+	// stopped refreshing on new mail, which looked nothing like a missing mock.
+	notify: vi.fn(),
 }));
 
 import { shellServerUrl } from "../api/platform";
@@ -21,7 +26,10 @@ class FakeEventSource {
 	constructor(public url: string) {
 		FakeEventSource.current = this;
 	}
-	addEventListener(name: string, handler: (event: { data: string }) => void): void {
+	addEventListener(
+		name: string,
+		handler: (event: { data: string }) => void,
+	): void {
 		this.handlers.set(name, handler);
 	}
 	close(): void {
@@ -56,7 +64,8 @@ describe("list pane auto-refresh", () => {
 					if (url.includes("/api/v1/accounts"))
 						return [{ id: "main", address: "main@x" }];
 					if (url.includes("/api/v1/counts")) return { counts: [] };
-					if (url.includes("/api/v1/lists")) return { lists: [], searchable: true };
+					if (url.includes("/api/v1/lists"))
+						return { lists: [], searchable: true };
 					if (url.includes("/api/v1/themes")) return { presets: [] };
 					return [];
 				},
@@ -115,7 +124,7 @@ describe("list pane auto-refresh", () => {
 		});
 	});
 
-	it("does not refresh a non-inbox view on a server-pushed change", async () => {
+	it("refreshes a non-inbox view on a server-pushed mail change", async () => {
 		saveConnection({ baseUrl: "http://test:8383", token: "t" });
 
 		await withStore(async (store) => {
@@ -130,7 +139,8 @@ describe("list pane auto-refresh", () => {
 				revision: revision(),
 			});
 			await flush();
-			expect(threadsCalls).toBe(before);
+			// New mail refreshes every view, not just the inbox.
+			expect(threadsCalls).toBe(before + 1);
 		});
 	});
 
@@ -149,16 +159,35 @@ describe("list pane auto-refresh", () => {
 		});
 	});
 
-	it("refreshes an account-scoped inbox on a server-pushed change", async () => {
+	it("refreshes every view when a background sync finishes", async () => {
 		saveConnection({ baseUrl: "http://test:8383", token: "t" });
 
 		await withStore(async (store) => {
 			await flush();
-			// `(tag:inbox) and (tag:main)` is the main account's inbox view.
-			const inbox = "(tag:inbox) and (tag:main)";
-			store.selectQuery(inbox);
+			store.selectQuery("tag:unread");
 			await flush();
-			expect(store.query()).toBe(inbox);
+			expect(store.query()).toBe("tag:unread");
+
+			const before = threadsCalls;
+			FakeEventSource.current!.dispatch("sync:finished", {
+				type: "sync_finished",
+				new_messages: 3,
+				revision: revision(),
+			});
+			await flush();
+			// A background sync is new mail — every view reflects it.
+			expect(threadsCalls).toBe(before + 1);
+		});
+	});
+
+	it("does not refresh a non-inbox view on a server-pushed tags change", async () => {
+		saveConnection({ baseUrl: "http://test:8383", token: "t" });
+
+		await withStore(async (store) => {
+			await flush();
+			store.selectQuery("tag:unread");
+			await flush();
+			expect(store.query()).toBe("tag:unread");
 
 			const before = threadsCalls;
 			FakeEventSource.current!.dispatch("tags:changed", {
@@ -167,7 +196,37 @@ describe("list pane auto-refresh", () => {
 				ids: ["a@x"],
 			});
 			await flush();
-			expect(threadsCalls).toBe(before + 1);
+			// A tag change (unread→read from another client) refreshes the
+			// sidebar counts and the open thread, but not the list pane —
+			// a list being read is not reshuffled because a tag changed.
+			expect(threadsCalls).toBe(before);
+		});
+	});
+
+	it("does not refresh a non-inbox list when a message is auto-marked read", async () => {
+		saveConnection({ baseUrl: "http://test:8383", token: "t" });
+		// A 1ms delay fires the mark-read timer almost immediately, so a flush
+		// settles it without waiting the real 1s. (0 is rejected as not
+		// positive, so the default 1000 would be used.)
+		localStorage.setItem(
+			"ecr.settings.toml",
+			"[reading]\nmark_read_delay = 1\n",
+		);
+
+		await withStore(async (store) => {
+			await flush();
+			store.selectQuery("tag:unread");
+			await flush();
+			expect(store.query()).toBe("tag:unread");
+
+			const before = threadsCalls;
+			store.markReadWhenSeen("a@x", ["unread"]);
+			await flush();
+			await flush();
+			// The tag write landed and the open thread shows the message as read,
+			// but the list is not re-fetched — marking a message read is a
+			// side-effect of viewing, not a command to reshuffle the list.
+			expect(threadsCalls).toBe(before);
 		});
 	});
 });

@@ -12,6 +12,7 @@
 import { DEFAULT_BINDINGS, type Binding } from "../../keymap/engine";
 import { mergeBindings } from "./toml";
 import { isNarrow } from "../../ui/narrow";
+import { knownSections } from "../views";
 import {
 	CLIENT_KEYS,
 	DEFAULT_PREFERENCES,
@@ -96,5 +97,10 @@ function pickClient(preferences: Partial<Preferences>): Partial<Preferences> {
 	for (const key of CLIENT_KEYS) {
 		if (preferences[key] !== undefined) out[key] = preferences[key] as never;
 	}
+	// A device that saved a section which no longer exists would have the sidebar
+	// look up a label that is not there, which is a blank screen rather than a
+	// missing row.
+	if (out.sidebarSections !== undefined)
+		out.sidebarSections = knownSections(out.sidebarSections);
 	return out;
 }

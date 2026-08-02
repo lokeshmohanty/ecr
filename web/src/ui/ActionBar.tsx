@@ -23,6 +23,7 @@ export function ActionBar(props: {
   store: AppStore;
   onCompose: () => void;
   onReply: (all: boolean) => void;
+  onSaveQuery: () => void;
 }) {
   const selecting = () => props.store.selectionMode();
 
@@ -63,7 +64,10 @@ export function ActionBar(props: {
       case "detail":
         return detailActions();
       case "sidebar":
-        return [{ label: "Compose", glyph: "✎", run: props.onCompose }];
+        return [
+          { label: "Compose", glyph: "✎", run: props.onCompose },
+          { label: "Save query", glyph: "◆", run: props.onSaveQuery },
+        ];
       default:
         return listActions();
     }

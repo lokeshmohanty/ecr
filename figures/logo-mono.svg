@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="ecr">
+  <title>ecr</title>
+  <!-- No unread dot: Android tints a monochrome icon whole, so the ring that
+       separates the dot from the envelope would be tinted too and the two would
+       merge into one blob. A themed icon is a silhouette or it is nothing. -->
+  <g fill="none" stroke="#ffffff" stroke-width="32" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="88" y="144" width="336" height="224" rx="28"/>
+    <path d="M120 180 L256 288 L392 180"/>
+  </g>
+</svg>

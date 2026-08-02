@@ -37,19 +37,32 @@ lastmod)` pair is the `Revision`, and it is used three ways:
 - as the `ETag` on thread listings, so `If-None-Match` yields `304`
 - as the invalidation token in SSE `mail:changed` / `tags:changed`
 - as the cache key on the client, where the sidebar counts, the open
-  thread and the gathered tags/people/lists are keyed by `revision`, and the
-  list pane is keyed by a separate `listRevision` that a server event bumps
-  only for an inbox view
+  thread and the gathered tags/lists are keyed by `revision`, and the
+  list pane is keyed by a separate `listRevision` that only new mail and
+  user actions bump — tag changes do not
 
 A `notify` watcher on the maildir debounces deliveries, runs `notmuch new` — so
 the `post-new` hook keeps doing its tag routing — and publishes the new
 revision. Mail arriving from a cron `mbsync` therefore appears in every
-connected client with no polling and no refresh button — but only the inbox
-view's list refreshes on its own. Every other view holds still until the user
-acts (executing a command, syncing, or navigating away and back), so a list
-being read is not reshuffled under the reader. The sidebar counts and the
-open thread still refresh everywhere, so the inbox badge still rises the
-moment mail lands.
+connected client with no polling and no refresh button, and every view's list
+refreshes on its own. Tag changes are not this: marking a message read, whether
+by the reader or by another client, bumps `revision` only, so the sidebar
+counts and the open thread refresh but the list pane is not re-fetched and
+reshuffled — a list being read is not reordered because a message's tags
+changed. A message physically removed from the maildir fires `mail_changed`,
+which does refresh the list. The sidebar counts and the open thread refresh
+everywhere regardless, so the inbox badge still rises the moment mail lands.
+
+Reading a message is a tag change, but it does not look like one on disk:
+notmuch synchronises maildir flags, so dropping `unread` renames the file and
+the watcher sees that rename as a delivery. The server therefore remembers
+what its own tag writes leave the database at (`AppState::note_own_write`) and
+the watcher stays quiet when `index_new()` returns exactly that revision —
+`notmuch new` moving nowhere is the proof nothing was delivered. Another
+client's write, or a message removed from the maildir, still moves it and is
+still announced. The list keeps rows through whatever does arrive — see *held
+rows* below — so what disappears from a list is what the reader asked to have
+written, never a side-effect of looking at it.
 
 ## Message content
 
@@ -146,11 +159,23 @@ CORS entirely. `--allowed-origin` restricts it where that is wanted.
   that document lazily: Solid builds nodes from a `<template>`, whose contents
   belong to an inert document with no selection until they are inserted.
 - **Data.** Resources keyed by `revision` (sidebar counts, open thread,
-  gathered tags/people/lists) and `listRevision` (the list pane). SSE bumps
-  `revision` for every event, but bumps `listRevision` only when the list is
-  showing an inbox view, so a server-pushed change never reshuffles a list the
-  reader is not looking at. User actions (`bumpRevision`) bump both, so
-  executing a command or syncing refreshes whatever is on screen.
+  gathered tags/lists) and `listRevision` (the list pane). New mail — an
+  SSE `mail_changed` or `sync_finished` — and user actions go through
+  `bumpRevision`, which bumps both, so every view refreshes. Tag changes
+  (`tags_changed`, or marking a message read after it has been on screen) go
+  through `bumpForTagChange`, which bumps `revision` only: the sidebar counts
+  and the open thread refresh, but the list pane is not re-fetched and
+  reshuffled — a list being read is not reordered because a message's tags
+  changed. A message physically removed from the maildir fires `mail_changed`,
+  which does refresh the list.
+- **Held rows.** A refetch is not allowed to take a row out from under the
+  reader. When a message is auto-marked read, the store keeps its row — index
+  and all, with `unread` stripped unless another message in the thread still
+  carries it — and `mergeHeld` puts it back into any page that no longer
+  carries it. The rows are held against the query they were read in, so
+  changing view drops them; `sync()` and `executeMarks()` release them
+  outright. The rule the user sees: a row leaves the list when they refresh,
+  change view, or write staged tags with `x`, and at no other time.
 - **Settings.** One commented TOML file at `~/.config/ecr/settings.toml`, held
   by the server so browser, desktop and phone read the same one. The client
   generates it from the tables in `state/settings.ts`, so every option reaches

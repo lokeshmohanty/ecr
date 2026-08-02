@@ -1,0 +1,39 @@
+# A systemd *user* unit, not a system one: the maildir, the notmuch database and
+# every config ecr reads live in $HOME, and Xapian has to be able to write there.
+# On NixOS use the module instead — `services.ecr` for a system service, or
+# `programs.ecr.server` from the home-manager module, which generates this.
+#
+#   mkdir -p ~/.config/systemd/user
+#   cp ecr.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now ecr
+#
+# `ecr doctor` must pass first; the server refuses to start otherwise.
+
+[Unit]
+Description=ecr mail server
+Documentation=https://github.com/lokeshmohanty/ecr/tree/main/docs
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Change the bind address to reach it from a phone — a tailnet address rather
+# than a loopback one. With no tokens issued the API is unauthenticated, so run
+# `ecr token new phone` before binding anywhere but loopback.
+ExecStart=%h/.local/bin/ecr serve --bind 127.0.0.1:8383
+Restart=on-failure
+RestartSec=5
+
+# notmuch, mbsync and msmtp have to be reachable; a user unit does not inherit
+# the login shell's PATH.
+Environment=PATH=%h/.local/bin:%h/.nix-profile/bin:/usr/local/bin:/usr/bin:/bin
+
+NoNewPrivileges=true
+PrivateTmp=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=default.target

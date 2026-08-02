@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="ecr">
+  <title>ecr</title>
+  <circle cx="256" cy="256" r="256" fill="#0c151a"/>
+  <g fill="none" stroke="#a99bf5" stroke-width="32" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="104" y="160" width="304" height="200" rx="26"/>
+    <path d="M134 194 L256 292 L378 194"/>
+  </g>
+  <circle cx="388" cy="168" r="44" fill="#0c151a"/>
+  <circle cx="388" cy="168" r="28" fill="#5fc9b6"/>
+</svg>

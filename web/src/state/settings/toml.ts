@@ -13,6 +13,7 @@ import {
 import { DATE_FORMATS, isDateFormat, isTimezone } from "../datetime";
 import {
 	SECTION_IDS,
+	isRetiredSection,
 	isSectionId,
 	type CustomView,
 	type SectionId,
@@ -335,9 +336,8 @@ function assign(
 			);
 			return;
 		}
-		const unknown = value.filter(
-			(v) => typeof v !== "string" || !isSectionId(v),
-		);
+		const kept = value.filter((v) => !isRetiredSection(v));
+		const unknown = kept.filter((v) => typeof v !== "string" || !isSectionId(v));
 		if (unknown.length > 0) {
 			errors.push(
 				`${at}: ${name} does not know ${unknown.map((v) => JSON.stringify(v)).join(", ")} — expected ${SECTION_IDS.join(", ")}`,
@@ -346,7 +346,7 @@ function assign(
 		}
 		// Duplicates would render the same section twice and break the flat index
 		// the keyboard walks.
-		preferences.sidebarSections = [...new Set(value as SectionId[])];
+		preferences.sidebarSections = [...new Set(kept as SectionId[])];
 		return;
 	}
 	if (key === "sidebarCustom") {

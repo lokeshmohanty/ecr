@@ -8,7 +8,7 @@
  * documents the file, which is what stops an option existing in one and not
  * the other.
  */
-import { For, Match, Show, Switch } from "solid-js";
+import { For, Index, Match, Show, Switch } from "solid-js";
 import {
   CLIENT_KEYS,
   DEFAULT_PREFERENCES,
@@ -17,7 +17,7 @@ import {
   type Preferences,
 } from "../state/settings";
 import { DATE_FORMATS } from "../state/datetime";
-import { SECTION_IDS } from "../state/views";
+import { SECTION_IDS, type CustomView } from "../state/views";
 import type { AppStore } from "../state/store";
 
 export function DeviceSettings(props: { store: AppStore }) {
@@ -160,6 +160,13 @@ function Field(props: {
         </div>
       </Match>
 
+      <Match when={props.name === "sidebarCustom"}>
+        <QueryRows
+          rows={props.value as CustomView[]}
+          onSet={(rows) => props.onSet(props.name, rows as never)}
+        />
+      </Match>
+
       <Match when={typeof props.value === "number"}>
         <input
           id={props.id}
@@ -185,6 +192,80 @@ function Field(props: {
         />
       </Match>
     </Switch>
+  );
+}
+
+/**
+ * The saved queries, as rows rather than as a line of TOML.
+ *
+ * This is the one client-scoped option that is a list of records, and it is the
+ * one there was no way to change: the device's half of the settings is not a
+ * file, so "set this in the file" was an instruction that could not be carried
+ * out on any device that had ever saved a preference.
+ */
+function QueryRows(props: {
+  rows: CustomView[];
+  onSet: (rows: CustomView[]) => void;
+}) {
+  const edit = (index: number, field: keyof CustomView, value: string) =>
+    props.onSet(
+      props.rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
+    );
+
+  return (
+    <div class="flex w-full flex-col gap-2 md:w-[30rem]">
+      {/*
+        Index, not For: every edit replaces the whole list, and For keys on the
+        item, so it would tear down the row being typed in. The fields commit on
+        change — the second one committed while its own input was being rebuilt,
+        and the value went with it.
+      */}
+      <Index each={props.rows}>
+        {(row, index) => (
+          <div class="flex items-center gap-1">
+            <input
+              type="text"
+              class="w-8 shrink-0 rounded px-1 py-1 text-center"
+              aria-label={`glyph for query ${index + 1}`}
+              value={row().icon}
+              onChange={(e) => edit(index, "icon", e.currentTarget.value)}
+            />
+            <input
+              type="text"
+              class="w-28 shrink-0 rounded px-2 py-1"
+              placeholder="name"
+              aria-label={`name of query ${index + 1}`}
+              value={row().name}
+              onChange={(e) => edit(index, "name", e.currentTarget.value)}
+            />
+            <input
+              type="text"
+              class="mono min-w-0 flex-1 rounded px-2 py-1 text-xs"
+              placeholder="notmuch query"
+              aria-label={`query ${index + 1}`}
+              value={row().query}
+              onChange={(e) => edit(index, "query", e.currentTarget.value)}
+            />
+            <button
+              type="button"
+              class="touch-target shrink-0 rounded px-2 text-ink-3"
+              aria-label={`remove query ${row().name || index + 1}`}
+              onClick={() => props.onSet(props.rows.filter((_, i) => i !== index))}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+      </Index>
+
+      <button
+        type="button"
+        class="touch-target self-start rounded border border-rule px-2 py-1 text-xs text-ink-2"
+        onClick={() => props.onSet([...props.rows, { name: "", query: "", icon: "◆" }])}
+      >
+        + add query
+      </button>
+    </div>
   );
 }
 

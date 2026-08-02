@@ -152,6 +152,22 @@ async fn a_failing_send_surfaces_the_msmtp_error() {
 }
 
 #[tokio::test]
+async fn a_failing_send_appends_the_oauth_authorize_hint() {
+    let fixture = fixture_or_skip!();
+    let store = fixture.notmuch_store();
+
+    fixture.stub_msmtp("cat >/dev/null\necho 'msmtp: authentication failed' >&2\nexit 1\n");
+
+    let err = store
+        .send(&AccountId::from("main"), b"From: a@b.c\r\n\r\nx")
+        .await
+        .expect_err("send should fail");
+
+    assert!(err.to_string().contains("authentication failed"), "{err}");
+    assert!(err.to_string().contains("oauthman authorize main"), "{err}");
+}
+
+#[tokio::test]
 async fn sending_from_an_unknown_account_is_refused_before_spawning_msmtp() {
     let fixture = fixture_or_skip!();
     let store = fixture.notmuch_store();

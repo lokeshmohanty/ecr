@@ -12,10 +12,31 @@ pub struct Server {
     base: String,
     client: reqwest::Client,
     paths: Arc<MailPaths>,
+    state: ecr_server::AppState,
+    /// Kept alive for as long as the server is: dropping it stops the watch.
+    _watcher: Option<Box<dyn Send>>,
 }
 
 impl Server {
     pub async fn start() -> Option<Self> {
+        Self::build(false).await
+    }
+
+    /// With the maildir watcher running, the way `ecr serve` runs it. Only
+    /// worth the cost for tests about delivery itself.
+    pub async fn start_watched() -> Option<Self> {
+        Self::build(true).await
+    }
+
+    pub fn events(&self) -> tokio::sync::broadcast::Receiver<ecr_server::ServerEvent> {
+        self.state.events.subscribe()
+    }
+
+    pub fn inbox(&self) -> PathBuf {
+        self.home.path().join("Mail/main/Inbox/cur")
+    }
+
+    async fn build(watch: bool) -> Option<Self> {
         if ecr_store::tools::find(ecr_store::tools::NOTMUCH).is_none() {
             eprintln!("skipping: notmuch is not on PATH");
             return None;
@@ -81,13 +102,18 @@ impl Server {
         let paths =
             Arc::new(MailPaths::with(&Env::rooted_at(home.path()), &settings).expect("paths"));
 
-        let base = spawn(Arc::clone(&paths), home.path()).await;
+        let (base, state) = spawn(Arc::clone(&paths), home.path()).await;
+        let watcher = watch.then(|| {
+            Box::new(ecr_server::watcher::spawn(state.clone()).expect("watcher")) as Box<dyn Send>
+        });
 
         Some(Self {
             home,
             base,
             client: reqwest::Client::new(),
             paths,
+            state,
+            _watcher: watcher,
         })
     }
 
@@ -176,7 +202,7 @@ impl Server {
     }
 }
 
-async fn spawn(paths: Arc<MailPaths>, _home: &Path) -> String {
+async fn spawn(paths: Arc<MailPaths>, _home: &Path) -> (String, ecr_server::AppState) {
     let store = Arc::new(ecr_store::NotmuchStore::new(paths));
 
     let mut tokens = ecr_server::TokenStore::default();
@@ -189,11 +215,12 @@ async fn spawn(paths: Arc<MailPaths>, _home: &Path) -> String {
         .expect("bind");
     let addr = listener.local_addr().expect("addr");
 
+    let served = state.clone();
     tokio::spawn(async move {
-        let _ = axum::serve(listener, ecr_server::router(state)).await;
+        let _ = axum::serve(listener, ecr_server::router(served)).await;
     });
 
-    format!("http://{addr}")
+    (format!("http://{addr}"), state)
 }
 
 fn index(config: &Path) {

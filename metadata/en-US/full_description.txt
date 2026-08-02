@@ -1,0 +1,37 @@
+ecr is the mobile client for a mail server you run yourself.
+
+It is not a mail app in the usual sense: it does not fetch, store or index mail,
+and it will not sign you in to anything. It talks to ecr-server on a machine of
+yours — a desktop, a home server — which owns a maildir that notmuch already
+indexes and shells out to mbsync and msmtp for the parts those tools do well.
+If you do not have that setup, this app has nothing to show you.
+
+Reach the server over a tailnet or a LAN. There is no cloud component, no
+account, no telemetry, and nothing between the two devices.
+
+<b>What it does</b>
+
+* Reads HTML mail properly, rendered by the system webview and sanitised on the
+  server before it ever reaches the device
+* Swipe a row to archive or flag it; long-press to start selecting
+* Tag edits are staged and shown in the margin, so what is about to be written
+  is readable before it is written
+* Search with the full notmuch query language, and save the queries you keep
+  typing
+* Write with a real composer: separate address fields, attachments, and a plain
+  text area that leaves autocorrect and swipe typing alone
+* Ten colour palettes, and the theme format is a TOML file you can edit
+* Offer itself as the system mail client, so a mailto: link opens a draft here
+
+<b>What it does not do</b>
+
+There is no background service and the server never reaches out to a client, so
+new mail is announced only while the app is open. Nothing is synchronised when
+it is closed.
+
+<b>Requirements</b>
+
+A running ecr-server, and a device token from it — pair by scanning the QR code
+that "ecr token new phone --qr" prints.
+
+Free software, MIT or Apache-2.0.

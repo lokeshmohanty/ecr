@@ -36,6 +36,7 @@ export type Action =
 	| { kind: "prevMessage" }
 	| { kind: "loadRemote" }
 	| { kind: "togglePlain" }
+	| { kind: "saveQuery" }
 	| { kind: "enterCommand" }
 	| { kind: "enterSearch" }
 	| { kind: "nextAccount" }
@@ -112,6 +113,12 @@ export const DEFAULT_BINDINGS: Binding[] = [
 		keys: "o",
 		action: { kind: "toggleFold" },
 		description: "expand or collapse account",
+		panes: ["sidebar"],
+	},
+	{
+		keys: "Tab",
+		action: { kind: "toggleFold" },
+		description: "expand or collapse",
 		panes: ["sidebar"],
 	},
 
@@ -324,6 +331,12 @@ export const DEFAULT_BINDINGS: Binding[] = [
 		description: "previous account",
 	},
 	{ keys: ",", action: { kind: "settings" }, description: "settings" },
+	{
+		keys: "S",
+		action: { kind: "saveQuery" },
+		description: "save this query to the sidebar",
+		panes: ["sidebar", "list"],
+	},
 	{ keys: ":", action: { kind: "enterCommand" }, description: "command" },
 	{ keys: "/", action: { kind: "enterSearch" }, description: "search" },
 	{ keys: "?", action: { kind: "help" }, description: "help" },

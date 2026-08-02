@@ -1,0 +1,1 @@
+A keyboard-driven client for a notmuch maildir you already run.

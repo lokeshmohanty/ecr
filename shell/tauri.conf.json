@@ -29,6 +29,18 @@
       "deb",
       "appimage"
     ],
+    "category": "Productivity",
+    "shortDescription": "A keyboard-driven mail client for an existing notmuch maildir",
+    "longDescription": "ecr is a mail client for a maildir that notmuch already indexes. A Rust server owns all the mail state and shells out to mbsync and msmtp; one client ships to the browser, the desktop and Android. It does not fetch, store or index mail itself.",
+    "linux": {
+      "deb": {
+        "desktopTemplate": "../packaging/ecr.desktop",
+        "files": {
+          "/usr/share/metainfo/dev.lokeshmohanty.ecr.metainfo.xml": "../packaging/dev.lokeshmohanty.ecr.metainfo.xml",
+          "/usr/share/doc/ecr/ecr.service": "../packaging/ecr.service"
+        }
+      }
+    },
     "android": {
       "minSdkVersion": 28
     },
@@ -38,5 +50,14 @@
       "icons/128x128@2x.png",
       "icons/icon.png"
     ]
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "mailto"
+        ]
+      }
+    }
   }
 }

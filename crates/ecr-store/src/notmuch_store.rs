@@ -1,8 +1,8 @@
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::notmuch::Notmuch;
 use crate::paths::MailPaths;
 use crate::store::{BodyOptions, MailStore, ProgressSink};
-use crate::{discovery, mbsync, msmtp};
+use crate::{discovery, mbsync, msmtp, oauth};
 use ecr_core::account::{Account, AccountId};
 use ecr_core::doctor::Doctor;
 use ecr_core::message::{
@@ -117,13 +117,27 @@ impl MailStore for NotmuchStore {
 
     async fn send(&self, account: &AccountId, raw: &[u8]) -> Result<()> {
         let accounts = discovery::accounts(&self.paths);
-        let msmtp_account = accounts
-            .iter()
-            .find(|a| &a.id == account)
+        let found = accounts.iter().find(|a| &a.id == account);
+        let msmtp_account = found
             .and_then(|a| a.msmtp_account.clone())
             .unwrap_or_else(|| account.to_string());
 
-        msmtp::send(&self.paths, &msmtp_account, raw).await
+        // msmtp's only signal for a dead OAuth token is a non-zero exit with
+        // opaque stderr. If this account uses OAuth, name the fix so the
+        // compose pane can show something the user can act on.
+        msmtp::send(&self.paths, &msmtp_account, raw)
+            .await
+            .map_err(|e| match e {
+                Error::ToolFailed { tool, stderr } => {
+                    let profile = found.and_then(|a| discovery::oauth_profile(&self.paths, a));
+                    let stderr = match profile.as_deref() {
+                        Some(profile) => format!("{stderr}\n\n{}", oauth::authorize_hint(profile)),
+                        None => stderr,
+                    };
+                    Error::ToolFailed { tool, stderr }
+                }
+                other => other,
+            })
     }
 
     async fn doctor(&self) -> Doctor {

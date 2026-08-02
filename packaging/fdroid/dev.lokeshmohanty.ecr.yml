@@ -1,0 +1,80 @@
+# A draft of the recipe for F-Droid's own metadata repository.
+#
+# This file does *not* live here in the end. F-Droid builds from
+# https://gitlab.com/fdroid/fdroiddata, and this is the file to open a merge
+# request with there, kept in this repository so it stays next to the build it
+# describes. What F-Droid reads out of *this* repository is `metadata/en-US/` —
+# the title, descriptions and images — which it picks up automatically.
+#
+# Before submitting, check each of these:
+#
+#  - `Builds[].versionCode` must match `tauri.android.versionCode` in the
+#    generated `shell/gen/android/app/tauri.properties`. Tauri computes it from
+#    the version as major*1000000 + minor*1000 + patch, so 0.1.0 is **1000**,
+#    not 1 — read the generated file rather than assuming.
+#  - the `commit` must be a tag, not a branch.
+#  - `sudo` runs as root before the build and is the only place to install
+#    anything; F-Droid's builders have no network during `build`.
+#  - run `fdroid build dev.lokeshmohanty.ecr` locally against fdroiddata before
+#    opening the request. A recipe that has never been run is a recipe that
+#    does not work.
+
+Categories:
+  - Internet
+License: MIT OR Apache-2.0
+AuthorName: Lokesh Mohanty
+SourceCode: https://github.com/lokeshmohanty/ecr
+IssueTracker: https://github.com/lokeshmohanty/ecr/issues
+Changelog: https://github.com/lokeshmohanty/ecr/blob/main/CHANGELOG.md
+
+AutoName: ecr
+
+RepoType: git
+Repo: https://github.com/lokeshmohanty/ecr.git
+
+Builds:
+  - versionName: 0.1.0
+    versionCode: 1000
+    commit: v0.1.0
+    subdir: shell
+    sudo:
+      - apt-get update
+      - apt-get install -y curl build-essential pkg-config libssl-dev
+      - curl -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.88.0
+      - bash -c 'source $HOME/.cargo/env && rustup target add
+        aarch64-linux-android armv7-linux-androideabi i686-linux-android
+        x86_64-linux-android'
+      - bash -c 'source $HOME/.cargo/env && cargo install tauri-cli --version
+        "^2" --locked'
+    gradle:
+      - yes
+    ndk: 27.2.12479018
+
+    # The web client is compiled into the binary by `tauri::generate_context!`,
+    # so it has to be built first; and `scripts/android-overlay.sh` has to run
+    # after `android init`, or the APK cannot reach an http server and wears
+    # the wrong icon. See docs/releasing.md#android.
+    prebuild:
+      - cd $$SRC$$ && pnpm install --frozen-lockfile --dir web
+      - cd $$SRC$$ && pnpm --dir web build
+      - cd $$SRC$$/shell && cargo tauri android init --ci
+      - cd $$SRC$$ && ./scripts/android-overlay.sh
+
+    scanignore:
+      # Committed lockfiles, not binaries; the scanner flags them because
+      # gradle wrappers usually are.
+      - shell/gen/android/gradle/wrapper
+
+MaintainerNotes: |
+  ecr is a client for a server the user runs themselves. It has no hosted
+  component, no analytics and no third-party SDK; the only network address it
+  knows is the one the user types in.
+
+  The app permits cleartext HTTP on purpose — a LAN or tailnet address cannot
+  hold a public-CA certificate. This is documented in PRIVACY.md and in
+  shell/android/overlay/app/src/main/res/xml/network_security_config.xml.
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags ^v[0-9.]+$
+CurrentVersion: 0.1.0
+CurrentVersionCode: 1000

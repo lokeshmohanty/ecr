@@ -254,6 +254,7 @@ pub async fn tag(
 
     let ids: Vec<String> = request.ops.iter().map(|o| o.id.to_string()).collect();
     let revision = state.store.tag(&request.ops).await?;
+    state.note_own_write(&revision).await;
 
     state.events.publish(ServerEvent::TagsChanged {
         revision: revision.clone(),

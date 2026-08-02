@@ -1,3 +1,5 @@
+<img src="figures/logo.png" alt="" width="80" align="left" hspace="12" vspace="4">
+
 # ecr
 
 [![ci](https://github.com/lokeshmohanty/ecr/actions/workflows/ci.yml/badge.svg)](https://github.com/lokeshmohanty/ecr/actions/workflows/ci.yml)
@@ -40,26 +42,60 @@ nothing to sign up for.
 Every artifact below is built by CI and attached to the
 [latest release](https://github.com/lokeshmohanty/ecr/releases/latest).
 
-### Nix / NixOS
+### Nix / NixOS / Home Manager
+
+Two channels are published, and they differ only in which commit you get:
+
+| Channel | Flake ref |
+|---|---|
+| newest release | `github:lokeshmohanty/ecr/release` |
+| `main` | `github:lokeshmohanty/ecr` |
+
+CI fast-forwards the `release` branch to each tag once its artifacts have built,
+so the stable channel needs no edit per release — `nix flake update ecr` moves
+it. Both stamp the git revision into the version, so `ecr --version` always says
+which one is installed.
 
 ```bash
-nix run github:lokeshmohanty/ecr            # try it
-nix profile install github:lokeshmohanty/ecr # keep it
+nix run github:lokeshmohanty/ecr             # try main
+nix profile install github:lokeshmohanty/ecr/release   # keep the newest release
 ```
 
-A NixOS module is exposed as `nixosModules.default`:
+With Home Manager, which is the route that tracks a channel properly:
 
 ```nix
 {
-  inputs.ecr.url = "github:lokeshmohanty/ecr";
+  inputs.ecr.url = "github:lokeshmohanty/ecr";   # or .../release
   # ...
+  imports = [ inputs.ecr.homeManagerModules.default ];
+
+  programs.ecr = {
+    enable = true;
+    desktop = true;                # also install the Tauri client
+    server.enable = true;          # `ecr serve` as a systemd user service
+    server.bind = "127.0.0.1:8383";
+  };
+}
+```
+
+A user service rather than a system one because the maildir, the notmuch
+database and every config `ecr` reads live in `$HOME`. For a machine that should
+serve mail with nobody logged in, the NixOS module is still there:
+
+```nix
+{
   imports = [ inputs.ecr.nixosModules.default ];
   services.ecr = {
     enable = true;
+    user = "you";
     bind = "127.0.0.1:8383";
   };
 }
 ```
+
+`flake.nix` advertises `lokeshmohanty.cachix.org`, which CI populates on every
+push to `main`; without it, tracking main means compiling the server and the
+client on every update. Full detail in [docs/installing.md](docs/installing.md).
 
 ### Debian / Ubuntu
 
@@ -72,10 +108,22 @@ sudo apt install ./ecr_amd64.deb
 
 ```bash
 curl -L https://github.com/lokeshmohanty/ecr/releases/latest/download/ecr-x86_64-unknown-linux-gnu.tar.gz | tar xz
-./ecr doctor
+cd ecr-x86_64-unknown-linux-gnu
+./bin/ecr doctor
 ```
 
-An AppImage of the desktop client is attached to the same release.
+Besides the binary and the web client, the tarball carries a man page, bash/zsh/
+fish completions, and a systemd **user** unit — nothing starts the server for
+you otherwise:
+
+```bash
+install -Dm755 bin/ecr ~/.local/bin/ecr
+install -Dm644 share/systemd/user/ecr.service ~/.config/systemd/user/ecr.service
+systemctl --user daemon-reload && systemctl --user enable --now ecr
+```
+
+An AppImage of the desktop client is attached to the same release. Note that the
+`.deb` and the AppImage carry the *desktop client*, not the server.
 
 ### From source
 
@@ -88,8 +136,15 @@ the release artifacts, not on crates.io. Build it with `just build` from a clone
 
 ### Android
 
-Sideload the APK from the release page. It is a client — point it at a server you
-run. See [docs/operations.md](docs/operations.md#android).
+Sideload the APK from the release page. It is a client — point it at a server
+you run, over a tailnet typically. See
+[docs/operations.md](docs/operations.md#android).
+
+The store page lives in [`metadata/`](metadata/) and the F-Droid build recipe in
+[`packaging/fdroid/`](packaging/fdroid/); F-Droid builds and signs from source
+itself, so that APK and the one on the release page have different signatures
+and cannot replace each other in place. [PRIVACY.md](PRIVACY.md) is the policy —
+short, because the app talks to nothing but your own server.
 
 ## Quick start
 
@@ -259,8 +314,8 @@ any hosted component.
 | `ecr-server` | complete: REST, SSE, bearer auth, maildir watcher |
 | `ecr-cli` (`ecr`) | `doctor`, `serve`, `token` and `help`; `init`, `web`, `qr`, `oauth` and the background lifecycle are declared but not implemented |
 | `web` | complete: read, search, tag, mark queue, compose, mobile layout |
-| `shell` (Tauri desktop) | builds and runs on Linux |
-| Android | not built — the web client works as a PWA meanwhile |
+| `shell` (Tauri desktop) | builds and runs on Linux; packaged as deb, AppImage and a Nix derivation, with a desktop entry, icons and AppStream metadata |
+| Android | builds and runs; APK and AAB per release, own launcher icon, cleartext to a self-hosted server, registers as a `mailto:` handler |
 | iOS | not built |
 | SQLite cache | not built |
 
@@ -273,6 +328,56 @@ follows. Short version:
 ```bash
 just check    # fmt, lint, both test suites, browser, visual and UX verification
 ```
+
+## Credits
+
+`ecr` is a user interface over other people's work, and most of what makes it
+useful was written elsewhere.
+
+**The tools it drives.** These are separate processes, not libraries — `ecr`
+would have nothing to show without them:
+
+- [notmuch](https://notmuchmail.org/) — the index, the threading and the query
+  language. Every list this client shows is a notmuch query, and the tags are
+  notmuch's tags. Built on [Xapian](https://xapian.org/) and
+  [GMime](https://github.com/jstedfast/gmime).
+- [isync / mbsync](https://isync.sourceforge.io/) — fetching mail into the
+  maildir.
+- [msmtp](https://marlam.de/msmtp/) — sending it.
+- `oauthman` — XOAUTH2 for Gmail and Outlook, which both mbsync and msmtp shell
+  out to.
+
+**Prior art.** The interaction model is not new, and is not pretending to be:
+
+- [mutt](http://www.mutt.org/) and [neomutt](https://neomutt.org/) — the
+  keyboard-first mail client everything here is measured against. `ecr` exists
+  because that model deserved a real rendering engine, not because it needed
+  replacing.
+- [aerc](https://aerc-mail.org/), [alot](https://github.com/pazz/alot) and
+  [astroid](https://github.com/astroidmail/astroid) — the notmuch-native clients
+  that showed what a query-driven mailbox feels like.
+- [vim](https://www.vim.org/) and [neovim](https://neovim.io/) — the motions,
+  the operators and the modes. `web/src/keymap/` is an homage, and any place it
+  diverges is a place it fell short.
+
+**Built with.** [Rust](https://www.rust-lang.org/),
+[axum](https://github.com/tokio-rs/axum) and [tokio](https://tokio.rs/) on the
+server; [SolidJS](https://www.solidjs.com/), [Tailwind
+CSS](https://tailwindcss.com/) and [Vite](https://vite.dev/) in the client;
+[Tauri](https://tauri.app/) for the desktop and Android shells;
+[ammonia](https://github.com/rust-ammonia/ammonia) for sanitising message HTML;
+[Playwright](https://playwright.dev/) for the tests that run in a real browser;
+and [Nix](https://nixos.org/) for the fact that any of it builds twice the same
+way. The three bundled webfonts — Space Grotesk, Nunito and Cascadia Code — are
+OFL-1.1; see [THIRD-PARTY.md](THIRD-PARTY.md) for every dependency and what its
+licence obliges.
+
+**Written with AI assistance.** Much of this codebase was written in
+collaboration with coding agents, and it seems dishonest not to say so:
+[Claude](https://claude.com/) (largely through
+[Claude Code](https://claude.com/claude-code)), `pi` running GLM-5.2, and
+Antigravity. The design decisions, the traps
+recorded in [AGENTS.md](AGENTS.md) and the review of every line remain mine.
 
 ## Licence
 

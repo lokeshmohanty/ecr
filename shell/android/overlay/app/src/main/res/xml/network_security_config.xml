@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cleartext is permitted, deliberately.
+
+     ecr talks to a server the user runs themselves, at an address they type in:
+     a LAN address, or a tailnet one. Neither can hold a certificate from a
+     public CA, so requiring HTTPS would mean requiring every user to stand up
+     their own PKI before the app could fetch a single message. The traffic
+     carries a bearer token, so the honest advice is to keep it on a tailnet,
+     which is encrypted a layer below this.
+
+     This cannot be narrowed to a domain list: the whole point is that the
+     server address is not known until the user enters it.
+
+     Without this the release APK cannot reach an http:// server at all, while
+     the debug APK `just android` installs can — the gradle template sets
+     usesCleartextTraffic true for debug and false for release, so the failure
+     appears only in the artifact CI publishes.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <!-- A self-hosted server with a private CA, or a certificate the
+                 user installed by hand, is a reasonable setup and the one case
+                 where HTTPS is achievable here. -->
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

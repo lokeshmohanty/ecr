@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>dev.lokeshmohanty.ecr</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT OR Apache-2.0</project_license>
+
+  <name>ecr</name>
+  <summary>A keyboard-driven mail client for an existing notmuch maildir</summary>
+
+  <description>
+    <p>
+      ecr is a mail client for a maildir that notmuch already indexes. A Rust
+      server owns all the mail state and shells out to mbsync and msmtp; one
+      client ships to the browser, the desktop and Android.
+    </p>
+    <p>
+      It does not fetch, store or index mail itself. If you have a working
+      notmuch setup, ecr is a user interface for it; if you do not, ecr is not
+      the place to start.
+    </p>
+    <p>Notable:</p>
+    <ul>
+      <li>vim motions, visual mode and search over the rendered message, not just over the thread list</li>
+      <li>HTML mail rendered by a real browser engine, sanitised server-side</li>
+      <li>Ten palettes, and a theme format that is a plain TOML file</li>
+      <li>Tag edits staged and shown in the margin before they are written</li>
+      <li>No cloud component and nothing to sign up for</li>
+    </ul>
+  </description>
+
+  <!-- Tauri names the entry it generates after `productName`, and the deb, the
+       AppImage and the Nix package all install that one file, so the desktop id
+       is `ecr.desktop` even though the component id is reverse-DNS. -->
+  <launchable type="desktop-id">ecr.desktop</launchable>
+
+  <url type="homepage">https://github.com/lokeshmohanty/ecr</url>
+  <url type="bugtracker">https://github.com/lokeshmohanty/ecr/issues</url>
+  <url type="help">https://github.com/lokeshmohanty/ecr/tree/main/docs</url>
+  <url type="vcs-browser">https://github.com/lokeshmohanty/ecr</url>
+
+  <developer id="dev.lokeshmohanty">
+    <name>Lokesh Mohanty</name>
+  </developer>
+
+  <provides>
+    <binary>ecr</binary>
+    <binary>ecr-desktop</binary>
+  </provides>
+
+  <categories>
+    <category>Network</category>
+    <category>Email</category>
+  </categories>
+
+  <keywords>
+    <keyword>mail</keyword>
+    <keyword>email</keyword>
+    <keyword>notmuch</keyword>
+    <keyword>maildir</keyword>
+  </keywords>
+
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+    <control>touch</control>
+  </supports>
+
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/lokeshmohanty/ecr/main/figures/web-desktop.png</image>
+      <caption>The thread list and a rendered message</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/lokeshmohanty/ecr/main/figures/sidebar.png</image>
+      <caption>The sidebar, with a count behind every row</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/lokeshmohanty/ecr/main/figures/web-mobile.png</image>
+      <caption>One pane at a time on a phone, with an action bar</caption>
+    </screenshot>
+  </screenshots>
+
+  <content_rating type="oars-1.1" />
+
+  <releases>
+    <release version="0.1.0" date="2026-04-01">
+      <description>
+        <p>First public release.</p>
+      </description>
+    </release>
+  </releases>
+</component>

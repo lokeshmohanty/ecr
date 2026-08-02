@@ -168,9 +168,96 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   column past the viewport and the subject, the date, the message-id and every
   line of the body ran off the right edge — while the top bar, sized
   independently, still looked correct.
+- **A tag write looks exactly like a delivery.** notmuch synchronises maildir
+  flags, so dropping `unread` renames the file from `:2,` to `:2,S` — a create
+  and a remove under `cur/`, which is precisely what the delivery watcher is
+  watching for. Unfixed, it reindexed and published `mail:changed`, so the
+  client's careful split between `revision` and `listRevision` (a tag change
+  must not reshuffle a list being read) did not hold for the one tag change
+  that happens by itself. `AppState::note_own_write` records the revision each
+  tag write leaves behind and `watcher.rs` says nothing when `index_new()`
+  returns that same revision: the database standing still is the proof nothing
+  was delivered, because notmuch already knew the new filename and `notmuch
+  new` had nothing to add. That assumption is pinned by
+  `reindexing_after_a_tag_write_leaves_the_revision_alone`. Held rows, below,
+  are the client-side belt to this braces — every other route to a refetch,
+  including another client's writes, still exists.
+
+- **A Nix build sees only what the fileset lists, and `include_str!` is
+  source.** `nix/ecr.nix` names each path that enters the sandbox, so adding a
+  file the crates read at *compile* time — `crates/ecr-store/src/themes.rs`
+  `include_str!`s every palette in `themes/` — breaks `nix build .#ecr` while
+  `cargo build` stays green, because cargo can see the whole worktree. The same
+  goes the other way: `nix/desktop.nix` deliberately omits `web/`, because
+  `shell/build.rs` treats a `web/src` newer than `web/dist` as a stale bundle
+  and shells out to a pnpm that is not in the sandbox. The web client arrives
+  as the `ecr-web` derivation instead, copied into `web/dist` and touched.
+  Neither failure can be reproduced with cargo alone; `just nix-build` is the
+  only thing that catches them.
+- **A new file Nix cannot see fails as a missing import, not as a missing
+  file.** A flake's source is the *git* tree, so an untracked file is simply
+  absent from the sandbox. `lib.fileset` naming a directory does not complain
+  about this the way naming the file directly does — the build just proceeds
+  without it, and the first thing to notice is vite: `[UNRESOLVED_IMPORT] Could
+  not resolve './state/mailto'`, naming a file that is plainly right there in
+  the worktree. `git add -N` the new files before `just nix-build`.
+- **`pnpmDeps.hash` pins the lockfile, and nothing warns when it drifts.**
+  Adding a dependency to `web/package.json` without recomputing that hash leaves
+  `nix build` failing with `ERR_PNPM_NO_OFFLINE_TARBALL` naming the one package
+  that is missing — which reads as a network problem rather than a stale hash.
+  Set it to `""`, build, and copy the `got:` value back. The fetch is named
+  `version = "lock"` rather than the package version on purpose: the version
+  carries the git revision, and naming the dependency set after it would mean a
+  fresh multi-hundred-megabyte fetch on every commit.
+- **`shell/gen/` is generated and gitignored, so nothing edited there
+  survives.** `cargo tauri android init` writes it, CI re-runs that on every
+  build, and `just android` recreates it whenever it is missing. Every Android
+  change this app needs lives in `shell/android/overlay/` and is copied over the
+  generated tree by `scripts/android-overlay.sh`, which runs after every init in
+  both workflows. The overlay owns `AndroidManifest.xml` outright, so the script
+  also diffs what Tauri just generated against `shell/android/upstream/` and
+  warns when the template moves.
+- **A factory `vi.mock` replaces the whole module, so a new export breaks the
+  tests that mock it.** `store.autorefresh.test.ts` and `store.held.test.ts`
+  mock `../api/platform` with `() => ({ shellServerUrl: vi.fn() })`. Adding
+  `notify` to that module made it `undefined` inside the store, and calling it
+  threw *through* `onServerEvent` — so `bumpRevision()` never ran and the list
+  stopped refreshing on new mail. The failure reads as a bug in the held-rows
+  merge, naming tags that were never refetched, and says nothing about a mock.
+  `announceNewMail` now swallows its own errors, because a notification must
+  never be able to stop the mail it is about from arriving.
+- **A `mailto:` in a message is handled here, not by the system.**
+  `openExternal` still passes `mailto:` to the shell's opener — it is a valid
+  thing to hand over — but no message link reaches it any more:
+  `ui/follow-link.ts` sits in front of all three interception points (the plain
+  text pane, the sandboxed frame, and Enter in view mode) and turns a mailto
+  into a prefilled composer. Sending it outward would leave the app, ask the
+  desktop which mail client to use, and — ecr now being a candidate — come back
+  through the deep-link plugin into a second window.
+- **`bundle.category` is not a freedesktop category.** It is a fixed list
+  borrowed from macOS — `Business`, `DeveloperTool`, … `Productivity`, `Utility`
+  — and `Email` is not on it, even though `Categories=Network;Email;` is exactly
+  right in the `.desktop` file. The field is typed `Option<String>`, so an
+  invalid value parses happily and only fails in the bundler, at release time.
+  The list is in `tauri-utils`'s `config.rs`, on the `category` field.
+- **Two desktop entries look like one bug that will not die.** Tauri's deb
+  bundler generates `/usr/share/applications/<productName>.desktop` by itself.
+  Shipping a second file through `bundle.linux.deb.files` does not replace it —
+  it installs alongside, and the launcher shows ecr twice. `packaging/ecr.desktop`
+  is wired in as `desktopTemplate`, which *is* the generated file, and the Nix
+  package installs that same file under that same name so all three artifacts
+  agree.
 
 ## Testing rules
 
+- **A visual failure is not evidence of a stale baseline.** The way to tell is
+  to run the suite against the last commit — stash the working tree, move any
+  *new* files aside (they reference functions the stashed code has, and `pnpm
+  build` fails on them before a single screenshot is taken), and compare. If
+  everything passes there, the baselines are current and the diff belongs to
+  something uncommitted. Do not `--approve` in that state on someone else's
+  behalf: approving bakes whatever else is in the working tree into the
+  baselines, and the next person inherits it as the intended look.
 - **`just visual` is the regression net for anything you can see.** 26 states
   against the fixture maildir, compared pixel by pixel. Real mail cannot be a
   baseline — it changes. Review `screenshots/visual/diff` before approving.
@@ -243,6 +330,15 @@ single-line surface running the same engine. `Tab` walks them and wraps into
 the body. Attachments ride along base64 in the same request that sends the
 draft, capped at 25MB by `ecr-core`.
 
+The composer is also what a **`mailto:` link** opens. ecr registers the scheme
+on both platforms — `MimeType` in the desktop entry, a `SENDTO`/`VIEW` intent
+filter in the Android overlay — and `store.composeDraft` is the single way in,
+so a link from another application, a link inside a message and `c` all land in
+the same place. The shell holds an arriving URL for the client to collect
+through `take_launch_mailto`, once: at boot for the cold start, and on window
+focus for one that arrived while running, which is the same moment because
+following a link raises the window.
+
 Reading has a cursor of its own. `Enter` in the detail pane enters **view
 mode**: the ordinary motions, visual mode, `/` search and `y` over the rendered
 message, with `Enter` on a link opening it and `Escape` leaving. It works the
@@ -256,9 +352,17 @@ so `r` still replies while reading.
 The sidebar is one **flat, index-addressable** list — `j`/`k` walk it by index
 and `Enter` acts on whatever `sidebarIndex` lands on, so nesting is expressed by
 each row's `indent`, never by structure. Under the expanded account group come
-the configured sections: `mailboxes` renders the view templates directly, while
-`tags`, `people` and `lists` are foldable and gather their rows from the
-database. Counts come from `POST /api/v1/counts`, backed by one
+the configured sections: `mailboxes` renders the view templates directly, `tags`
+and `lists` are foldable and gather their rows from the database, and `queries`
+is whatever the user saved. Only the account tags are kept out of `tags`, and
+which tags those are comes from the configured accounts — nothing in the code
+names a tag. `queries` is the one section whose rows survive a count of zero: a
+gathered row matching nothing is noise, but a saved query matching nothing was
+still written down on purpose, and hiding it reads as the setting having been
+lost. `S` (the phone's **Save query**) files whatever the list is showing under
+a name, `:save <name>` is the same thing typed, and the rows are edited on the
+settings page — they belong to the device, so there is no file to put them in.
+Counts come from `POST /api/v1/counts`, backed by one
 `notmuch count --batch` process for every visible row — and only visible rows,
 which is what bounds the work. A blank query is substituted before it reaches
 notmuch, because an empty line there means *everything*, not nothing.
@@ -286,15 +390,26 @@ margin as badges, so what is about to be written is readable first. A range is
 shown by a background highlight, not the margin tape — the tape belongs to what
 `Space` actually picked, so a range being drawn never reads as a column of
 marks. `Space` inside a range toggles every row it covers as one, turning the
-range into picks (and back) without leaving visual mode. `Escape` in a range
-cancels only the range, leaving the picks behind; `Escape` with no range on
-screen clears the picks and what is staged.
+range into picks, and leaves visual mode — the picks stay behind, so a second
+key acts on them. `Escape` in a range cancels only the range, leaving the picks
+behind; `Escape` with no range on screen clears the picks and what is staged.
+
+**A row leaves the list when the reader says so, not when they read it.**
+Auto-marking a message read takes it out of `tag:unread`, so the row a message
+was being read from used to vanish under the cursor — pushed there by the
+maildir rename the trap above describes, but any refetch would do it. The
+store *holds* such a row: `mergeHeld` puts it back where it was,
+carrying the tags it now has, into every page that no longer matches it. Held
+rows are keyed by the query they were read in, so changing view drops them,
+and a sync or `x` releases them outright — refresh, change view, or write
+staged tags, and the list is exactly what the query matches.
 
 Settings have **two owners**. The server file at `~/.config/ecr/settings.toml`
 (`GET`/`PUT /api/v1/config`) holds what is about the *mail* and is one answer
 for everyone: the start query, whether HTML wins, when a message counts as
 read, and the packages. What is about the *device* — theme, sidebar, dates and
-timezone, page size, keybindings — lives in `localStorage` on each client, so a
+timezone, page size, keybindings, whether new mail is announced — lives in
+`localStorage` on each client, so a
 phone and a desktop can differ without arguing. `PREFERENCE_DOCS` carries a
 `scope` per option and `SERVER_KEYS`/`CLIENT_KEYS` are derived from it, so the
 line cannot drift from the documentation. `withClient` lays the device's half
@@ -338,9 +453,14 @@ crates/ecr-store   MailStore, notmuch backend, MIME, sync, send, doctor
 crates/ecr-server  axum: REST, SSE, auth, watcher — a library
 crates/ecr-cli     the `ecr` binary: doctor, serve, tokens, help
 shell              Tauri v2 desktop shell — the `ecr-desktop` binary
+shell/android      overlay laid over the generated gen/android on every build
 web                SolidJS client — the only UI code
 themes             the shipped palettes, embedded into the server
+packaging          desktop entry, AppStream metainfo, systemd user unit, F-Droid recipe
+metadata           the F-Droid store page, read from this repo at the tag
+nix                the derivations, the NixOS module and the home-manager module
+figures            logo.svg and the README's pictures
 fixtures           .eml fixtures for the throwaway database
-scripts            demo-env.sh, verify-web.sh
+scripts            demo-env.sh, verify-web.sh, icons.sh, android-overlay.sh
 docs               full documentation
 ```

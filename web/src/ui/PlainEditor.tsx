@@ -88,14 +88,14 @@ export function PlainEditor(props: VimEditorProps) {
     // A header field is one line, so Return leaves it rather than growing it.
     if (props.singleLine && event.key === "Enter") {
       event.preventDefault();
-      props.onNextField?.();
+      props.onNextField?.("insert");
       return;
     }
 
     if (event.key === "Tab") {
       event.preventDefault();
-      if (event.shiftKey) props.onPreviousField?.();
-      else props.onNextField?.();
+      if (event.shiftKey) props.onPreviousField?.("insert");
+      else props.onNextField?.("insert");
     }
   };
 

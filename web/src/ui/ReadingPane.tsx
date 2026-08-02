@@ -4,7 +4,7 @@ import type { AppStore } from "../state/store";
 import { absolutizePartUrls } from "./body-urls";
 import { toggleLabel } from "../state/format";
 import { linkify } from "./linkify";
-import { openExternal } from "../api/platform";
+import { followLink } from "./follow-link";
 import { attachViewCursor, type ViewTarget } from "./view-mode";
 
 export function ReadingPane(props: { store: AppStore; onBack?: () => void }) {
@@ -143,6 +143,9 @@ function MessageView(props: {
       scroller: props.store.detailScroller(),
       onExit: () => props.store.setViewing(false),
       onStatus: (text) => props.store.setStatus(text),
+      // Enter on a link in view mode goes the same way a click does, so a
+      // mailto opens the composer whichever way the reader reached it.
+      onOpenLink: (href) => followLink(props.store, href),
     });
     onCleanup(detach);
   });
@@ -255,7 +258,7 @@ function MessageView(props: {
                         const href = anchor?.getAttribute("href");
                         if (!href) return;
                         event.preventDefault();
-                        void openExternal(href);
+                        followLink(props.store, href);
                       }}
                     />
                   }
@@ -267,6 +270,7 @@ function MessageView(props: {
                       props.store.connection().token,
                     )}
                     onReady={(doc, frame) => setTarget({ root: doc.body, frame })}
+                    onFollow={(href) => followLink(props.store, href)}
                   />
                 </Show>
               </>
@@ -306,6 +310,7 @@ function Recipients(props: { label: string; list: { name: string | null; email: 
 function BodyFrame(props: {
   html: string;
   onReady?: (doc: Document, frame: HTMLIFrameElement) => void;
+  onFollow: (href: string) => void;
 }) {
   let frame: HTMLIFrameElement | undefined;
 
@@ -387,7 +392,7 @@ function BodyFrame(props: {
       if (!href) return;
 
       event.preventDefault();
-      void openExternal(href);
+      props.onFollow(href);
     };
 
     doc.addEventListener("click", follow);

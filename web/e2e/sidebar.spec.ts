@@ -13,7 +13,7 @@ test.describe("sidebar", () => {
   test("counts appear and agree with the API", async ({ page, server }) => {
     await open(page, server);
 
-    const inbox = page.locator(row("INBOX")).first();
+    const inbox = page.locator(row("Inbox")).first();
     await expect(inbox).toContainText(/\d/, { timeout: 15_000 });
 
     const { counts } = await server.api<{ counts: number[] }>("/api/v1/counts", {
@@ -22,7 +22,7 @@ test.describe("sidebar", () => {
     });
 
     await expect(inbox).toContainText(String(counts[0]));
-    await expect(page.locator(row("UNREAD")).first()).toContainText(String(counts[1]));
+    await expect(page.locator(row("Unread")).first()).toContainText(String(counts[1]));
   });
 
   test("a count is asked for once per query, not once per row render", async ({
@@ -36,7 +36,7 @@ test.describe("sidebar", () => {
     });
 
     await open(page, server);
-    await expect(page.locator(row("INBOX")).first()).toContainText(/\d/);
+    await expect(page.locator(row("Inbox")).first()).toContainText(/\d/);
     await page.waitForTimeout(1000);
 
     const asked = posted.flatMap((body) => JSON.parse(body).queries as string[]);
@@ -61,7 +61,7 @@ test.describe("sidebar", () => {
   test("every gathered section is present by default", async ({ page, server }) => {
     await open(page, server);
 
-    for (const name of ["Tags", "People", "Mailing lists"]) {
+    for (const name of ["Tags", "Mailing Lists"]) {
       await expect(page.locator(row(name)).first()).toBeVisible();
     }
   });
@@ -79,7 +79,7 @@ test.describe("sidebar", () => {
     await page.waitForTimeout(1500);
 
     expect(requests).toBe(0);
-    await expect(page.locator(row("INBOX")).first()).not.toContainText(/\d/);
+    await expect(page.locator(row("Inbox")).first()).not.toContainText(/\d/);
   });
 
   test("turning icons off leaves the labels alone", async ({ page, server }) => {
@@ -87,7 +87,7 @@ test.describe("sidebar", () => {
 
     await open(page, server);
 
-    const inbox = page.locator(row("INBOX")).first();
+    const inbox = page.locator(row("Inbox")).first();
     await expect(inbox).toBeVisible();
     await expect(inbox).not.toContainText("▣");
   });
@@ -103,5 +103,27 @@ test.describe("sidebar", () => {
     await page.keyboard.press("Enter");
 
     await expect(page.locator("#ecr-query")).toHaveValue(/tag:inbox/);
+  });
+  /**
+   * The saved queries are the one client-scoped list, and localStorage is the
+   * only place they live — so this is the only level at which saving one can be
+   * checked end to end.
+   */
+  test("S files the current query under Queries, and it survives a reload", async ({
+    page,
+    server,
+  }) => {
+    await open(page, server);
+
+    await page.keyboard.press("S");
+    await page.keyboard.type("Saved inbox");
+    await page.keyboard.press("Enter");
+
+    const saved = page.locator(row("Saved inbox")).first();
+    await expect(saved).toBeVisible();
+    await expect(saved).toContainText(/\d/, { timeout: 15_000 });
+
+    await page.reload();
+    await expect(page.locator(row("Queries")).first()).toBeVisible();
   });
 });
