@@ -19,7 +19,10 @@ MimeType=x-scheme-handler/mailto;
 # entry and the shell draws a second, unnamed icon beside it.
 #
 # This file is Tauri's `desktopTemplate` for the deb and the AppImage, and is
-# installed verbatim by the Nix package, so all three carry the same entry. It
-# is a Handlebars template as far as Tauri is concerned; there is nothing to
-# substitute, which is why it contains no {{...}}.
+# installed verbatim by the Nix package, so all three carry the same entry.
+#
+# Tauri renders it as a Handlebars template, comments included. Nothing here
+# needs substituting, so there must be no handlebars expressions anywhere in
+# the file — a comment that so much as names the brace syntax fails the build,
+# which is exactly how the first release broke.
 StartupWMClass=ecr-desktop
