@@ -151,6 +151,11 @@ jobs:
             experimental-features = nix-command flakes
 
       - run: just ${{ matrix.suite }}
+        env:
+          # The visual suite refuses to compare against baselines rendered with
+          # a different browser or font set, rather than reporting a difference
+          # that says nothing about the UI.
+          ECR_STRICT_RENDER: ${{ matrix.suite == 'visual' && '1' || '' }}
 
       # A visual failure is only actionable if you can see the diff.
       - name: Upload screenshots

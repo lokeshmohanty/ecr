@@ -24,9 +24,13 @@ cd "$ROOT"
 # through the floating registry, so CI and a laptop would resolve different
 # revisions and land right back where this started.
 if [ -z "${ECR_CHROME:-}" ] && command -v nix > /dev/null; then
-  pinned=$(nix build --no-link --print-out-paths "$ROOT#visual-browser" 2>/dev/null || true)
-  if [ -n "$pinned" ] && [ -x "$pinned/bin/chromium" ]; then
-    export ECR_CHROME="$pinned/bin/chromium"
+  # Errors are shown, not swallowed. Falling back quietly is how a run produces
+  # baselines nobody can reproduce, and the fallback already cost one CI cycle
+  # spent wondering why the pin had not taken.
+  if pinned=$(nix build --no-link --print-out-paths "$ROOT#visual-browser"); then
+    [ -x "$pinned/bin/chromium" ] && export ECR_CHROME="$pinned/bin/chromium"
+  else
+    echo "  could not build .#visual-browser (see above)" >&2
   fi
 fi
 
@@ -34,15 +38,24 @@ fi
 # but the fixtures contain an emoji, and which glyph fontconfig substitutes —
 # and how it hints the rest — is per-machine.
 if [ -z "${FONTCONFIG_FILE:-}" ] && command -v nix > /dev/null; then
-  fonts=$(nix build --no-link --print-out-paths "$ROOT#visual-fonts" 2>/dev/null || true)
-  [ -n "$fonts" ] && export FONTCONFIG_FILE="$fonts"
+  if fonts=$(nix build --no-link --print-out-paths "$ROOT#visual-fonts"); then
+    export FONTCONFIG_FILE="$fonts"
+  else
+    echo "  could not build .#visual-fonts (see above)" >&2
+  fi
 fi
 
-if [ -n "${ECR_CHROME:-}" ]; then
+if [ -n "${ECR_CHROME:-}" ] && [ -n "${FONTCONFIG_FILE:-}" ]; then
   echo "  browser $ECR_CHROME"
-  echo "  fonts   ${FONTCONFIG_FILE:-<system>}"
+  echo "  fonts   $FONTCONFIG_FILE"
+elif [ -n "${ECR_STRICT_RENDER:-}" ]; then
+  # CI sets this. Comparing pixels against baselines rendered somewhere else is
+  # not a weaker check, it is a meaningless one, so refuse rather than report a
+  # failure that says nothing about the UI.
+  echo "  refusing to compare: the browser or the fonts are not the pinned ones" >&2
+  exit 1
 else
-  echo "  warning: no pinned chromium; baselines from this run are not portable" >&2
+  echo "  warning: unpinned render; baselines from this run are not portable" >&2
 fi
 
 cleanup() { [ -n "${SRV:-}" ] && kill "$SRV" 2>/dev/null; wait 2>/dev/null; }
