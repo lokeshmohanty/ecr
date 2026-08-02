@@ -287,19 +287,31 @@
             # CI and a laptop produce the same pixels.
             visual-browser = pkgs.ungoogled-chromium;
 
-            # The font set the visual suite renders with. The client bundles
-            # its three faces, but a message still reaches for an emoji glyph
-            # (the fixtures contain one), and fontconfig's idea of what to
-            # substitute is per-machine. Pinning the whole set is what makes
-            # the last of the drift go away.
-            visual-fonts = pkgs.makeFontsConf {
-              fontDirectories = with pkgs; [
-                dejavu_fonts
-                noto-fonts
-                noto-fonts-color-emoji
-              ];
-            };
-          };
+            # The font set the visual suite renders with.
+            #
+            # Written out rather than built with `makeFontsConf`, which appends
+            # `/etc/fonts/conf.d`, `/usr/share/fonts` and the user profile to
+            # whatever it is given. That is right for a desktop and fatal here:
+            # both machines then render with their *own* fonts on top of the
+            # pinned ones, which is how a gear icon came out as a colour emoji
+            # on one and a monochrome glyph on the other. Nothing outside this
+            # list is reachable.
+            visual-fonts = pkgs.writeText "ecr-visual-fonts.conf" ''
+              <?xml version="1.0"?>
+              <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+              <fontconfig>
+                <dir>${pkgs.dejavu_fonts}/share/fonts</dir>
+                <dir>${pkgs.noto-fonts}/share/fonts</dir>
+                <dir>${pkgs.noto-fonts-color-emoji}/share/fonts</dir>
+                <cachedir prefix="xdg">fontconfig</cachedir>
+
+                <!-- The client bundles the faces it actually uses; these only
+                     decide what a fallback glyph lands on. -->
+                <alias><family>sans-serif</family><prefer><family>DejaVu Sans</family></prefer></alias>
+                <alias><family>serif</family><prefer><family>DejaVu Serif</family></prefer></alias>
+                <alias><family>monospace</family><prefer><family>DejaVu Sans Mono</family></prefer></alias>
+              </fontconfig>
+            '';          };
 
           checks = {
             inherit (self.packages.${system}) ecr ecr-web;
