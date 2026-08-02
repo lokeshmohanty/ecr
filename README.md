@@ -6,8 +6,8 @@
 [![licence](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue)](#licence)
 [![release](https://img.shields.io/github/v/release/lokeshmohanty/ecr?include_prereleases&sort=semver)](https://github.com/lokeshmohanty/ecr/releases)
 
-A keyboard-driven mail client for an existing [notmuch](https://notmuchmail.org/)
-maildir. A Rust server owns all the mail state; one SolidJS UI ships to the
+**E**mail **C**lient in **R**ust. A keyboard-driven mail client for an existing
+[notmuch](https://notmuchmail.org/) maildir. A Rust server owns all the mail state; one SolidJS UI ships to the
 browser, the desktop and Android.
 
 ![The thread list and a rendered message](figures/web-desktop.png)
@@ -34,7 +34,7 @@ the rendered message* as over any other buffer.
 
 One consequence worth stating plainly: the server needs `notmuch`, `mbsync` and
 `msmtp` on `PATH`, so it runs on a machine, not on a phone. Mobile clients talk
-to a server you run — over a tailnet, typically. There is no cloud component and
+to a server you run, over a tailnet. There is no cloud component and
 nothing to sign up for.
 
 ## Install
@@ -137,7 +137,7 @@ the release artifacts, not on crates.io. Build it with `just build` from a clone
 ### Android
 
 Sideload the APK from the release page. It is a client — point it at a server
-you run, over a tailnet typically. See
+you run, over a tailnet. See
 [docs/content/operations.md](docs/content/operations.md#android).
 
 The store page lives in [`metadata/`](metadata/) and the F-Droid build recipe in
@@ -277,8 +277,8 @@ by a test that runs in CI.
 
 ### v0.1.0 — first public release &nbsp;·&nbsp; `[x]` released 2026-08-03
 
-The client is complete for daily reading and writing; this release is about
-making it installable by someone who is not the author.
+The client is complete for daily reading and writing. This release is about
+making it installable by someone other than me.
 
 - [x] Search, threading, MIME rendering, tagging, sync and send
 - [x] REST + SSE server, bearer auth, maildir watcher
@@ -286,13 +286,13 @@ making it installable by someone who is not the author.
 - [x] Vim editing throughout — composer, settings file, and the message being read
 - [x] Desktop shell (Tauri, Linux)
 - [x] Licence, third-party notices and a dependency gate in CI
-- [ ] Release artifacts: tarball, `.deb`, AppImage, Nix flake output
+- [x] Release artifacts: tarball, `.deb`, AppImage, APK, AAB, Nix flake outputs
 - [ ] `ecr init` — a first-run path that does not assume an existing notmuch setup
-- [ ] Installed and run by someone other than the author, on a machine that is not the author's
+- [ ] Installed and run on a machine that is not mine
 
 ### v0.2.0 — mobile and speed &nbsp;·&nbsp; `[ ]`
 
-- [ ] Android client shipped as an APK, built in CI
+- [x] Android client shipped as an APK, built in CI
 - [ ] SQLite cache in `ecr-store` — every request currently shells out to notmuch (~200ms for a 50-thread page of a 23k inbox), which is too slow for search-as-you-type
 - [ ] `ts-rs` type generation, so `web/src/api/types.ts` cannot drift from `ecr-core`
 - [ ] Remaining `ecr` subcommands: `web`, `qr`, `oauth`, `logs`, and the background lifecycle
@@ -302,13 +302,13 @@ making it installable by someone who is not the author.
 - [ ] Frozen HTTP API, versioned and documented
 - [ ] Settings file format stable across upgrades
 - [ ] macOS desktop build
-- [ ] iOS client (needs an Apple Developer account — see [docs/content/releasing.md](docs/content/releasing.md#ios))
 - [ ] Notmuch database access without a subprocess per request
 
 ### Not planned
 
-Fetching mail directly (`mbsync` does it), an address book, calendaring, PGP, and
-any hosted component.
+Fetching mail directly — `mbsync` does that. An address book, calendaring, PGP,
+and any hosted component. I am not building an iOS client: it needs a paid
+Apple developer account to put on anyone's phone, and I do not have one.
 
 ## Status
 
@@ -320,7 +320,6 @@ any hosted component.
 | `web` | complete: read, search, tag, mark queue, compose, mobile layout |
 | `shell` (Tauri desktop) | builds and runs on Linux; packaged as deb, AppImage and a Nix derivation, with a desktop entry, icons and AppStream metadata |
 | Android | builds and runs; APK and AAB per release, own launcher icon, cleartext to a self-hosted server, registers as a `mailto:` handler |
-| iOS | not built |
 | SQLite cache | not built |
 
 ## Contributing
@@ -385,18 +384,11 @@ recorded in [AGENTS.md](AGENTS.md) and the review of every line remain mine.
 
 ## Licence
 
-Licensed under either of
+MIT — see [LICENSE](LICENSE).
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-- MIT licence ([LICENSE-MIT](LICENSE-MIT))
+ecr drives `notmuch`, `mbsync` and `msmtp` as separate processes and does not
+link them, so their GPL terms do not extend to this project. The bundled
+webfonts are OFL-1.1. [THIRD-PARTY.md](THIRD-PARTY.md) records every
+dependency's licence and what each obliges.
 
-at your option.
-
-`ecr` drives `notmuch`, `mbsync` and `msmtp` as separate processes and does not
-link them, so their GPL terms do not extend to this project. The bundled webfonts
-are OFL-1.1. [THIRD-PARTY.md](THIRD-PARTY.md) records every dependency's licence
-and what each obliges.
-
-Unless you explicitly state otherwise, any contribution you intentionally submit
-for inclusion in this work, as defined in the Apache-2.0 licence, shall be dual
-licensed as above, without any additional terms or conditions.
+Contributions are MIT, on the same terms. There is no CLA.

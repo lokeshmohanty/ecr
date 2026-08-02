@@ -4,8 +4,6 @@ description = "Every endpoint ecr-server exposes, with its shapes and status cod
 weight = 4
 +++
 
-# HTTP API
-
 Base path `/api/v1`. Every route except `/health` requires
 `Authorization: Bearer <token>`. If no device tokens exist the server runs
 unauthenticated and logs a warning.

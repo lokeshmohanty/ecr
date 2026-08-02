@@ -138,6 +138,18 @@ jobs:
       - name: Install Chromium for Playwright
         run: pnpm --dir web exec playwright install --with-deps chromium
 
+      # Only the visual suite. The other five assert on the DOM and do not care
+      # which chromium runs them; this one compares pixels, and two different
+      # browser builds rasterise the same glyph differently — which is exactly
+      # how it failed the first time it ever ran here. scripts/visual.sh takes
+      # the browser from `nix build .#visual-browser`, pinned by the flake, so
+      # this job and a laptop render the same image.
+      - if: matrix.suite == 'visual'
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
       - run: just ${{ matrix.suite }}
 
       # A visual failure is only actionable if you can see the diff.
@@ -246,34 +258,3 @@ jobs:
       - run: cargo tauri android build --debug
         working-directory: shell
 
-  ios:
-    name: ios (build only)
-    runs-on: macos-latest
-    needs: [rust, web]
-    steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-ios,aarch64-apple-ios-sim
-      - uses: Swatinem/rust-cache@v2
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
-
-      - run: pnpm --dir web install --frozen-lockfile
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: tauri-cli
-
-      # Unsigned, and not installable on a device. This job catches bitrot in the
-      # iOS target; shipping needs an Apple Developer account, a certificate and
-      # a provisioning profile. See docs/content/releasing.md#ios.
-      - run: cargo tauri ios init --ci
-        working-directory: shell
-      - run: cargo tauri ios build --debug -- -CODE_SIGNING_ALLOWED=NO
-        working-directory: shell

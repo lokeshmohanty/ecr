@@ -5,10 +5,18 @@ sort_by = "weight"
 template = "section.html"
 +++
 
-# ecr
+**E**mail **C**lient in **R**ust — a keyboard-driven mail client for a notmuch
+maildir you already run.
 
-A client/server mail client. A Rust server owns all mail state; one SolidJS UI
-codebase ships to the browser, the desktop and Android.
+I built it because terminal mail clients are fast and cannot render HTML mail,
+and graphical ones render it and are slow to drive. ecr puts a real browser
+engine behind vim keys. A Rust server owns all the mail state; one SolidJS
+client ships to the browser, the desktop and Android.
+
+It does not fetch, store or index mail. It reads the maildir notmuch already
+indexes and shells out to `mbsync` and `msmtp` for the parts those tools do
+well. If you have a working notmuch setup, this is an interface for it. If you
+do not, it is not the place to start.
 
 ```
 Browser ─┐
@@ -17,16 +25,7 @@ Android ─┘   bearer token                       │             maildir
                                           revision (lastmod)
 ```
 
-## Documents
-
-- [architecture.md](@/architecture.md) — crates, data flow, why the pieces are shaped this way
-- [api.md](@/api.md) — the HTTP surface
-- [installing.md](@/installing.md) — the two channels, Home Manager, NixOS, and what the artifacts carry
-- [operations.md](@/operations.md) — running the server, tokens, doctor, troubleshooting
-- [development.md](@/development.md) — building, testing, verifying
-- [releasing.md](@/releasing.md) — how a release is cut, and what CI produces
-
-Outside `docs/`: [README](https://github.com/lokeshmohanty/ecr/blob/main/README.md) for installation and the roadmap,
+Beyond these pages: [README](https://github.com/lokeshmohanty/ecr/blob/main/README.md) for installation and the roadmap,
 [CONTRIBUTING](https://github.com/lokeshmohanty/ecr/blob/main/CONTRIBUTING.md) for conventions, [SECURITY](https://github.com/lokeshmohanty/ecr/blob/main/SECURITY.md)
 for the threat model, and [THIRD-PARTY](https://github.com/lokeshmohanty/ecr/blob/main/THIRD-PARTY.md) for every
 dependency's licence.

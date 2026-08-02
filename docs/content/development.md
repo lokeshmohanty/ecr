@@ -4,8 +4,6 @@ description = "Building, testing and verifying a change."
 weight = 5
 +++
 
-# Development
-
 ## Environment
 
 ```bash

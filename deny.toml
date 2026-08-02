@@ -2,7 +2,7 @@
 all-features = true
 
 [licenses]
-# ecr is MIT OR Apache-2.0. Everything here is a licence we can ship under that.
+# ecr is MIT. Everything here is a licence we can ship under that.
 # The list is deliberately closed: a new licence appearing in the tree fails CI
 # and forces a decision rather than a silent obligation.
 allow = [

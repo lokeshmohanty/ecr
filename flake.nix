@@ -279,6 +279,13 @@
             ecr-desktop = pkgs.callPackage ./nix/desktop.nix {
               inherit ecr-web version;
             };
+
+            # The browser the visual suite runs, exposed so that `nix build
+            # .#visual-browser` resolves it through *this* flake's pinned
+            # nixpkgs rather than through the floating registry. Two chromium
+            # builds rasterise glyphs differently, and the whole point is that
+            # CI and a laptop produce the same pixels.
+            visual-browser = pkgs.ungoogled-chromium;
           };
 
           checks = {

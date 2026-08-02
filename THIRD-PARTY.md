@@ -1,7 +1,6 @@
 # Third-party notices
 
-`ecr` itself is licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE)
-at your option. This file records what else ships in, or is required by, a build,
+`ecr` itself is licensed under the [MIT licence](LICENSE). This file records what else ships in, or is required by, a build,
 and what each of those things obliges us to do.
 
 Regenerate the dependency audit with:

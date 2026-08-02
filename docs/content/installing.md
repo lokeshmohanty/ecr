@@ -4,8 +4,6 @@ description = "The two published channels, Home Manager, NixOS, and what each re
 weight = 1
 +++
 
-# Installing
-
 Two channels are published from this repository, and they differ only in which
 commit you get.
 

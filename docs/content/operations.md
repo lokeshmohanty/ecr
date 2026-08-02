@@ -4,8 +4,6 @@ description = "Running the server, device tokens, doctor, Android, and troublesh
 weight = 2
 +++
 
-# Operations
-
 ## Prerequisites
 
 `notmuch`, `mbsync` (isync) and `msmtp` must be on `PATH`, plus whatever your
@@ -134,8 +132,9 @@ service and the server never reaches out to a client, so nothing is announced
 while ecr is closed — on a phone that means notifications are worth much less
 than they are on a desktop you leave running.
 
-The app talks to your server over plain HTTP unless you have gone to the trouble
-of giving it a certificate. That is deliberate and is configured in
+The app talks to your server over plain HTTP unless you have gone to the
+trouble of giving it a certificate. I made that choice deliberately; it is
+configured in
 `shell/android/overlay/.../network_security_config.xml`: the server address is
 whatever you type in, a LAN or tailnet address can hold no public-CA
 certificate, and requiring HTTPS would mean requiring a private PKI before the
@@ -205,13 +204,6 @@ on NixOS.
 `bundle.android.minSdkVersion` is set to 28 in `shell/tauri.conf.json`.
 
 The web client is also a working PWA and can be added to the home screen today.
-
-## iOS
-
-Not built. CI compiles the iOS target on every push to catch bitrot, but the
-output is unsigned and cannot be installed. Shipping one needs an Apple Developer
-account, a distribution certificate and a provisioning profile. See
-[releasing.md](@/releasing.md#ios).
 
 ## Installing a release
 

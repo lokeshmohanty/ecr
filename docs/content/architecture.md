@@ -4,8 +4,6 @@ description = "The crates, the data flow, and why the pieces are shaped this way
 weight = 3
 +++
 
-# Architecture
-
 ## Crates
 
 | Crate | Responsibility |
@@ -19,7 +17,7 @@ weight = 3
 
 ## Configuration discovery
 
-The single largest cause of the previous implementation's failure was hardcoded
+The single largest cause of my previous implementation's failure was hardcoded
 paths. Nothing is hardcoded now. Each tool's config is resolved in order:
 
 1. an explicit path in `~/.config/ecr/server.toml`

@@ -4,8 +4,6 @@ description = "How a release is cut, what CI produces, and what has to be true f
 weight = 6
 +++
 
-# Releasing
-
 How a release is cut, what CI produces, and what has to be true first.
 
 ## Versioning
@@ -41,8 +39,9 @@ The tag starts `.github/workflows/release.yml`, which:
    version as the body.
 5. Publishes the crates to crates.io, in dependency order.
 
-The release is left as a draft on purpose. Download at least one artifact and run
-it before pressing publish — CI proves the build succeeded, not that it works.
+I leave the release as a draft on purpose. Download at least one artifact and
+run it before pressing publish: CI proves the build succeeded, not that it
+works.
 
 ## Artifacts
 
@@ -76,8 +75,8 @@ Two channels are published, and the tag is what moves the stable one:
 The `release-branch` job fast-forwards `release` to the tagged commit. It is a
 fast-forward rather than a force push on purpose: releases only move forward, so
 a push that would rewrite history means the tag is wrong, and failing loudly is
-the right answer. It runs after `tarball`, `desktop` and `android` — a tag whose
-build fails must never become what everyone's `nix flake update` pulls.
+the right answer. It runs after `tarball`, `desktop` and `android`: a tag whose build fails must
+never become what everyone's `nix flake update` pulls.
 
 It does **not** wait for the draft release to be published. The flake is
 consumed from git, not from an artifact, and the tag is already immutable.
@@ -189,27 +188,6 @@ the resulting APK cannot reach an http server and wears the Tauri logo. Run
 has never been run is a recipe that does not work.
 
 `PRIVACY.md` is the policy the listing points at.
-
-## iOS
-
-The iOS job compiles on `macos-latest` and produces an unsigned build. It exists
-to catch bitrot, not to ship: `-CODE_SIGNING_ALLOWED=NO` means the output cannot
-be installed on a device.
-
-Making it shippable needs, in order:
-
-1. An Apple Developer Program membership (currently $99/year). There is no free
-   path to distributing an iOS app to other people.
-2. A distribution certificate and a provisioning profile, held as repository
-   secrets along with an App Store Connect API key.
-3. A signing and upload step in the iOS job.
-
-The client would also need to be told it cannot host a server: `ecr-server`
-shells out to `notmuch`, `mbsync` and `msmtp`, none of which exist on iOS. An iOS
-build is a thin client pointing at a server elsewhere, and its first-run
-experience has to say so rather than offering a `doctor` that can never pass.
-
-This is tracked as a v1.0.0 item and is not close.
 
 ## Checklist
 

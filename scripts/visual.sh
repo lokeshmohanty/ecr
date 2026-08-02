@@ -8,6 +8,34 @@ DEMO=/tmp/ecr-visual
 PORT="${ECR_VISUAL_PORT:-8377}"
 cd "$ROOT"
 
+# One browser build, everywhere.
+#
+# Every other suite asserts on the DOM and does not care which chromium runs it.
+# This one compares pixels, and two different builds rasterise the same glyph
+# differently: baselines recorded under one and compared under another drift
+# about 1% on *every* state at once, which looks alarming and means nothing.
+# The first CI run of this suite failed exactly that way — Google Chrome here,
+# Playwright's bundled chromium there.
+#
+# So the browser comes from the flake's nixpkgs, which is pinned, rather than
+# from whatever the machine happens to have. ECR_CHROME set by hand still wins,
+# for anyone deliberately checking another engine.
+# `.#visual-browser`, not `nixpkgs#chromium`: the bare nixpkgs reference goes
+# through the floating registry, so CI and a laptop would resolve different
+# revisions and land right back where this started.
+if [ -z "${ECR_CHROME:-}" ] && command -v nix > /dev/null; then
+  pinned=$(nix build --no-link --print-out-paths "$ROOT#visual-browser" 2>/dev/null || true)
+  if [ -n "$pinned" ] && [ -x "$pinned/bin/chromium" ]; then
+    export ECR_CHROME="$pinned/bin/chromium"
+  fi
+fi
+
+if [ -n "${ECR_CHROME:-}" ]; then
+  echo "  browser $ECR_CHROME"
+else
+  echo "  warning: no pinned chromium; baselines from this run are not portable" >&2
+fi
+
 cleanup() { [ -n "${SRV:-}" ] && kill "$SRV" 2>/dev/null; wait 2>/dev/null; }
 trap cleanup EXIT
 

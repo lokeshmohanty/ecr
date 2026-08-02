@@ -53,7 +53,6 @@ Run `just` bare to see every recipe.
 | `licences and advisories` | `cargo deny check licenses bans sources advisories` |
 | `nix` | `nix flake check` and `nix build .#ecr` |
 | `android` | a debug APK builds |
-| `ios` | an unsigned build compiles on macOS |
 
 On a failed browser job the screenshots and pixel diffs are uploaded as an
 artifact — a visual failure is not actionable without them.

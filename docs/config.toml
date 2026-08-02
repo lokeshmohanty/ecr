@@ -6,7 +6,7 @@
 # thing added for Zola's sake.
 base_url = "https://www.lokeshmohanty.in/ecr"
 title = "ecr"
-description = "A keyboard-driven mail client for an existing notmuch maildir"
+description = "Email Client in Rust — a keyboard-driven mail client for an existing notmuch maildir"
 theme = "reticle"
 compile_sass = true
 build_search_index = true
