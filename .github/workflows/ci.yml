@@ -32,6 +32,20 @@ jobs:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
       - uses: extractions/setup-just@v3
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      # `just lint` and `just test` reach the whole workspace, and the desktop
+      # shell embeds web/dist at compile time — so a pure-Rust job cannot build
+      # this workspace at all. The recipes build the client themselves; this is
+      # only what they need to do it.
+      - run: pnpm --dir web install --frozen-lockfile
 
       - run: just fmt-check
       - run: just lint

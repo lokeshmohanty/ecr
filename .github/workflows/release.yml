@@ -41,10 +41,12 @@ jobs:
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
 
+      # Before the Rust gates, not after: they reach the whole workspace, and
+      # the desktop shell embeds web/dist at compile time.
+      - run: pnpm --dir web install --frozen-lockfile
       - run: just fmt-check
       - run: just lint
       - run: just test
-      - run: pnpm --dir web install --frozen-lockfile
       - run: just test-web
 
       - name: The tag matches the version in Cargo.toml

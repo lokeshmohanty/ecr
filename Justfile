@@ -209,7 +209,8 @@ check: fmt-check lint test test-web e2e verify verify-compose verify-view verify
 check-all: check verify-live verify-live-ui verify-features verify-v2 verify-v3 verify-v4 verify-settings verify-widths verify-desktop
 
 # Rust tests. Integration tests build a throwaway notmuch database from fixtures/.
-test *args:
+# build-web for the same reason `lint` needs it: --workspace reaches the shell.
+test *args: build-web
     cargo test --workspace {{args}}
 
 # Web unit tests and typecheck.
@@ -226,7 +227,11 @@ test-watch:
 e2e *args:
     pnpm --dir web exec playwright test {{args}}
 
-lint:
+# Depends on build-web because the workspace does: `ecr-desktop` embeds
+# web/dist through `tauri::generate_context!`, so clippy cannot compile it
+# without one. Locally this was invisible — dist was always lying around from
+# an earlier build — and it was the first thing CI hit on a clean checkout.
+lint: build-web
     cargo clippy --workspace --all-targets -- -D warnings
 
 fmt:
