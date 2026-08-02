@@ -230,6 +230,12 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: tauri-cli
+      # Explicitly, rather than relying on tauri.conf.json's
+      # beforeBuildCommand: that runs `pnpm --dir web build`, which is only
+      # correct from the repository root, and `cargo tauri build` is invoked
+      # from shell/. Building it here makes the job independent of whichever
+      # directory the hook happens to run in.
+      - run: pnpm --dir web exec vite build
       - run: cargo tauri android init --ci
         working-directory: shell
       # Lays ecr's manifest, network security config and launcher icon over the
