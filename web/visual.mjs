@@ -218,7 +218,7 @@ const STATES = [
   },
   {
     name: "18-narrow-desktop",
-    description: "the three panes squeezed to 900px",
+    description: "two panes at 900px, the sidebar folded into a drawer",
     viewport: { width: 900, height: 760 },
     async setup(page) {
       await press(page, "Enter");
@@ -367,6 +367,48 @@ const STATES = [
     async setup(page) {
       await page.locator(ROW).first().click();
       await page.waitForTimeout(1800);
+    },
+  },
+  {
+    // The fixture server has no token store, so nothing it serves can be
+    // refused: the refusal is faked at the wire instead. What is being
+    // captured is the client's side of it either way — the prompt, over the
+    // list saying why it is empty.
+    name: "31-auth-refused",
+    description: "a device the server will not talk to, asking for a token",
+    async setup(page) {
+      // Every route but the public one. `/api/v1/health` answers a refused
+      // device exactly as it answers a paired one, and that is the whole
+      // difference between this state and an unreachable server: guarding it
+      // here would model a server that is not running, and the client would
+      // rightly ask for an address rather than for a token.
+      await page.route("**/api/v1/**", (route) =>
+        route.request().url().includes("/api/v1/health")
+          ? route.continue()
+          : route.fulfill({
+              status: 401,
+              contentType: "application/json",
+              body: JSON.stringify({
+                error: "unauthorized",
+                detail: "a valid bearer token is required",
+              }),
+            }),
+      );
+      await page.reload({ waitUntil: "networkidle" });
+      await page.waitForTimeout(1200);
+    },
+  },
+  {
+    // The other half of 18: what the sidebar looks like once it is asked for.
+    // The thread behind it is what the drawer is for — it does not move, so
+    // changing mailbox never costs the message being read.
+    name: "32-sidebar-drawer",
+    description: "the sidebar over the list at 900px, the thread still in place",
+    viewport: { width: 900, height: 760 },
+    async setup(page) {
+      await press(page, "Enter");
+      await page.waitForTimeout(1800);
+      await press(page, "h", "h");
     },
   },
 ];

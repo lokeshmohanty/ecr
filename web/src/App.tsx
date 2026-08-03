@@ -396,6 +396,9 @@ export function App() {
 			case "toggleSelect":
 				store.toggleSelect();
 				break;
+			case "toggleSelectNext":
+				store.toggleSelectNext();
+				break;
 			case "visualSelect":
 				store.startVisual();
 				break;
@@ -512,20 +515,45 @@ export function App() {
           Below `md` exactly one of these is shown, and which one is
           `store.pane()` — the same three names focus already moves between, so
           there is no second notion of where you are to drift from it.
+
+          Between that width and `sidebarMinWidth` the same signal shows two:
+          the list and the thread, which is the pairing the client is built
+          around, with the sidebar laid over the list only while it has focus.
+          `relative` is what the drawer and its scrim are positioned against.
         */}
 				<main
-					class="grid min-h-0 flex-1"
+					class="relative grid min-h-0 flex-1"
 					classList={{
 						"md:grid-cols-[14rem_minmax(0,1.05fr)_minmax(0,1.45fr)]":
-							!store.fullscreen(),
+							!store.fullscreen() && store.layout() === "three",
+						"md:grid-cols-[minmax(0,1.05fr)_minmax(0,1.45fr)]":
+							!store.fullscreen() && store.layout() === "two",
 						"md:grid-cols-[minmax(0,1fr)]": store.fullscreen(),
 					}}
 				>
+					{/*
+            Taking the sidebar out of the flow is what leaves the other two
+            columns where they were, so opening it does not reflow the mail
+            behind it. The scrim is how a pointer closes it again: clicking the
+            list would do it too — the drawer is only up while the sidebar has
+            focus — but a row would take the click on its way past.
+          */}
+					<Show when={store.layout() === "two" && store.pane() === "sidebar"}>
+						<div
+							class="absolute inset-0 z-10 bg-black/30"
+							aria-hidden="true"
+							onClick={() => store.setPane("list")}
+						/>
+					</Show>
+
 					<div
 						class="min-h-0 min-w-0"
 						classList={{
 							hidden: store.pane() !== "sidebar",
-							"md:block": !store.fullscreen(),
+							"md:block":
+								!store.fullscreen() && store.layout() === "three",
+							"absolute inset-y-0 left-0 z-20 w-56 shadow-2xl":
+								store.layout() === "two",
 						}}
 					>
 						<Sidebar

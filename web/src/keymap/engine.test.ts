@@ -41,6 +41,13 @@ describe("single keys", () => {
 		const map = new Keymap();
 		expect(press(map, "Q")).toEqual({ type: "ignored", consumed: false });
 	});
+
+	it("Space selects the row and moves down in the list", () => {
+		const map = new Keymap();
+		expect(press(map, " ")).toMatchObject({
+			action: { kind: "toggleSelectNext" },
+		});
+	});
 });
 
 describe("pane scoping", () => {

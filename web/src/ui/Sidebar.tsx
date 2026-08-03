@@ -35,9 +35,16 @@ export function Sidebar(props: {
 		props.store.setSidebarIndex(index);
 		props.store.setPane("sidebar");
 
-		// Same hand-over as Enter: on a phone the sidebar fills the screen, so
-		// picking a view has to show the result of picking it.
-		if (props.store.activateSidebar() && isNarrow())
+		if (!props.store.activateSidebar()) return;
+
+		// On a phone the sidebar fills the screen, so picking anything has to
+		// show the result of picking it. On a desktop the hand-over is about the
+		// keys rather than the pixels: a pointer has no `h`/`l`, so whatever is
+		// typed after clicking a view goes to the sidebar, where `j` walks to the
+		// next mailbox instead of the next thread — and the detail pane, which
+		// follows the *list* cursor, sits on the thread it was already showing.
+		// Group and section rows are folds, so a click there stays put.
+		if (isNarrow() || rows()[index]?.kind === "view")
 			props.store.setPane("list");
 	};
 

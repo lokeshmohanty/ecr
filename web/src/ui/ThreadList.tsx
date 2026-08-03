@@ -84,26 +84,87 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
                 when={!props.store.threads.loading}
                 fallback={<span class="text-ink-3">loading…</span>}
               >
+                {/*
+                  A refused device is not an unreachable server: this one
+                  answered, and said who it will not talk to. Reporting it as
+                  "cannot reach" sends the reader to their network rather than
+                  to the token that fixes it.
+                */}
                 <Show
-                  when={props.store.lastError()}
-                  fallback={<span class="text-ink-3">no matching threads</span>}
-                >
-                  {(error) => (
+                  when={!props.store.needsToken()}
+                  fallback={
                     <div class="max-w-sm">
-                      <p class="mb-2 text-blocking">cannot reach the server</p>
-                      <p class="mb-3 text-xs break-words text-ink-3">{error()}</p>
+                      <p class="mb-2 text-blocking">this device is not authorised</p>
                       <p class="mb-3 text-xs text-ink-3">
-                        {props.store.connection().baseUrl || "no server url configured"}
+                        Issue a token on the server with{" "}
+                        <code>ecr token new &lt;name&gt;</code>.
                       </p>
                       <button
                         type="button"
                         class="touch-target rounded border border-rule px-3 py-1.5 text-obligation hover:bg-neutral-bg"
-                        onClick={() => props.store.bumpRevision()}
+                        onClick={() => props.store.setAskingToken(true)}
                       >
-                        retry
+                        enter a token
                       </button>
                     </div>
-                  )}
+                  }
+                >
+                  <Show
+                    when={props.store.lastError()}
+                    fallback={<span class="text-ink-3">no matching threads</span>}
+                  >
+                    {(error) => (
+                      <div class="max-w-sm">
+                        {/*
+                          The public health route is what tells these apart, and
+                          they have nothing in common but an empty pane. Nothing
+                          answered: the address is wrong, or no server is running
+                          there, and the fix is in the address field. Something
+                          answered and then this request failed: the address is
+                          right and the server has an opinion worth repeating,
+                          which sending the reader to their network would bury.
+                        */}
+                        <Show
+                          when={!props.store.reachable()}
+                          fallback={
+                            <>
+                              <p class="mb-2 text-blocking">the server could not answer</p>
+                              <p class="mb-3 text-xs break-words text-ink-3">{error()}</p>
+                              <button
+                                type="button"
+                                class="touch-target rounded border border-rule px-3 py-1.5 text-obligation hover:bg-neutral-bg"
+                                onClick={() => props.store.retryServer()}
+                              >
+                                retry
+                              </button>
+                            </>
+                          }
+                        >
+                          <p class="mb-2 text-blocking">cannot reach the server</p>
+                          <p class="mb-3 text-xs break-words text-ink-3">{error()}</p>
+                          <p class="mono mb-3 text-xs break-words text-ink-3">
+                            {props.store.connection().baseUrl || "no server url configured"}
+                          </p>
+                          <div class="flex flex-wrap justify-center gap-2">
+                            <button
+                              type="button"
+                              class="touch-target rounded border border-rule px-3 py-1.5 text-obligation hover:bg-neutral-bg"
+                              onClick={() => props.store.retryServer()}
+                            >
+                              retry
+                            </button>
+                            <button
+                              type="button"
+                              class="touch-target rounded border border-rule px-3 py-1.5 text-obligation hover:bg-neutral-bg"
+                              onClick={() => props.store.setAskingServer(true)}
+                            >
+                              change address
+                            </button>
+                          </div>
+                        </Show>
+                      </div>
+                    )}
+                  </Show>
                 </Show>
               </Show>
             </div>

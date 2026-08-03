@@ -235,7 +235,7 @@ describe("reporting a bad file", () => {
 		// An action the section omits keeps its default key, so Space/v/t still work.
 		expect(
 			settings.bindings.some(
-				(b) => b.keys === " " && b.action.kind === "toggleSelect",
+				(b) => b.keys === " " && b.action.kind === "toggleSelectNext",
 			),
 		).toBe(true);
 		expect(

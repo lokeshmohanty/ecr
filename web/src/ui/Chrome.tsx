@@ -14,10 +14,15 @@ export function TopBar(props: { store: AppStore; onSync: () => void; onSettings:
         `h` reaches the sidebar on a desktop; a phone has no keyboard and shows
         one pane at a time, so without this the views, tags and lists cannot be
         reached at all. It toggles, because the way back is the same journey.
+
+        It is there for every width the sidebar is not, which is a setting
+        rather than a breakpoint — so it is drawn from the same `layout()` the
+        columns are, and not from a `md:hidden` that would disagree with it.
       */}
       <button
         type="button"
-        class="touch-target shrink-0 rounded px-2 py-1 text-ink-2 hover:bg-neutral-bg md:hidden"
+        class="touch-target shrink-0 rounded px-2 py-1 text-ink-2 hover:bg-neutral-bg"
+        classList={{ hidden: props.store.layout() === "three" }}
         onClick={() =>
           props.store.setPane(props.store.pane() === "sidebar" ? "list" : "sidebar")
         }

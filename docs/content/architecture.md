@@ -126,6 +126,20 @@ hardcoded allowlist would break real deployments (a tailnet hostname, a phone,
 a different port) while stopping nothing, since a non-browser client ignores
 CORS entirely. `--allowed-origin` restricts it where that is wanted.
 
+A refusal is raised from the one place every request passes through — `Api`'s
+`request`, which calls the store's `onUnauthorized` on a 401 — rather than from
+whoever asked. Most callers swallow their errors to keep a pane quiet, so any
+other arrangement leaves a refused device staring at an empty client that
+explains nothing. The store keeps the refusal (`needsToken`) apart from whether
+the prompt is showing (`askingToken`): dismissing the prompt authorises nothing,
+and folding the two together made the thread list claim it could not reach a
+server that had answered. Pairing checks the token against `/api/v1/revision`
+before storing it — `/api/v1/health` is public, so it answers the same for a
+token that is worthless — and every resource keys on the token as well as the
+base URL, which is what makes a device paired mid-session refetch rather than
+stay empty behind the prompt that just fixed it. See
+[pairing a browser](@/operations.md).
+
 ## Client
 
 - **Layout.** Rows are a CSS grid with a fixed date track and a `min-width: 0`
@@ -211,6 +225,27 @@ CORS entirely. `--allowed-origin` restricts it where that is wanted.
   by hand. Picking a view there hands over to the list, since on a phone the
   sidebar *is* the screen and a choice that changed nothing visible reads as a
   dead control.
+- **Three panes are the widest of three answers, not the only one.**
+  `store.layout()` says which — `ui/narrow.ts`'s `layoutFor` is the whole rule,
+  a pure function of the window's width and this device's `sidebar_min_width`.
+  Below that width the sidebar leaves the grid and is laid *over* the list as a
+  drawer, so the list and the thread keep the space they had rather than being
+  squeezed into three columns none of which is comfortable. The `☰` appears at
+  every width the sidebar is not, which is why it is drawn from `layout()`
+  rather than from the `md:hidden` it used to be: the line is a setting, and a
+  breakpoint compiled into a class cannot follow one.
+
+  Which pane the drawer is showing for is still `pane()`, not a second signal —
+  the sidebar is up exactly while it has focus, so `h`, the `☰` and the scrim
+  are three ways to say the same thing and none of them can disagree. Taking it
+  out of the flow is what leaves the thread where it was: changing mailbox
+  never costs the message being read.
+
+  The phone's own line stays fixed at `md`. That breakpoint also decides the
+  action bar, the plain-text composer, the swipe gestures and the safe-area
+  insets — those answer *is this a touch phone*, not *how many columns fit* —
+  so a setting that moved one without the others would leave a stacked client
+  with a desktop's composer in it.
 - **Touch is a first-class way in, not a degraded keyboard.** The keymap engine
   is untouched — a Bluetooth keyboard drives a phone exactly as it drives a
   desktop — but below `md` the client offers its own vocabulary: the status

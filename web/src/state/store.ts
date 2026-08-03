@@ -46,6 +46,7 @@ import {
 } from "./views";
 import { parseAddress, type AddressEntry } from "./suggest";
 import { effectiveFormat, toggled, type MessageFormat } from "./format";
+import { layoutFor, viewportWidth } from "../ui/narrow";
 
 import {
 	MARK_TAGS,
@@ -198,6 +199,15 @@ export function createAppStore() {
 	 * `h`/`l` back out of it rather than landing on a pane you cannot see.
 	 */
 	const [fullscreen, setFullscreen] = createSignal(false);
+	/**
+	 * How many panes are on screen. `pane()` says which one has focus at any
+	 * width; this says whether the other two are beside it, and it is the only
+	 * thing that decides — a second signal for the sidebar being open could
+	 * drift from the focus that opened it, which is the trap the phone's panes
+	 * document.
+	 */
+	const layout = () =>
+		layoutFor(viewportWidth(), settings().preferences.sidebarMinWidth);
 	const [right, setRight] = createSignal<RightPane>({ kind: "reading" });
 	const [palette, setPalette] = createSignal("");
 	const [selected, setSelected] = createSignal(0);
@@ -1298,6 +1308,16 @@ export function createAppStore() {
 		setStatus(`${selectionIndices().length} selected`);
 	}
 
+	/**
+	 * Space selects the row under the cursor and advances, so several in a row
+	 * are picked with one key each. Touch long-press calls `toggleSelect`
+	 * directly and must not advance — the finger is on the row it just picked.
+	 */
+	function toggleSelectNext() {
+		toggleSelect();
+		move(1);
+	}
+
 	/** `v` starts a range where the cursor is, and `v` again abandons it. */
 	function startVisual() {
 		const started = visualAnchor() === null;
@@ -1704,6 +1724,7 @@ export function createAppStore() {
 		pane,
 		setPane,
 		focusPane,
+		layout,
 		fullscreen,
 		toggleFullscreen,
 		right,
@@ -1772,6 +1793,7 @@ export function createAppStore() {
 		selectionIndices,
 		isSelected,
 		toggleSelect,
+		toggleSelectNext,
 		startVisual,
 		clearVisual,
 		clearSelection,

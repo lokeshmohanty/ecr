@@ -105,6 +105,24 @@ test.describe("sidebar", () => {
     await expect(page.locator("#ecr-query")).toHaveValue(/tag:inbox/);
   });
   /**
+   * Clicking a view left the keys pointed at the sidebar, so the `j` after it
+   * walked to the next mailbox rather than the next thread — and the detail
+   * pane, which follows the list cursor, went on showing the thread it already
+   * had. It read as the reading pane having stopped updating.
+   */
+  test("clicking a view hands the keys to the list it just loaded", async ({ page, server }) => {
+    await open(page, server);
+    await page.waitForTimeout(500);
+
+    await page.locator(row("All Mail")).first().click();
+    await page.waitForTimeout(1500);
+    const opened = await page.locator("h1").first().textContent();
+
+    await page.keyboard.press("j");
+    await expect(page.locator("h1").first()).not.toHaveText(opened ?? "", { timeout: 10_000 });
+  });
+
+  /**
    * The saved queries are the one client-scoped list, and localStorage is the
    * only place they live — so this is the only level at which saving one can be
    * checked end to end.

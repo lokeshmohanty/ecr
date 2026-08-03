@@ -44,6 +44,8 @@ export interface Preferences {
 	sidebarLeaders: boolean;
 	/** Fetch and show message counts in the sidebar. */
 	sidebarCounts: boolean;
+	/** Narrower than this, the sidebar folds into a drawer over the list. */
+	sidebarMinWidth: number;
 	/** Which sidebar sections appear, in order. */
 	sidebarSections: SectionId[];
 	/** Extra sidebar rows the user defined, appended after the sections. */
@@ -69,6 +71,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
 	sidebarIcons: true,
 	sidebarLeaders: true,
 	sidebarCounts: true,
+	sidebarMinWidth: 1024,
 	sidebarSections: [...SECTION_IDS],
 	sidebarCustom: [],
 };
@@ -196,6 +199,12 @@ export const PREFERENCE_DOCS: Record<keyof Preferences, PreferenceDoc> = {
 		section: "sidebar",
 		scope: "client",
 		doc: "Fetch and show how many messages each entry matches. Turning this off\nmeans the sidebar costs no requests at all.",
+	},
+	sidebarMinWidth: {
+		section: "sidebar",
+		scope: "client",
+		doc: "How wide the window must be, in pixels, for the sidebar to keep a column\nof its own. Narrower than this it folds into a drawer over the list, ☰ or\nh opens it, and picking a view closes it again — so a half-width window\nreads mail in two panes rather than three cramped ones. Below 768 the\nclient shows one pane at a time whatever this says. Set it below that to\nkeep three panes at every width, or above any screen you own to keep the\ndrawer at every width.",
+		values: "a width in pixels",
 	},
 	sidebarSections: {
 		section: "sidebar",

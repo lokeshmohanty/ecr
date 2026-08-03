@@ -16,6 +16,7 @@ export type Action =
 	| { kind: "executeMarks" }
 	| { kind: "clearMarks" }
 	| { kind: "toggleSelect" }
+	| { kind: "toggleSelectNext" }
 	| { kind: "visualSelect" }
 	| { kind: "tagPrompt" }
 	| { kind: "toggleRead" }
@@ -167,8 +168,8 @@ export const DEFAULT_BINDINGS: Binding[] = [
 	},
 	{
 		keys: " ",
-		action: { kind: "toggleSelect" },
-		description: "select this row",
+		action: { kind: "toggleSelectNext" },
+		description: "select this row and move down",
 		panes: ["list"],
 	},
 	{

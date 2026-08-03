@@ -461,6 +461,29 @@ are pane-scoped: `Enter` opens a thread in the list and selects a view in the
 sidebar. `web/src/keymap/engine.ts` owns the table; a binding without `panes`
 is global.
 
+**How many of the three are on screen is `store.layout()`, and the line is a
+setting rather than a breakpoint.** `layoutFor` in `ui/narrow.ts` is the whole
+rule: below `md` one pane (the phone, unchanged), below the device's
+`sidebar_min_width` two, and above it three. In the middle the sidebar leaves
+the grid and is laid *over* the list as a drawer — the list and the thread keep
+the width they had, so a half-screen window reads mail in the pairing the
+client is built around rather than in three columns none of which is
+comfortable, and changing mailbox never moves the message being read. It is up
+exactly while the sidebar has focus, so `h`, the `☰` and the scrim are three
+ways to say the same thing; a second signal for *is the drawer open* could only
+drift from the focus that opened it. The `☰` is therefore drawn from `layout()`
+and not from the `md:hidden` it used to carry — a class compiled at a fixed
+width cannot follow a number the reader chose.
+
+**The phone's line stays fixed at `md`, and that is deliberate.** The same
+breakpoint decides the action bar, the plain-text composer, the swipe gestures
+and the safe-area insets, which answer *is this a touch phone* rather than *how
+many columns fit*. Only `sidebar_min_width` is configurable; a setting that
+moved the other line would leave a stacked client holding a desktop's composer.
+Setting it below 768 keeps three panes at every width, above any real screen
+keeps the drawer at every width, and both ends are meaningful rather than
+invalid.
+
 **A phone is not a small desktop, and the vim layer is not offered there.**
 The keymap engine is untouched and a Bluetooth keyboard still drives
 everything, but a touch screen gets its own way in: the status line becomes an
@@ -481,6 +504,16 @@ unreachable on a phone — views, tags, lists and account switching could only b
 had by typing a notmuch query by hand. The `☰` in the top bar is the phone's
 `h`, and picking a view there hands over to the list, because a sidebar that
 fills the screen and then appears to do nothing reads as a broken control.
+
+**Clicking a view hands over on a desktop too — for the keys, not the pixels.**
+A pointer has no `h`/`l`, so the pane a click leaves focused is the pane every
+key after it goes to: clicking a mailbox and then pressing `j` walked the
+*sidebar*, and since the detail pane follows the **list** cursor, it sat on the
+thread it already had. It reads as the reading pane having stopped updating,
+which is nothing like a focus problem. Only view rows hand over — group and
+section rows are folds, and a click there stays where it is. Keyboard `Enter`
+is unchanged: `j`/`k` in the sidebar already load the mailbox under the cursor,
+so a keyboard user browsing views with `j` is doing exactly what they asked for.
 
 The right-hand pane shows one of three things (`RightPane` in the store):
 the thread, a composer, or settings. Reply, compose and settings all render
@@ -547,7 +580,8 @@ in another. The fixtures are dated 2026-04-01, so `visual.mjs` pins the clock �
 without it the baselines would change shape at new year rather than when someone
 changed the UI.
 
-The list selects before it acts. `Space` picks a row, `v`/`V` draw a range, and
+The list selects before it acts. `Space` picks a row and steps to the next,
+`v`/`V` draw a range, and
 `d`/`a`/`u`/`f` and `t` (any tag, `+work -inbox`) *stage* against everything
 selected; `x` writes them in one call and `X` clears. Staged tags show in the
 margin as badges, so what is about to be written is readable first. A range is

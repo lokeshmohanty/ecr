@@ -100,7 +100,7 @@ describe("a device with settings of its own", () => {
 		// snapshot missing it. Loading heals the gap rather than leaving the key dead.
 		const stale = defaultSettings().bindings.filter(
 			(b) =>
-				b.action.kind !== "toggleSelect" &&
+				b.action.kind !== "toggleSelectNext" &&
 				b.action.kind !== "visualSelect" &&
 				b.action.kind !== "tagPrompt",
 		);
@@ -110,9 +110,9 @@ describe("a device with settings of its own", () => {
 		});
 
 		const loaded = loadClientSettings();
-		expect(loaded.bindings.some((b) => b.action.kind === "toggleSelect")).toBe(
-			true,
-		);
+		expect(
+			loaded.bindings.some((b) => b.action.kind === "toggleSelectNext"),
+		).toBe(true);
 		expect(loaded.bindings.some((b) => b.action.kind === "visualSelect")).toBe(
 			true,
 		);
