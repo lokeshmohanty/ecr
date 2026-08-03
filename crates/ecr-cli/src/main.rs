@@ -1,5 +1,6 @@
 mod doctor;
 mod help;
+mod init;
 mod oauth;
 mod qr;
 mod serve;
@@ -65,6 +66,12 @@ enum Command {
             help = "directory holding the built web client; found automatically if omitted"
         )]
         web_dir: Option<PathBuf>,
+
+        #[arg(
+            long,
+            help = "fail instead of offering to set up a missing mail configuration"
+        )]
+        no_init: bool,
     },
 
     #[command(about = "stop the server running in the background")]
@@ -295,6 +302,7 @@ async fn dispatch() -> anyhow::Result<()> {
             no_watch,
             allowed_origin,
             web_dir,
+            no_init,
         } => {
             serve::run(serve::Options {
                 bind,
@@ -303,6 +311,7 @@ async fn dispatch() -> anyhow::Result<()> {
                 allowed_origins: allowed_origin,
                 web_dir,
                 token_path,
+                no_init,
             })
             .await
         }
@@ -327,10 +336,7 @@ async fn dispatch() -> anyhow::Result<()> {
             Ok(())
         }
 
-        Command::Init { .. } => not_yet(
-            "`ecr init` is not implemented yet",
-            "Set up notmuch, mbsync and msmtp by hand, then run `ecr doctor`.",
-        ),
+        Command::Init { force } => init::run(force).await,
         Command::Stop | Command::Status | Command::Restart => not_yet(
             "the server does not run in the background yet",
             "Run `ecr serve` in a terminal; ctrl-c stops it.",

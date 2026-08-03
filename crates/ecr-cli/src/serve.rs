@@ -13,6 +13,7 @@ pub struct Options {
     pub allowed_origins: Vec<String>,
     pub web_dir: Option<PathBuf>,
     pub token_path: PathBuf,
+    pub no_init: bool,
 }
 
 pub async fn run(options: Options) -> anyhow::Result<()> {
@@ -23,7 +24,22 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
         allowed_origins,
         web_dir,
         token_path,
+        no_init,
     } = options;
+
+    // A machine with no mail configuration cannot be served, and until now that
+    // was the end of it: `NotmuchStore::open` failed naming every path it had
+    // looked in, which tells you what is missing and nothing about how to make
+    // it. Init is offered here instead, before the store is opened, and it asks
+    // before it writes anything. `--no-init` is the way back to refusing.
+    //
+    // It does not make a fresh machine servable on its own, and is not meant to:
+    // an empty maildir has no accounts, which doctor calls a failure below. What
+    // it removes is the step where the reader has to compose a notmuch config by
+    // hand before anything can even be diagnosed.
+    if !no_init && !crate::init::is_configured() {
+        crate::init::ensure().await?;
+    }
 
     let store = Arc::new(NotmuchStore::open()?);
 

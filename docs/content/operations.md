@@ -35,12 +35,41 @@ ecr man > ~/.local/share/man/man1/ecr.1
 ecr completions fish > ~/.config/fish/completions/ecr.fish
 ```
 
-`ecr init`, `ecr web`, `ecr qr`, `ecr logs` and the background
+`ecr web`, `ecr qr`, `ecr logs` and the background
 lifecycle (`stop`, `status`, `restart`) are declared but not yet implemented;
 each says so and names what to use meanwhile. The desktop client is a separate
 binary, `ecr-desktop`, built from `shell/`.
 
 ## Start here
+
+```bash
+ecr init
+```
+
+It adopts whatever already exists rather than replacing it: if a notmuch config
+resolves through the [four-step order](#configuration), that is the setup and
+`init` only reports on it. Otherwise it looks for a maildir — `~/Mail`,
+`~/Maildir`, `~/.mail`, `~/.maildir` — and offers the one it finds, falling back
+to `~/.local/share/mail`. The path is a question, not a decision; answer it with
+anywhere you like.
+
+**Nothing is written without being confirmed first**, and the notmuch config is
+printed in full before the prompt to write it. Because every step asks, `init`
+needs a terminal: with no stdin it refuses rather than hanging where nobody can
+see it.
+
+It sets `index.header.List=List-Id` while doing so. That is free on an empty
+database and costs a full `notmuch reindex '*'` afterwards, and without it the
+sidebar's mailing lists cannot be searched at all.
+
+`--force` replaces a config ecr generated, moving the old one aside first.
+
+`ecr serve` runs this by itself when no configuration resolves, so a fresh
+machine is offered the setup instead of an error naming the paths it looked in.
+It does not make that machine servable on its own — an empty maildir has no
+accounts, which is a failure below — but it removes having to write a notmuch
+config by hand before anything can be diagnosed. `ecr serve --no-init` refuses
+instead, which is what a systemd unit or a container wants.
 
 ```bash
 ecr doctor

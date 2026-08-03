@@ -1174,6 +1174,7 @@ dependencies = [
  "ecr-store",
  "qrcode",
  "serde_json",
+ "tempfile",
  "tokio",
  "tracing",
  "tracing-subscriber",

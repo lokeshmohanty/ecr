@@ -26,13 +26,23 @@ A first run
   ecr needs notmuch, mbsync and msmtp configured, plus whatever your config
   invokes to authenticate. It reads their configuration rather than owning it.
 
-    1. ecr doctor
+    1. ecr init
+       Adopts whatever is already there. With nothing there, it offers to write
+       a notmuch config and create the database, asking before each change and
+       showing the file before it writes it. `ecr serve` runs this by itself
+       when no configuration resolves at all.
+
+    2. ecr oauth setup <name> --provider gmail --email you@example.com
+       Then point mbsync at it and run `mbsync -a`. Until mail exists there are
+       no accounts, and the server will not start.
+
+    3. ecr doctor
        Reports the config each tool resolved to and how it was found, the
        maildir root, the database, every account and its token state. It names
        a fix for anything broken. The server refuses to start until this is
        healthy.
 
-    2. ecr serve
+    4. ecr serve
        Prints the address to open. The web client is served from the same
        origin, so opening that address is the whole app.
 
