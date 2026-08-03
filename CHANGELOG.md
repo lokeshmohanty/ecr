@@ -9,6 +9,56 @@ release; both are frozen at v1.0.0.
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-08-04
+
+### Added
+
+- **A SQLite mirror of what notmuch knows** answers mailbox listings and counts,
+  instead of a notmuch process per request: 45ms against 82ms for a page of a
+  46k inbox. It is a cache and never a source of truth — notmuch remains the
+  only writer, the file at `~/.local/state/ecr/index.sqlite3` can be deleted at
+  any point, and `index = false` in `server.toml` turns it off. Only queries it
+  can prove it answers *identically* are taken: tags, ids, threads, `*` and
+  booleans of those. Text search stays notmuch's on purpose, because an FTS
+  index does not select the same messages Xapian does. `ecr doctor` reports its
+  size and how far behind it is.
+- **`ecr init`** writes a notmuch config, creates the maildir and runs `notmuch
+  new`, so a machine with no mail setup is offered one instead of an error
+  naming every path it looked in. `ecr serve` offers it when nothing resolves;
+  `--no-init` refuses instead, which is what a systemd unit wants. Every write
+  is confirmed, and it declines to prompt when there is no terminal.
+- **A phone pairs by scanning one code.** `ecr token new --qr --url
+  http://host:8383` puts the address and the token in the same QR, and Android
+  reads it with the camera — from the first screen, and afterwards from
+  Settings → Server to move the device to another server. A code carrying only
+  a token, which is what `--qr` printed before, still works.
+- **The sidebar folds into a drawer** rather than the three panes being squeezed
+  together. How many are on screen is a setting, `sidebar_min_width`, not a
+  breakpoint.
+- **`Space` picks a row and steps to the next**, so a run of rows is selected
+  with one key each.
+- **ecr is dual-licensed** under the MIT licence or GPL-3.0-or-later. Either may
+  be chosen; the dependency tree stays permissive by choice.
+
+### Fixed
+
+- The client can tell **a server that refused this device from one that is not
+  there**. A 401 raises the token prompt, an address that answers nothing raises
+  the address prompt, and neither is reported as the other. The address prompt
+  no longer raises itself over mail still on screen when a laptop wakes or a
+  phone leaves a tunnel.
+- A setting the server refused is no longer reported as an outage, and a theme
+  that failed to load no longer displaces the reason the thread list is empty.
+- A failure fetching tags, lists or themes no longer blanks the whole client.
+- Clicking a view in the sidebar hands the keys to the list it just loaded, so
+  `j` afterwards walks the mail rather than the sidebar.
+
+### Note
+
+v0.2.0 was tagged but never published — it was left as a draft, which is
+invisible to anyone without write access. The workflow now publishes outright,
+and this release carries everything that was in it.
+
 ## [0.2.0] — 2026-08-03
 
 ### Added
@@ -211,7 +261,8 @@ Published to crates.io only; see 0.1.1. See the
 - `fixtures/notmuch-config`, which nothing referenced and which hardcoded an
   absolute home directory.
 
-[Unreleased]: https://github.com/lokeshmohanty/ecr/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/lokeshmohanty/ecr/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/lokeshmohanty/ecr/releases/tag/v0.2.1
 [0.2.0]: https://github.com/lokeshmohanty/ecr/releases/tag/v0.2.0
 [0.1.2]: https://github.com/lokeshmohanty/ecr/releases/tag/v0.1.2
 [0.1.1]: https://github.com/lokeshmohanty/ecr/releases/tag/v0.1.1
