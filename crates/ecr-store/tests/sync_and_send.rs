@@ -164,7 +164,10 @@ async fn a_failing_send_appends_the_oauth_authorize_hint() {
         .expect_err("send should fail");
 
     assert!(err.to_string().contains("authentication failed"), "{err}");
-    assert!(err.to_string().contains("oauthman authorize main"), "{err}");
+    assert!(
+        err.to_string().contains("ecr oauth authorize main"),
+        "{err}"
+    );
 }
 
 #[tokio::test]

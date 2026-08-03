@@ -67,12 +67,25 @@ pub struct ImapAccount {
 }
 
 impl ImapAccount {
+    /// The OAuth profile behind this account, read out of its `PassCmd`.
+    ///
+    /// `oauthman` is still recognised because it is what an existing setup says
+    /// until its configuration is regenerated, and losing the mapping would cost
+    /// doctor its token checks and a send failure its explanation — in exactly
+    /// the window where the user is midway through the switch.
     pub fn oauth_profile(&self) -> Option<&str> {
         let cmd = self.pass_cmd.as_deref()?.trim_matches('"');
         let mut words = cmd.split_whitespace();
-        (words.next()?.ends_with("oauthman") && words.next()? == "token")
-            .then(|| words.next())
-            .flatten()
+        // The binary is often an absolute path — a Nix store path, or
+        // ~/.local/bin — so only the file name can be matched.
+        let binary = words.next()?.rsplit('/').next()?;
+        match binary {
+            "ecr" => (words.next()? == "oauth" && words.next()? == "token")
+                .then(|| words.next())
+                .flatten(),
+            "oauthman" => (words.next()? == "token").then(|| words.next()).flatten(),
+            _ => None,
+        }
     }
 }
 
@@ -364,7 +377,7 @@ primary_email=alice@example.com
 IMAPAccount work
 AuthMechs XOAUTH2
 Host outlook.office365.com
-PassCmd "oauthman token work"
+PassCmd "ecr oauth token work"
 Port 993
 TLSType IMAPS
 User alice@example.org
@@ -386,7 +399,7 @@ Patterns *
 IMAPAccount main
 AuthMechs XOAUTH2
 Host imap.gmail.com
-PassCmd "oauthman token main"
+PassCmd "ecr oauth token main"
 Port 993
 User alice@example.com
 
@@ -446,6 +459,41 @@ Patterns *
     fn a_plain_password_has_no_oauth_profile() {
         let cfg = MbsyncConfig::parse("IMAPAccount x\nPass hunter2\nUser a@b.c\n");
         assert_eq!(cfg.imap_accounts["x"].oauth_profile(), None);
+    }
+
+    /// The binary is written as an absolute path by anything that is not
+    /// relying on PATH — a Nix store path, or ~/.local/bin.
+    #[test]
+    fn the_profile_survives_an_absolute_path_to_the_binary() {
+        for cmd in [
+            "/run/current-system/sw/bin/ecr oauth token main",
+            "/home/alice/.local/bin/oauthman token main",
+        ] {
+            let cfg = MbsyncConfig::parse(&format!("IMAPAccount x\nPassCmd \"{cmd}\"\n"));
+            assert_eq!(
+                cfg.imap_accounts["x"].oauth_profile(),
+                Some("main"),
+                "{cmd}"
+            );
+        }
+    }
+
+    /// A setup that has not regenerated its mbsyncrc yet still says `oauthman`.
+    /// Losing the mapping there would cost doctor its token checks in exactly
+    /// the window where someone is midway through the switch.
+    #[test]
+    fn the_previous_helper_is_still_recognised() {
+        let cfg = MbsyncConfig::parse("IMAPAccount x\nPassCmd \"oauthman token main\"\n");
+        assert_eq!(cfg.imap_accounts["x"].oauth_profile(), Some("main"));
+    }
+
+    /// `ecr` runs more than one subcommand, and only one of them is a token.
+    #[test]
+    fn another_ecr_subcommand_is_not_an_oauth_profile() {
+        for cmd in ["ecr token new phone", "ecr oauth status main", "ecr doctor"] {
+            let cfg = MbsyncConfig::parse(&format!("IMAPAccount x\nPassCmd \"{cmd}\"\n"));
+            assert_eq!(cfg.imap_accounts["x"].oauth_profile(), None, "{cmd}");
+        }
     }
 
     #[test]

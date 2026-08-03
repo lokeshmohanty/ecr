@@ -295,7 +295,7 @@ making it installable by someone other than me.
 - [x] Android client shipped as an APK, built in CI
 - [ ] SQLite cache in `ecr-store` — every request currently shells out to notmuch (~200ms for a 50-thread page of a 23k inbox), which is too slow for search-as-you-type
 - [ ] `ts-rs` type generation, so `web/src/api/types.ts` cannot drift from `ecr-core`
-- [ ] Remaining `ecr` subcommands: `web`, `qr`, `oauth`, `logs`, and the background lifecycle
+- [ ] Remaining `ecr` subcommands: `web`, `qr`, `logs`, and the background lifecycle
 
 ### v1.0.0 — stable &nbsp;·&nbsp; `[ ]`
 
@@ -316,7 +316,7 @@ Apple developer account to put on anyone's phone, and I do not have one.
 |---|---|
 | `ecr-core`, `ecr-store` | complete: search, threading, MIME, tagging, sync, send |
 | `ecr-server` | complete: REST, SSE, bearer auth, maildir watcher |
-| `ecr-cli` (`ecr`) | `doctor`, `serve`, `token` and `help`; `init`, `web`, `qr`, `oauth` and the background lifecycle are declared but not implemented |
+| `ecr-cli` (`ecr`) | `doctor`, `serve`, `token`, `oauth` and `help`; `init`, `web`, `qr` and the background lifecycle are declared but not implemented |
 | `web` | complete: read, search, tag, mark queue, compose, mobile layout |
 | `shell` (Tauri desktop) | builds and runs on Linux; packaged as deb, AppImage and a Nix derivation, with a desktop entry, icons and AppStream metadata |
 | Android | builds and runs; APK and AAB per release, own launcher icon, cleartext to a self-hosted server, registers as a `mailto:` handler |
@@ -347,8 +347,6 @@ would have nothing to show without them:
 - [isync / mbsync](https://isync.sourceforge.io/) — fetching mail into the
   maildir.
 - [msmtp](https://marlam.de/msmtp/) — sending it.
-- `oauthman` — XOAUTH2 for Gmail and Outlook, which both mbsync and msmtp shell
-  out to.
 
 **Prior art.** The interaction model is not new, and is not pretending to be:
 

@@ -4,6 +4,7 @@
   rustPlatform,
   pkg-config,
   openssl,
+  cacert,
   makeWrapper,
   installShellFiles,
   ecr-web,
@@ -70,7 +71,17 @@ rustPlatform.buildRustPackage (finalAttrs: {
     notmuch
     isync
     msmtp
+    cacert
   ];
+
+  # `ecr oauth` gave ecr-store a reqwest with rustls, and cargo unifies that
+  # feature across the workspace — so ecr-server's test client, which only ever
+  # speaks plain HTTP to 127.0.0.1, now builds with TLS too. rustls loads the
+  # system trust store when a client is constructed and `reqwest::Client::new()`
+  # *panics* when it finds none, which a build sandbox never has: every one of
+  # the 43 API tests died before making a request. Nothing here reaches the
+  # network; the certificates only have to exist.
+  SSL_CERT_FILE = "${cacert}/etc/ssl/certs/ca-bundle.crt";
 
   postInstall = ''
     mkdir -p $out/share/ecr
@@ -95,14 +106,20 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
     # ecr-store shells out to these; without them on PATH `ecr doctor` fails and
     # the server refuses to start.
+    #
+    # $out/bin is on that list because ecr is now its own OAuth helper: an
+    # mbsync config says `PassCmd "ecr oauth token <profile>"`, and mbsync is a
+    # child of the server, which under a systemd user unit inherits nothing from
+    # a login shell. Without this, every XOAUTH2 account fails to sync with
+    # `ecr: command not found` buried in mbsync's output.
     wrapProgram $out/bin/ecr \
-      --prefix PATH : ${
+      --prefix PATH : "$out/bin:${
         lib.makeBinPath [
           notmuch
           isync
           msmtp
         ]
-      }
+      }"
   '';
 
   meta = {

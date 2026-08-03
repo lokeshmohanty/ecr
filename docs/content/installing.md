@@ -180,9 +180,10 @@ systemctl --user enable --now ecr
 ```
 
 The unit's `ExecStart` points at `~/.local/bin/ecr` and its `PATH` has to reach
-`notmuch`, `mbsync` and `msmtp` — plus anything your own mbsync or msmtp config
-shells out to, an OAuth helper typically. A user unit inherits nothing from the
-login shell.
+`notmuch`, `mbsync` and `msmtp` — plus `ecr` itself, if your mbsync or msmtp
+config authenticates with `ecr oauth token`, because mbsync is a child of the
+server and resolves it off `PATH` like anything else. A user unit inherits
+nothing from the login shell.
 
 The `.deb` and the AppImage carry the **desktop client**, not the server. They
 install the desktop entry, the icons and the AppStream metadata, and drop a copy

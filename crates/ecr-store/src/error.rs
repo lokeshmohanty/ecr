@@ -46,6 +46,9 @@ pub enum Error {
     #[error("{path:?} is not a file ecr will read: {reason}")]
     UnsafePath { path: String, reason: &'static str },
 
+    #[error("{0}")]
+    Oauth(String),
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }

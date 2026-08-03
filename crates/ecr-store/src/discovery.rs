@@ -188,7 +188,7 @@ mod tests {
         fs::write(
             cfg_dir.join("isyncrc"),
             format!(
-                "IMAPAccount main\nUser alice@example.com\nPassCmd \"oauthman token main\"\n\n\
+                "IMAPAccount main\nUser alice@example.com\nPassCmd \"ecr oauth token main\"\n\n\
                  IMAPStore main-remote\nAccount main\n\n\
                  MaildirStore main-local\nPath {}/main/\n\n\
                  Channel main\nFar :main-remote:\nNear :main-local:\n",

@@ -112,16 +112,9 @@ pub async fn run_with_paths(paths: &MailPaths) -> Doctor {
         .collect();
 
     if !oauth_profiles.is_empty() {
-        let oauthman = tools::inspect(crate::oauth::OAUTHMAN).await;
-        checks.push(match &oauthman.path {
-            Some(path) => Check::ok("oauthman", format!("{}", path.display())),
-            None => Check::fail("oauthman", "not found on PATH")
-                .with_hint("every account authenticates with XOAUTH2; sync and send both need it"),
-        });
-        if oauthman.path.is_some() {
-            for (account, profile) in &oauth_profiles {
-                checks.push(oauth_check(account, profile).await);
-            }
+        let profiles = paths.oauth_profiles();
+        for (account, profile) in &oauth_profiles {
+            checks.push(oauth_check(&profiles, account, profile));
         }
     }
 
@@ -157,11 +150,11 @@ pub async fn run_with_paths(paths: &MailPaths) -> Doctor {
     }
 }
 
-async fn oauth_check(account: &str, profile: &str) -> Check {
+fn oauth_check(profiles: &crate::oauth::Profiles, account: &str, profile: &str) -> Check {
     use crate::oauth::TokenState;
 
     let name = format!("oauth {account}");
-    match crate::oauth::token_state(profile).await {
+    match crate::oauth::token_state(profiles, profile) {
         TokenState::Valid { expires_in } => {
             Check::ok(name, format!("token valid for {expires_in}s"))
         }
@@ -169,9 +162,9 @@ async fn oauth_check(account: &str, profile: &str) -> Check {
             Check::ok(name, "token expiring, refresh token present".to_string())
         }
         TokenState::Expired => Check::fail(name, "token expired with no refresh token")
-            .with_hint(format!("run `oauthman authorize {profile}`")),
+            .with_hint(format!("run `ecr oauth authorize {profile}`")),
         TokenState::Unknown(reason) => Check::warn(name, reason)
-            .with_hint(format!("run `oauthman status {profile}` to see why")),
+            .with_hint(format!("run `ecr oauth status {profile}` to see why")),
     }
 }
 
@@ -343,6 +336,53 @@ mod tests {
         )
         .unwrap();
         home
+    }
+
+    /// Doctor reads the OAuth token of every account whose `PassCmd` names one,
+    /// and a read *adopts* the profile — so resolving the store from the process
+    /// rather than from this `Env` had an integration test writing into the
+    /// developer's real `~/.config/ecr`. The tempdir has to be the only place
+    /// touched.
+    #[tokio::test]
+    async fn an_oauth_account_is_checked_without_leaving_the_rooted_home() {
+        let home = healthy_home();
+        let cfg = home.path().join(".config");
+        let root = home.path().join("Mail");
+        fs::write(
+            cfg.join("isyncrc"),
+            format!(
+                "IMAPAccount main\nUser a@b.c\nPassCmd \"ecr oauth token main\"\n\n\
+                 IMAPStore main-remote\nAccount main\n\n\
+                 MaildirStore main-local\nPath {}/main/\n\n\
+                 Channel main\nFar :main-remote:\nNear :main-local:\n",
+                root.display()
+            ),
+        )
+        .unwrap();
+
+        let legacy = cfg.join("oauthman");
+        fs::create_dir_all(&legacy).unwrap();
+        fs::write(
+            legacy.join("main.json"),
+            r#"{"profile":"main","provider":"gmail","email":"a@b.c","client_id":"c",
+                "authorize_url":"https://x/","token_url":"https://x/","scopes":[],
+                "redirect_uri":"http://127.0.0.1:49152/callback"}"#,
+        )
+        .unwrap();
+
+        let env = Env::rooted_at(home.path());
+        let doctor = run_with(&env, &ServerSettings::default()).await;
+
+        // The account was found and its token reported on at all.
+        assert_eq!(check(&doctor, "oauth main").status, CheckStatus::Warn);
+
+        // Adoption landed inside the tempdir, which is only possible if the
+        // store was resolved from this Env.
+        let profiles = MailPaths::with(&env, &ServerSettings::default())
+            .unwrap()
+            .oauth_profiles();
+        assert!(profiles.config_path("main").starts_with(home.path()));
+        assert!(profiles.config_path("main").exists());
     }
 
     fn check<'a>(doctor: &'a Doctor, name: &str) -> &'a Check {

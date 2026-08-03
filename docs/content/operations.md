@@ -7,9 +7,10 @@ weight = 2
 ## Prerequisites
 
 `notmuch`, `mbsync` (isync) and `msmtp` must be on `PATH`, plus whatever your
-configs invoke — this setup uses `oauthman` for Gmail/Outlook XOAUTH2, and both
-sync and send fail without it. The Nix dev shell provides the first three;
-`oauthman` comes from `~/.local/bin`.
+configs invoke. Gmail and Outlook need XOAUTH2, which `ecr oauth` provides
+itself — point `PassCmd` and msmtp's `passwordeval` at `ecr oauth token
+<profile>` and there is no third tool to install. The Nix dev shell provides
+the first three.
 
 ## The command
 
@@ -34,7 +35,7 @@ ecr man > ~/.local/share/man/man1/ecr.1
 ecr completions fish > ~/.config/fish/completions/ecr.fish
 ```
 
-`ecr init`, `ecr web`, `ecr qr`, `ecr oauth`, `ecr logs` and the background
+`ecr init`, `ecr web`, `ecr qr`, `ecr logs` and the background
 lifecycle (`stop`, `status`, `restart`) are declared but not yet implemented;
 each says so and names what to use meanwhile. The desktop client is a separate
 binary, `ecr-desktop`, built from `shell/`.
@@ -62,6 +63,54 @@ ecr token revoke phone
 
 Tokens are stored as SHA-256 digests in `~/.config/ecr/tokens.toml` (mode 0600).
 The plaintext is shown exactly once. With no tokens the API is unauthenticated.
+
+Issuing the first one turns authentication on for *everything*, including the
+web client the server itself serves: a browser opened at the server's address
+has the right URL and no token, so every request is refused. The client says so
+rather than appearing broken — **this device is not authorised**, over the
+panes, with a field to paste what `ecr token new` printed. The token is checked
+against the server before it is kept, so a mistyped one is reported in the
+prompt instead of being saved to leave every pane empty; once accepted it is
+stored on that device and the mail loads without a reload. Dismiss the prompt to
+go and fetch a token — the thread list keeps an **enter a token** button for the
+way back.
+
+## OAuth
+
+Gmail and Outlook will not accept a password. `ecr oauth` holds a *profile* per
+account — which provider, which address, which client — and hands out the
+XOAUTH2 that mbsync and msmtp ask for.
+
+```bash
+ecr oauth setup main --provider gmail --email you@gmail.com
+ecr oauth setup work --provider microsoft --email you@example.com
+
+ecr oauth status main       # provider, address, expiry, whether it can refresh
+ecr oauth authorize main    # run the flow again
+```
+
+`setup` writes the profile and walks straight into the flow. `--flow` picks how:
+`auto` — the default — takes the device flow where the provider offers one,
+which is what Microsoft gets, and the browser flow otherwise.
+
+Then point your configs at it. The token is refreshed on demand, so these are
+the only two lines the setup needs:
+
+```
+PassCmd "ecr oauth token main"      # mbsyncrc
+passwordeval ecr oauth token main   # msmtp
+```
+
+Profiles live in `~/.config/ecr/oauth/<profile>.json`; the tokens themselves are
+kept apart in `~/.local/state/ecr/oauth/<profile>.json`, mode 0600. A profile
+left over from the `oauthman` helper ecr used to shell out to is adopted out of
+`~/.config/oauthman` the first time it is read, so an existing setup keeps its
+refresh tokens rather than authorizing every account again. It is copied, not
+moved.
+
+No client is registered for ecr: like every other desktop mail client, it
+borrows Thunderbird's, which `ecr oauth client-id --provider gmail` will print.
+Bring your own with `--client-id` and `--client-secret`.
 
 ## Running
 
@@ -250,6 +299,6 @@ Home Manager module and what each artifact carries. In short:
 | Server refuses to start | `ecr doctor` — it names the failure and a fix |
 | Empty inbox, no error | The query. `/api/v1/threads?q=*` should return everything |
 | `503` responses | A binary is missing from the service's `PATH`; pin absolute paths in `server.toml` |
-| Sync fails with an auth error | `oauthman status <account>`; the token may need reauthorizing |
+| Sync fails with an auth error | `ecr oauth status <account>`; the token may need reauthorizing with `ecr oauth authorize <account>` |
 | New mail does not appear | Was the server started with `--no-watch`? Otherwise check the log for watcher warnings |
 | Tags silently do nothing | `notmuch tag --batch` exits 0 on malformed input; `ecr-store` validates first, so a `400` here is the intended behaviour |

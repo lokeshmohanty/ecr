@@ -14,6 +14,7 @@ pub struct Candidate {
 pub struct Env {
     pub home: PathBuf,
     pub config_dir: PathBuf,
+    pub state_dir: PathBuf,
     pub notmuch_config: Option<PathBuf>,
     pub notmuch_profile: Option<String>,
     pub mbsyncrc: Option<PathBuf>,
@@ -24,6 +25,7 @@ impl Env {
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
         Self {
             config_dir: dirs::config_dir().unwrap_or_else(|| home.join(".config")),
+            state_dir: dirs::state_dir().unwrap_or_else(|| home.join(".local").join("state")),
             home,
             notmuch_config: std::env::var_os("NOTMUCH_CONFIG").map(PathBuf::from),
             notmuch_profile: std::env::var("NOTMUCH_PROFILE").ok(),
@@ -35,6 +37,7 @@ impl Env {
         Self {
             home: home.to_path_buf(),
             config_dir: home.join(".config"),
+            state_dir: home.join(".local").join("state"),
             notmuch_config: None,
             notmuch_profile: None,
             mbsyncrc: None,
@@ -148,6 +151,9 @@ pub struct MailPaths {
     pub binaries: crate::settings::Binaries,
     /// Where ecr keeps its own files, as opposed to the mail tools' files.
     pub ecr_config_dir: PathBuf,
+    /// The same split XDG draws: state is what ecr rewrites as it runs — the
+    /// OAuth tokens — as opposed to what the user edits.
+    pub ecr_state_dir: PathBuf,
 }
 
 impl MailPaths {
@@ -202,12 +208,25 @@ impl MailPaths {
             database_path,
             binaries: crate::settings::Binaries::from_settings(settings),
             ecr_config_dir: env.config_dir.join("ecr"),
+            ecr_state_dir: env.state_dir.join("ecr"),
         })
     }
 
     /// The user-facing settings file, shared by every client.
     pub fn settings_file(&self) -> PathBuf {
         self.ecr_config_dir.join("settings.toml")
+    }
+
+    /// The OAuth profiles, anchored to this `Env` rather than to the process.
+    ///
+    /// Doctor reports on tokens, and reading one adopts it from oauthman's
+    /// directory — so resolving the store from `dirs::config_dir()` instead of
+    /// from here made an integration test against a tempdir read, and write to,
+    /// the developer's real `~/.config/ecr`. That is the same trap as
+    /// `NOTMUCH_CONFIG` outranking a redirected `HOME`: isolation has to come
+    /// from the one `Env` everything else already resolves through.
+    pub fn oauth_profiles(&self) -> crate::oauth::Profiles {
+        crate::oauth::Profiles::under(&self.ecr_config_dir, &self.ecr_state_dir)
     }
 
     /// Where the shipped presets are seeded and the user's own themes live.

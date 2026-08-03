@@ -1,5 +1,6 @@
 mod doctor;
 mod help;
+mod oauth;
 mod qr;
 mod serve;
 mod token;
@@ -128,14 +129,115 @@ enum Command {
 
 #[derive(Subcommand)]
 enum OauthCommand {
+    #[command(about = "create a profile and authorize it in one step")]
+    Setup {
+        #[command(flatten)]
+        profile: ProfileArgs,
+        #[command(flatten)]
+        flow: FlowArgs,
+    },
+    #[command(about = "create a profile without authorizing it")]
+    Init {
+        #[command(flatten)]
+        profile: ProfileArgs,
+    },
     #[command(about = "run the browser flow and store a refresh token")]
-    Authorize { profile: String },
+    Authorize {
+        profile: String,
+        #[command(flatten)]
+        flow: FlowArgs,
+    },
     #[command(about = "print a valid access token, refreshing it if needed")]
     Token { profile: String },
     #[command(about = "print the base64 XOAUTH2 string IMAP and SMTP want")]
     Xoauth2 { profile: String },
     #[command(about = "report a profile's provider, address and token expiry")]
     Status { profile: String },
+    #[command(name = "client-id", about = "print a built-in OAuth client id")]
+    ClientId {
+        #[command(flatten)]
+        client: ClientArgs,
+    },
+    #[command(name = "client-secret", about = "print a built-in OAuth client secret")]
+    ClientSecret {
+        #[command(flatten)]
+        client: ClientArgs,
+    },
+}
+
+#[derive(clap::Args)]
+struct ProfileArgs {
+    #[arg(help = "name for the profile; mbsync and msmtp refer to it by this")]
+    profile: String,
+
+    // No default. Both providers are plausible for any address, and guessing
+    // wrong is not discovered until a browser flow has already been walked
+    // through and the resulting token fails against the real server.
+    #[arg(
+        long,
+        required = true,
+        help = "gmail for Google accounts, microsoft for Outlook and Microsoft 365"
+    )]
+    provider: String,
+
+    #[arg(long, required = true, help = "the address this profile authenticates")]
+    email: String,
+
+    #[arg(
+        long,
+        help = "built-in client preset to borrow; defaults to thunderbird"
+    )]
+    client: Option<String>,
+
+    #[arg(long, help = "your own OAuth client id, instead of a preset")]
+    client_id: Option<String>,
+
+    #[arg(long, help = "your own OAuth client secret")]
+    client_secret: Option<String>,
+
+    #[arg(long, help = "Microsoft tenant; defaults to common")]
+    tenant: Option<String>,
+
+    #[arg(long, help = "override the requested scopes; repeatable")]
+    scope: Vec<String>,
+
+    #[arg(
+        long,
+        help = "loopback port for the browser callback; defaults to a free one"
+    )]
+    redirect_port: Option<u16>,
+
+    #[arg(long, help = "replace an existing profile, discarding its tokens")]
+    force: bool,
+}
+
+#[derive(clap::Args)]
+struct FlowArgs {
+    #[arg(
+        long,
+        default_value = "auto",
+        help = "auto, authcode or device. auto takes the device flow where the provider offers one"
+    )]
+    flow: String,
+
+    #[arg(
+        long,
+        default_value_t = 300,
+        help = "seconds to wait for authorization"
+    )]
+    timeout: u64,
+
+    #[arg(long, help = "print the URL instead of opening a browser")]
+    no_open: bool,
+}
+
+#[derive(clap::Args)]
+struct ClientArgs {
+    #[arg(long, required = true, help = "gmail or microsoft")]
+    provider: String,
+
+    #[arg(long, help = "built-in client preset; defaults to thunderbird")]
+    client: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -245,10 +347,58 @@ async fn dispatch() -> anyhow::Result<()> {
             "`ecr qr` is not implemented yet",
             "`ecr token new <name> --qr` prints a token and a QR code.",
         ),
-        Command::Oauth { .. } => not_yet(
-            "`ecr oauth` is not implemented yet",
-            "Use `oauthman` directly; ecr reads the profiles it writes.",
-        ),
+        Command::Oauth { command } => match command {
+            OauthCommand::Setup { profile, flow } => {
+                oauth::setup(profile.into(), flow.try_into()?).await
+            }
+            OauthCommand::Init { profile } => oauth::init(profile.into()).await,
+            OauthCommand::Authorize { profile, flow } => {
+                oauth::authorize(&profile, flow.try_into()?).await
+            }
+            OauthCommand::Token { profile } => oauth::token(&profile).await,
+            OauthCommand::Xoauth2 { profile } => oauth::xoauth2(&profile).await,
+            OauthCommand::Status { profile } => oauth::status(&profile),
+            OauthCommand::ClientId { client } => {
+                oauth::client_id(&client.provider, client.client.as_deref())
+            }
+            OauthCommand::ClientSecret { client } => {
+                oauth::client_secret(&client.provider, client.client.as_deref())
+            }
+        },
+    }
+}
+
+impl From<ProfileArgs> for oauth::Init {
+    fn from(args: ProfileArgs) -> Self {
+        oauth::Init {
+            profile: args.profile,
+            provider: args.provider,
+            email: args.email,
+            client: args.client,
+            client_id: args.client_id,
+            client_secret: args.client_secret,
+            tenant: args.tenant,
+            scope: args.scope,
+            redirect_port: args.redirect_port,
+            force: args.force,
+        }
+    }
+}
+
+impl TryFrom<FlowArgs> for oauth::Authorize {
+    type Error = anyhow::Error;
+
+    fn try_from(args: FlowArgs) -> anyhow::Result<Self> {
+        Ok(oauth::Authorize {
+            flow: match args.flow.as_str() {
+                "auto" => ecr_store::oauth::Flow::Auto,
+                "authcode" => ecr_store::oauth::Flow::AuthCode,
+                "device" => ecr_store::oauth::Flow::Device,
+                other => anyhow::bail!("unknown flow {other:?}; use auto, authcode or device"),
+            },
+            timeout: args.timeout,
+            no_open: args.no_open,
+        })
     }
 }
 

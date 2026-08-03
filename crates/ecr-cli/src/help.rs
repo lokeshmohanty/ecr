@@ -68,6 +68,16 @@ Where accounts come from
 
   Nothing about accounts is configured in ecr. Fix the mail tools' config and
   ecr follows.
+
+  Gmail and Outlook will not take a password. `ecr oauth` is the exception to
+  the paragraph above — it holds the OAuth profile itself:
+
+    ecr oauth setup main --provider gmail --email you@gmail.com
+
+  then point the mail tools at it, and the token refreshes on demand:
+
+    PassCmd \"ecr oauth token main\"      # mbsyncrc
+    passwordeval ecr oauth token main   # msmtp
 ";
 
 const TROUBLE: &str = "\
@@ -86,7 +96,9 @@ When something is wrong
     ~/.config/ecr/server.toml — worth doing under systemd, where PATH is bare.
 
   Sync fails to authenticate
-    Check the token state in `ecr doctor`; it may need reauthorizing.
+    Check the token state in `ecr doctor`. For Gmail and Outlook,
+    `ecr oauth status <profile>` says why, and `ecr oauth authorize <profile>`
+    runs the flow again.
 
   New mail never appears
     Was the server started with --no-watch? Otherwise check the log for

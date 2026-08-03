@@ -45,8 +45,9 @@ indexes and does not copy it anywhere. Besides that:
 - `~/.config/ecr/settings.toml`, the shared preferences
 - `~/.config/ecr/tokens.toml`, the SHA-256 digests of issued device tokens,
   mode 0600. The tokens themselves are not stored, only digests
-- OAuth refresh tokens, if you use Gmail or Outlook — held by `oauthman`, not by
-  `ecr`
+- `~/.local/state/ecr/oauth/<profile>.json`, mode 0600 — the OAuth access and
+  refresh tokens, if you use Gmail or Outlook. They are sent to that provider's
+  token endpoint and nowhere else
 
 The server logs to stderr. It does not log message bodies. Whatever your init
 system does with that output is up to you.

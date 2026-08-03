@@ -70,7 +70,7 @@ mail configuration in the wrong places and had no way to say so.
 |---|---|
 | `ecr-core`, `ecr-store` | complete: search, threading, MIME, tagging, sync, send |
 | `ecr-server` | complete: REST, SSE, bearer auth, maildir watcher |
-| `ecr-cli` (`ecr`) | doctor, serve, tokens, help, man and completions; init, web, qr, oauth and the background lifecycle are declared but not yet implemented |
+| `ecr-cli` (`ecr`) | doctor, serve, tokens, oauth, help, man and completions; init, web, qr and the background lifecycle are declared but not yet implemented |
 | `web` | complete: read, search, tag, mark queue, compose, mobile layout |
 | `shell` (Tauri desktop) | builds; external-`$EDITOR` command, `mailto:` handling and notifications wired; packaged as deb, AppImage and a Nix derivation |
 | Android | builds and runs; APK and AAB per release, own launcher icon, `mailto:` handler — see [operations.md](@/operations.md#android) |

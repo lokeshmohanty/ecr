@@ -121,10 +121,11 @@ in
         Restart = "on-failure";
         RestartSec = 5;
 
-        # The package wraps `ecr` so notmuch, mbsync and msmtp are on PATH
-        # already; anything a user's own mbsync or msmtp config shells out to —
-        # an OAuth helper, typically — is not, and a user unit inherits nothing
-        # from the login shell.
+        # The package wraps `ecr` so notmuch, mbsync, msmtp and ecr itself are
+        # on PATH already — the last of those is what makes `PassCmd "ecr oauth
+        # token <profile>"` resolve. Anything else a user's own mbsync or msmtp
+        # config shells out to is not, and a user unit inherits nothing from the
+        # login shell.
         Environment = lib.mapAttrsToList (k: v: "${k}=${v}") cfg.server.environment;
 
         NoNewPrivileges = true;
