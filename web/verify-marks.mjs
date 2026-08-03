@@ -78,24 +78,32 @@ check(
 	marked[0],
 );
 
-await press("j", "Space");
-marked = await tapes();
-check(
-	"a second row can be picked",
-	marked[1]?.includes("tape-selected"),
-	marked[1],
-);
-
+// Space steps to the next row as it picks, so a run is selected with one key
+// each. Pressing it twice from the top must leave two *different* rows picked —
+// if it did not advance, the second press would unpick the first.
 await press("Space");
 marked = await tapes();
 check(
-	"Space again unpicks it",
+	"Space advances, so a second press picks the next row",
+	marked[0]?.includes("tape-selected") && marked[1]?.includes("tape-selected"),
+	marked.slice(0, 2).join("|"),
+);
+
+// Back onto a picked row: Space is still a toggle, it just does not stay put.
+await press("k", "Space");
+marked = await tapes();
+check(
+	"Space on a picked row unpicks it",
 	!marked[1]?.includes("tape-selected"),
 	marked[1],
 );
 
 console.log("\nA visual range");
+// `gg` as well as `X`: the picks above left the cursor part-way down the list,
+// and a range drawn from wherever it happened to stop is not the range this is
+// about — near the end it would run out of rows and count short.
 await press("X");
+await press("g", "g");
 await press("v", "j", "j");
 let rows = await rowClasses();
 const inRange = rows.filter((c) => {
@@ -117,6 +125,7 @@ check(
 
 console.log("\nSpace picks a visual range, then leaves it");
 await press("X");
+await press("g", "g");
 await press("v", "j", "j");
 await press("Space");
 marked = await tapes();
@@ -127,7 +136,10 @@ check(
 	`${pickedCount} picked`,
 );
 
-await press("Space");
+// The range Space also advances, past the range it just collapsed. Stepping
+// back onto the last picked row and pressing Space toggles that one row alone:
+// three becoming two is the proof visual mode was left behind.
+await press("k", "Space");
 marked = await tapes();
 const cursorToggled = marked.filter((t) => t.includes("tape-selected")).length;
 check(
