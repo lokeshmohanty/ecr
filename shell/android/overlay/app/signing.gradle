@@ -35,11 +35,15 @@ if (keystorePropertiesFile.exists()) {
                 keyPassword keystoreProperties['password']
 
                 // v3 is what carries a rotation proof, and it is off by
-                // default here: minSdk 28 means AGP is content with v2 alone,
-                // and an APK signed v2-only can never have its key rotated —
-                // the signing identity would be fixed for the life of the app.
-                // v1 stays off because it is JAR signing, superseded since
-                // API 24 and slow to verify.
+                // default here: the first signed build came out v2-only, and
+                // an APK signed v2-only can never have its key rotated — the
+                // signing identity would be fixed for the life of the app.
+                // What ships is v3 alone: AGP applies the one scheme that
+                // covers the whole supported range, and minSdk 28 means every
+                // device the app runs on understands v3. v1 stays off because
+                // it is JAR signing, superseded since API 24 and slow to
+                // verify. Asking for v2 as well costs nothing and is what
+                // would be wanted if minSdk ever dropped below 28.
                 enableV1Signing false
                 enableV2Signing true
                 enableV3Signing true

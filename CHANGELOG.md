@@ -9,6 +9,38 @@ release; both are frozen at v1.0.0.
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-08-03
+
+The first release with a signed Android APK. v0.1.1's was unsigned, and its
+signature will not match this one, so an existing sideload must be uninstalled
+before this can be installed over it. This is the last time that is true.
+
+### Fixed
+
+- The Android APK is signed. Setting the keystore secrets was never enough on
+  its own: Tauri's generated `app/build.gradle.kts` carries no `signingConfigs`
+  block and never read `keystore.properties`, so the release job announced
+  "APK will be signed." and shipped `app-universal-release-unsigned.apk`
+  regardless. The config now lives in
+  `shell/android/overlay/app/signing.gradle`. The APK is signed with **APK
+  Signature Scheme v3**, which is what carries a key-rotation proof; the first
+  signed build came out v2-only, and a v2-only key can never be rotated. Every
+  device the app runs on supports v3, minSdk being 28.
+- The release no longer ships `intermediary-bundle.aab`. It is a 62MB gradle
+  intermediate under `build/intermediates`, which v0.1.1 offered beside the
+  real AAB with nothing to say which one to take.
+- A row read and then held keeps its `unread` tag off. A tag write deliberately
+  does not refetch the list, so the page in hand predates it and the row stayed
+  bold, with its unread tape, until something unrelated refetched.
+
+### Changed
+
+- CI builds the `.deb`, the AppImage and a *signed release* APK on every push.
+  A debug APK cannot catch a broken signing config — Android's own debug key
+  signs it either way — so the release configuration is the one that is built,
+  with a throwaway key generated on the runner, and the build fails if the
+  artifact comes out `-unsigned` or is not v3-signed.
+
 ## [0.1.1] — 2026-08-03
 
 The first release whose artifacts were all actually built. v0.1.0 reached
