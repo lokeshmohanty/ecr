@@ -93,6 +93,12 @@ impl Fixture {
         ecr_store::NotmuchStore::new(Arc::clone(&self.paths))
     }
 
+    pub fn notmuch_store_without_index(&self) -> ecr_store::NotmuchStore {
+        let mut paths = (*self.paths).clone();
+        paths.use_index = false;
+        ecr_store::NotmuchStore::new(Arc::new(paths))
+    }
+
     pub fn inbox(&self) -> PathBuf {
         self.home.path().join("Mail/main/Inbox")
     }

@@ -401,6 +401,48 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   never the inode that was written. It failed exactly once, in the release
   workflow, having passed every local run and every CI run before it.
 
+- **`notmuch show` never says which thread a message is in.** Not with
+  `--entire-thread`, not among the headers — the field is simply not in the
+  output, and `ShowMessage::into_message` has always left `thread_id` empty as
+  a result. Only `search` knows, through `query[0]`, which is why
+  `messages_between` runs both and joins them. Feeding the index from `show`
+  alone gave every message the same empty thread id, so one search answered a
+  single thread containing the entire database — which reads as the grouping
+  logic being broken rather than as a field that was never there.
+- **A node in `notmuch show --entire-thread=false` can be `null`.** It is what
+  the walk emits for a message the query did not match but whose *reply* it
+  did, and the replies still hang off it, so the node has to be skipped rather
+  than ending the walk. Typing it as a `ShowMessage` fails the entire parse
+  with `invalid type: null, expected struct ShowMessage`, reported as
+  `notmuch` having malfunctioned on a command that ran perfectly. This appears
+  only once some message in a thread stops matching — which for the index means
+  the first time anything is tagged `deleted`, never on a fresh fixture.
+- **The mail index answers silently, so a query it gets *nearly* right is worse
+  than one it declines.** `index/plan.rs` translates only what SQLite can prove
+  it answers identically to notmuch and returns `None` for everything else,
+  which sends the request back to a notmuch process at the original cost. That
+  includes anything with a bare word in it: notmuch searches the body, the
+  index carries headers only, and answering it from SQL would quietly drop
+  every body match with a plausible-looking list left on screen. The exclusion
+  rule is copied deliberately too — notmuch lifts a `search.exclude_tags` entry
+  when the *query text* contains it, as a substring test rather than a parse,
+  so `plan` does the same rather than something cleverer. All of it is pinned
+  by `crates/ecr-store/tests/index.rs`, which runs each claimed query both ways
+  against one database and compares field by field; a translation is not
+  finished until it is in that list.
+- **The index must catch up before `mail:changed`, not after.** The clients
+  that event wakes ask for the new page immediately, so an index still holding
+  the previous revision answers the old list — mail arriving and then not being
+  there, which looks like the watcher having fired early. `watcher.rs`
+  refreshes ahead of publishing for that reason. Its own writes are the easy
+  case: `tag` and `sync` invalidate directly, and only a *stranger's* `notmuch
+  tag` relies on the two-second revalidation window in `notmuch_store.rs`.
+- **A rebuild is not something a read may do.** Reading the whole database is
+  seconds on a real inbox — far longer than the notmuch call the index exists
+  to save — so `refresh_incremental` declines to rebuild and the read falls
+  through to notmuch instead. Only `ecr serve`'s startup and the watcher, which
+  nobody is waiting on, call the rebuilding `refresh`.
+
 ## Testing rules
 
 - **A visual failure is not evidence of a stale baseline.** The way to tell is
@@ -652,6 +694,7 @@ non-`.toml` files rather than clamping them.
 ```
 crates/ecr-core    wire types, no I/O
 crates/ecr-store   MailStore, notmuch backend, MIME, sync, send, doctor
+crates/ecr-store/src/index   the SQLite mail index: schema, query plan, refresh
 crates/ecr-server  axum: REST, SSE, auth, watcher — a library
 crates/ecr-cli     the `ecr` binary: doctor, serve, tokens, help
 shell              Tauri v2 desktop shell — the `ecr-desktop` binary

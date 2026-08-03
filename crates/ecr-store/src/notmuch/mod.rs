@@ -2,7 +2,7 @@ mod batch;
 mod json;
 mod query;
 
-pub use json::{ShowMessage, ThreadNode};
+pub use json::{split_authors, ShowMessage, ThreadNode};
 pub use query::{and, escape_query_value};
 
 use crate::error::{Error, Result};
@@ -152,6 +152,91 @@ impl Notmuch {
     pub async fn revision(&self) -> Result<Revision> {
         let stdout = self.run(&["count", "--lastmod", "*"]).await?;
         parse_lastmod(&stdout)
+    }
+
+    /// The revision, and how many messages the database holds counting the ones
+    /// `search.exclude_tags` hides. The mail index mirrors every message,
+    /// excluded or not, so that count is the one it can compare itself against.
+    pub async fn revision_and_total(&self) -> Result<(Revision, u64)> {
+        let stdout = self
+            .run(&["count", "--lastmod", "--exclude=false", "*"])
+            .await?;
+        let revision = parse_lastmod(&stdout)?;
+        let total = stdout
+            .split_whitespace()
+            .next()
+            .and_then(|c| c.parse().ok())
+            .ok_or_else(|| Error::ToolFailed {
+                tool: crate::tools::NOTMUCH,
+                stderr: format!("unexpected `notmuch count --lastmod` output: {stdout:?}"),
+            })?;
+
+        Ok((revision, total))
+    }
+
+    /// Every message whose last modification falls in the range, headers only.
+    ///
+    /// This is how the mail index is fed: `--entire-thread=false` keeps a
+    /// changed message from dragging its whole thread along, and
+    /// `--exclude=false` is what makes the mirror complete — the index applies
+    /// the exclusions itself, per query, the way notmuch does.
+    ///
+    /// **`notmuch show` never says which thread a message is in.** Not with
+    /// `--entire-thread`, not in the headers — the field simply is not in the
+    /// output, and `ShowMessage::into_message` leaves `thread_id` empty as a
+    /// result. Only `search` knows, so the mapping comes from there and is
+    /// joined on. Without it every message in the index shares one empty thread
+    /// id, and a search answers a single thread carrying the entire database.
+    pub async fn messages_between(&self, from: u64, to: u64) -> Result<Vec<Message>> {
+        let query = format!("lastmod:{from}..{to}");
+
+        let output: json::ShowOutput = self
+            .run_json(&[
+                "show",
+                "--format=json",
+                "--body=false",
+                "--entire-thread=false",
+                "--exclude=false",
+                &query,
+            ])
+            .await?;
+
+        let threads = self.thread_of_each_message(&query).await?;
+
+        Ok(output
+            .flatten()
+            .into_iter()
+            .filter_map(|m| m.into_message())
+            .map(|mut message| {
+                if let Some(thread) = threads.get(message.id.as_str()) {
+                    message.thread_id = thread.clone();
+                }
+                message
+            })
+            .collect())
+    }
+
+    /// `query[0]` of each search result names every message the query matched
+    /// in that thread, which read backwards is the thread each message is in.
+    async fn thread_of_each_message(&self, query: &str) -> Result<HashMap<String, ThreadId>> {
+        let items: Vec<json::SearchItem> = self
+            .run_json(&[
+                "search",
+                "--format=json",
+                "--output=summary",
+                "--exclude=false",
+                query,
+            ])
+            .await?;
+
+        let mut out = HashMap::new();
+        for item in items {
+            let thread = ThreadId(item.thread.clone());
+            for id in json::matched_ids(&item) {
+                out.insert(id, thread.clone());
+            }
+        }
+        Ok(out)
     }
 
     pub async fn count(&self, query: &Query) -> Result<usize> {

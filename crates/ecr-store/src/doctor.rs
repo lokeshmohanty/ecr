@@ -1,4 +1,5 @@
 use crate::discovery;
+use crate::notmuch::Notmuch;
 use crate::paths::{Env, MailPaths};
 use crate::settings::ServerSettings;
 use crate::tools;
@@ -78,6 +79,8 @@ pub async fn run_with_paths(paths: &MailPaths) -> Doctor {
             .with_hint("mailing lists cannot be searched; add `header.List=List-Id` under [index] in your notmuch config, then run `notmuch reindex '*'`")
     });
 
+    checks.push(index_check(paths).await);
+
     let post_new_hook = paths.post_new_hook();
     checks.push(match &post_new_hook {
         Some(hook) => Check::ok("post-new hook", format!("{}", hook.display())),
@@ -147,6 +150,61 @@ pub async fn run_with_paths(paths: &MailPaths) -> Doctor {
         post_new_hook,
         accounts,
         checks,
+    }
+}
+
+/// Never a failure. The index is a cache of what notmuch holds: without it
+/// every read is slower and every answer is the same, which is a remark rather
+/// than something to fix.
+async fn index_check(paths: &MailPaths) -> Check {
+    use crate::index::MessageIndex;
+
+    const NAME: &str = "mail index";
+
+    if !paths.use_index {
+        return Check::ok(NAME, "off (index = false in server.toml)");
+    }
+
+    let path = MessageIndex::path_for(paths);
+    let index = match MessageIndex::open_at(&path, paths.notmuch_config.exclude_tags.clone()) {
+        Ok(index) => index,
+        Err(err) => {
+            return Check::warn(NAME, err.to_string())
+                .with_hint("every read will ask notmuch, which is correct but slower")
+        }
+    };
+
+    let status = index.status();
+    if status.revision.is_none() {
+        return Check::warn(NAME, "not built yet").with_hint("it is built when `ecr serve` starts");
+    }
+
+    let detail = format!(
+        "{} messages, {} MB, at {}",
+        status.messages,
+        status.bytes / 1_000_000,
+        path.display()
+    );
+
+    // A held revision from another database is a maildir that was rebuilt from
+    // scratch; the next refresh notices and starts over, so it is worth saying
+    // and not worth acting on.
+    match Notmuch::new(std::sync::Arc::new(paths.clone()))
+        .revision()
+        .await
+    {
+        Ok(current) => match status.revision {
+            Some(held) if held.uuid != current.uuid => {
+                Check::warn(NAME, format!("built against another database; {detail}"))
+                    .with_hint("it is rebuilt the next time `ecr serve` starts")
+            }
+            Some(held) if held.lastmod < current.lastmod => Check::ok(
+                NAME,
+                format!("{} behind; {detail}", current.lastmod - held.lastmod),
+            ),
+            _ => Check::ok(NAME, format!("current; {detail}")),
+        },
+        Err(_) => Check::ok(NAME, detail),
     }
 }
 

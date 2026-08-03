@@ -11,6 +11,9 @@ pub struct ServerSettings {
     pub notmuch_bin: Option<PathBuf>,
     pub mbsync_bin: Option<PathBuf>,
     pub msmtp_bin: Option<PathBuf>,
+    /// `index = false` sends every read back to notmuch. See
+    /// [`crate::paths::MailPaths::use_index`].
+    pub index: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

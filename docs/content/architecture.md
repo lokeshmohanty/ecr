@@ -9,7 +9,7 @@ weight = 3
 | Crate | Responsibility |
 | --- | --- |
 | `ecr-core` | Wire types only — no I/O. `Account`, `ThreadSummary`, `Message`, `PartMeta`, `TagOp`, `Query`, `Revision`, `Draft`, `Doctor`. |
-| `ecr-store` | Everything that touches the mail: config discovery, the `MailStore` trait, the notmuch backend, MIME parsing, sync and send. |
+| `ecr-store` | Everything that touches the mail: config discovery, the `MailStore` trait, the notmuch backend, the SQLite mail index, MIME parsing, sync and send. |
 | `ecr-server` | axum: REST, SSE, bearer auth, the maildir watcher. A library — it builds no binary. |
 | `ecr-cli` | The `ecr` binary. Owns the command surface and everything user-facing; deliberately free of GUI dependencies. |
 | `shell` | Tauri v2 desktop and Android wrapper around `web/dist`, built as `ecr-desktop`. |
@@ -67,6 +67,68 @@ client's write, or a message removed from the maildir, still moves it and is
 still announced. The list keeps rows through whatever does arrive — see *held
 rows* below — so what disappears from a list is what the reader asked to have
 written, never a side-effect of looking at it.
+
+## The mail index
+
+Every read used to be a notmuch process — around 200ms for a page of a 23k
+inbox, which is a wall between a keystroke and a result. `ecr-store` keeps a
+SQLite mirror at `~/.local/state/ecr/index.sqlite3` and answers searches and
+counts from it.
+
+It is a **cache and never a source of truth**. notmuch remains the only writer
+of mail state; the file can be deleted at any moment and is rebuilt on the next
+refresh. It carries message metadata — id, thread, timestamp, subject, sender,
+tags — and no words at all, which is why a 46k-message maildir costs about 9MB.
+
+**Only queries it can prove it answers identically are taken.**
+`index/plan.rs` translates `tag:`/`is:`, `id:`, `thread:`, `*` and boolean
+combinations of those — which is every mailbox in the sidebar and every count
+beside it. Everything else is declined and the request goes to notmuch, as is
+any failure at all: a corrupt file, a poisoned lock, a SQL error. A translation
+that is merely *close* would be worse than none, because the index answers
+silently and a query it gets subtly wrong is a wrong list with nothing on
+screen to say so.
+
+**Text search is notmuch's, deliberately.** An FTS5 index over the headers is
+easy to build and answers `subject:invoice` in half the time — with a different
+set of messages, because notmuch generates terms through Xapian with its own
+stemmer and word splitting and FTS5 reproduces none of it. Measured against a
+real maildir the totals differed on half the header queries tried. Being twice
+as fast about the wrong mail is not what the index is for.
+
+Agreement is not assumed anywhere. `crates/ecr-store/tests/index.rs` runs every
+claimed query both ways against one database and compares field by field, and
+the same comparison against a real 46k maildir is what settled the fields a
+fixture cannot: that a thread's subject is its *newest matched* message's with
+one `Re: ` removed, and that the author list has to go through notmuch's own
+lossy `a, b| c` rendering so that both paths split `Anthropic, PBC` the same
+wrong way.
+
+Freshness rides on the same `Revision` as everything else. `lastmod:a..b` names
+exactly the messages a refresh has to re-read, so catching up is bounded by
+what changed rather than by the size of the database. Each chunk lands with the
+watermark it covers, so an interrupted refresh resumes. Deletions are the one
+thing `lastmod:` cannot name — a removed message leaves nothing behind — so a
+message count that disagrees with notmuch's forces a rebuild.
+
+A read trusts the index for two seconds before asking notmuch whether the
+database has moved. Every writer ecr knows about says so directly: its own tag
+writes and syncs invalidate immediately, and the watcher refreshes the index
+*before* publishing `mail:changed`, because the clients that event wakes ask
+for the new page at once and an index that has not caught up would answer the
+old one. The two-second window is what bounds how long a *stranger's* `notmuch
+tag` can go unnoticed, at one cheap process per window rather than one per
+request.
+
+A first build reads the whole database — about 80 seconds for 46k messages — so
+it runs beside the server rather than before it. `ecr serve` starts listening
+immediately and reads fall through to notmuch until it is ready, which is what
+they did before the index existed. A read never rebuilds for the same reason: a
+rebuild costs far more than the notmuch call it would save.
+
+`index = false` in `server.toml` turns it off, and `ecr doctor` reports its
+size and how far behind it is. Neither is a failure: without it every read is
+slower and every answer is the same.
 
 ## Message content
 

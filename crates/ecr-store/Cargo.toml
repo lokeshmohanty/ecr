@@ -26,6 +26,11 @@ serde_json = { workspace = true }
 toml = { workspace = true }
 mail-parser = "0.11"
 ammonia = "4"
+chrono = { workspace = true }
+# The mail index. `bundled` compiles SQLite into the binary: FTS5 is then
+# guaranteed present, and the tarball, the .deb and the AppImage carry no
+# libsqlite3 dependency for a user to satisfy.
+rusqlite = { version = "0.39", features = ["bundled"] }
 tokio = { workspace = true }
 tracing = { workspace = true }
 dirs = { workspace = true }

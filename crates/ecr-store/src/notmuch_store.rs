@@ -1,8 +1,9 @@
 use crate::error::{Error, Result};
+use crate::index::{IndexStatus, MessageIndex};
 use crate::notmuch::Notmuch;
 use crate::paths::MailPaths;
 use crate::store::{BodyOptions, MailStore, ProgressSink};
-use crate::{discovery, mbsync, msmtp, oauth};
+use crate::{discovery, index, mbsync, msmtp, oauth};
 use ecr_core::account::{Account, AccountId};
 use ecr_core::doctor::Doctor;
 use ecr_core::message::{
@@ -10,12 +11,29 @@ use ecr_core::message::{
     ThreadSummary,
 };
 use ecr_core::revision::Revision;
-use std::sync::Arc;
-use std::time::Instant;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+/// How long a read trusts the index without asking notmuch whether the database
+/// has moved. Every writer ecr knows about — its own tag writes, its own sync,
+/// the maildir watcher — says so directly; this window is what bounds how long
+/// a *stranger's* `notmuch tag` can go unnoticed, at one cheap process per
+/// window rather than one per request.
+const REVALIDATE_AFTER: Duration = Duration::from_secs(2);
 
 pub struct NotmuchStore {
     paths: Arc<MailPaths>,
     notmuch: Notmuch,
+    index: Option<MessageIndex>,
+    /// When the index was last known to stand where notmuch does.
+    verified: Mutex<Option<Instant>>,
+    /// Whether a refresh is writing to the index right now. A read checks this
+    /// rather than queueing behind the write, because the index holds one
+    /// connection behind one mutex: a chunk of a rebuild takes far longer than
+    /// the notmuch call a reader would otherwise be waiting on, so blocking on
+    /// it would make the index *slower* than not having one.
+    building: AtomicBool,
 }
 
 impl NotmuchStore {
@@ -24,9 +42,22 @@ impl NotmuchStore {
     }
 
     pub fn new(paths: Arc<MailPaths>) -> Self {
+        let index = paths.use_index.then(|| MessageIndex::open(&paths)).and_then(
+            |opened| match opened {
+                Ok(index) => Some(index),
+                Err(err) => {
+                    tracing::warn!(%err, "could not open the mail index; every read will ask notmuch");
+                    None
+                }
+            },
+        );
+
         Self {
             notmuch: Notmuch::new(Arc::clone(&paths)),
             paths,
+            index,
+            verified: Mutex::new(None),
+            building: AtomicBool::new(false),
         }
     }
 
@@ -36,6 +67,79 @@ impl NotmuchStore {
 
     pub fn notmuch(&self) -> &Notmuch {
         &self.notmuch
+    }
+
+    pub fn index_status(&self) -> Option<IndexStatus> {
+        self.index.as_ref().map(|index| index.status())
+    }
+
+    /// Builds or catches up the index, rebuilding it if that is what it takes.
+    ///
+    /// This is the caller that is allowed to be slow — a first build of a 46k
+    /// inbox is around 80 seconds — so it is never run from a request. The
+    /// server spawns it at startup and the watcher runs it when the database
+    /// moves; reads fall through to notmuch for as long as it takes.
+    pub async fn refresh_index(&self) -> Result<Option<index::Refreshed>> {
+        let Some(index) = self.index.as_ref() else {
+            return Ok(None);
+        };
+
+        self.building.store(true, Ordering::SeqCst);
+        let refreshed = index::refresh(index, &self.notmuch).await;
+        self.building.store(false, Ordering::SeqCst);
+
+        self.mark_verified();
+        Ok(Some(refreshed?))
+    }
+
+    /// The index, if it can be trusted to answer this request.
+    ///
+    /// Anything that goes wrong here answers `None`, which is a slower request
+    /// and never a wrong one.
+    async fn reading_index(&self) -> Option<&MessageIndex> {
+        let index = self.index.as_ref()?;
+
+        if self.building.load(Ordering::SeqCst) {
+            return None;
+        }
+
+        if self.recently_verified() {
+            return Some(index);
+        }
+
+        let revision = self.notmuch.revision().await.ok()?;
+        let held = index.revision().ok().flatten()?;
+
+        if held != revision {
+            index::refresh_incremental(index, &self.notmuch)
+                .await
+                .ok()
+                .flatten()?;
+        }
+
+        self.mark_verified();
+        Some(index)
+    }
+
+    fn recently_verified(&self) -> bool {
+        self.verified
+            .lock()
+            .ok()
+            .and_then(|at| *at)
+            .is_some_and(|at| at.elapsed() < REVALIDATE_AFTER)
+    }
+
+    fn mark_verified(&self) {
+        if let Ok(mut at) = self.verified.lock() {
+            *at = Some(Instant::now());
+        }
+    }
+
+    /// A write of ours moved the database, so the next read revalidates.
+    fn invalidate(&self) {
+        if let Ok(mut at) = self.verified.lock() {
+            *at = None;
+        }
     }
 
     fn channels_for(&self, accounts: &[AccountId]) -> Vec<String> {
@@ -58,15 +162,65 @@ impl MailStore for NotmuchStore {
     }
 
     async fn search_threads(&self, query: &Query) -> Result<Vec<ThreadSummary>> {
+        if let Some(index) = self.reading_index().await {
+            match index.search_threads(query) {
+                Ok(Some(threads)) => return Ok(threads),
+                Ok(None) => {}
+                Err(err) => tracing::warn!(%err, "the mail index could not answer a search"),
+            }
+        }
+
         self.notmuch.search_threads(query).await
     }
 
     async fn count(&self, query: &Query) -> Result<usize> {
+        if let Some(index) = self.reading_index().await {
+            match index.count(query.effective_text()) {
+                Ok(Some(count)) => return Ok(count as usize),
+                Ok(None) => {}
+                Err(err) => tracing::warn!(%err, "the mail index could not answer a count"),
+            }
+        }
+
         self.notmuch.count(query).await
     }
 
+    /// The sidebar's rows are mostly tags, and one saved free-text query among
+    /// them must not cost every other row its answer — so the ones the index
+    /// can take are taken, and only the rest reach notmuch, still in one batch.
     async fn count_batch(&self, queries: &[String]) -> Result<Vec<u64>> {
-        self.notmuch.count_batch(queries).await
+        let mut answers: Vec<Option<u64>> = vec![None; queries.len()];
+
+        if let Some(index) = self.reading_index().await {
+            for (slot, query) in answers.iter_mut().zip(queries) {
+                let text = query.trim();
+                if text.is_empty() {
+                    *slot = Some(0);
+                    continue;
+                }
+                match index.count(text) {
+                    Ok(count) => *slot = count,
+                    Err(err) => tracing::warn!(%err, "the mail index could not answer a count"),
+                }
+            }
+        }
+
+        let remaining: Vec<String> = queries
+            .iter()
+            .zip(&answers)
+            .filter(|(_, answer)| answer.is_none())
+            .map(|(query, _)| query.clone())
+            .collect();
+
+        if !remaining.is_empty() {
+            let counted = self.notmuch.count_batch(&remaining).await?;
+            let mut counted = counted.into_iter();
+            for slot in answers.iter_mut().filter(|slot| slot.is_none()) {
+                *slot = counted.next();
+            }
+        }
+
+        Ok(answers.into_iter().map(|a| a.unwrap_or(0)).collect())
     }
 
     async fn thread(&self, id: &ThreadId) -> Result<Thread> {
@@ -88,7 +242,9 @@ impl MailStore for NotmuchStore {
     }
 
     async fn tag(&self, ops: &[TagOp]) -> Result<Revision> {
-        self.notmuch.tag(ops).await
+        let revision = self.notmuch.tag(ops).await?;
+        self.invalidate();
+        Ok(revision)
     }
 
     async fn sync(
@@ -104,6 +260,7 @@ impl MailStore for NotmuchStore {
 
         progress.line("indexing new mail");
         self.notmuch.index_new().await?;
+        self.invalidate();
 
         let after = self.notmuch.count(&Query::new("*")).await.unwrap_or(before);
 

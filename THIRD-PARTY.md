@@ -27,6 +27,25 @@ OFL-1.1 also reserves the font names. A fork that *modifies* any of these font
 files must rename them; using them unmodified, as we do, carries no such
 obligation.
 
+## Bundled SQLite — public domain, compiled in
+
+`ecr-store` keeps a mail index in SQLite, and takes `rusqlite`'s `bundled`
+feature: the SQLite amalgamation is compiled from C source into `ecr` rather
+than linked against whatever the host provides. It is therefore *in* every
+binary we distribute.
+
+SQLite is released into the public domain by its authors and asks nothing of a
+distributor — no notice, no attribution, no licence text to carry. It is named
+here because a C library compiled into a shipped binary is exactly the kind of
+thing this file exists to account for, not because it obliges anything.
+`libsqlite3-sys`, the crate carrying the amalgamation and the bindings, is
+MIT and is counted in the table below.
+
+Bundling rather than linking is a deliberate choice: it keeps the tarball, the
+`.deb` and the AppImage free of a `libsqlite3` dependency for a user to
+satisfy, and it fixes the SQLite version the index is tested against rather
+than inheriting whatever the host ships.
+
 ## External programs — GPL, invoked but not linked
 
 `ecr-store` drives three GPL programs by running them as separate processes and

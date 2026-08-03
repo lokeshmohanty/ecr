@@ -288,12 +288,11 @@ making it installable by someone other than me.
 - [x] Licence, third-party notices and a dependency gate in CI
 - [x] Release artifacts: tarball, `.deb`, AppImage, APK, AAB, Nix flake outputs
 - [ ] `ecr init` — a first-run path that does not assume an existing notmuch setup
-- [ ] Installed and run on a machine that is not mine
 
 ### v0.2.0 — mobile and speed &nbsp;·&nbsp; `[ ]`
 
 - [x] Android client shipped as an APK, built in CI
-- [ ] SQLite cache in `ecr-store` — every request currently shells out to notmuch (~200ms for a 50-thread page of a 23k inbox), which is too slow for search-as-you-type
+- [x] SQLite mail index in `ecr-store` — mailbox listings and counts are answered from a local mirror instead of a notmuch process per request; anything it cannot answer *identically* falls through to notmuch, text search included
 - [ ] `ts-rs` type generation, so `web/src/api/types.ts` cannot drift from `ecr-core`
 - [ ] Remaining `ecr` subcommands: `web`, `qr`, `logs`, and the background lifecycle
 
@@ -301,7 +300,6 @@ making it installable by someone other than me.
 
 - [ ] Frozen HTTP API, versioned and documented
 - [ ] Settings file format stable across upgrades
-- [ ] macOS desktop build
 - [ ] Notmuch database access without a subprocess per request
 
 ### Not planned
@@ -320,7 +318,7 @@ Apple developer account to put on anyone's phone, and I do not have one.
 | `web` | complete: read, search, tag, mark queue, compose, mobile layout |
 | `shell` (Tauri desktop) | builds and runs on Linux; packaged as deb, AppImage and a Nix derivation, with a desktop entry, icons and AppStream metadata |
 | Android | builds and runs; APK and AAB per release, own launcher icon, cleartext to a self-hosted server, registers as a `mailto:` handler |
-| SQLite cache | not built |
+| SQLite mail index | built: message metadata mirrored from notmuch and verified identical against a real 46k maildir; text search still notmuch's |
 
 ## Contributing
 

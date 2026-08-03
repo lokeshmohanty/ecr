@@ -58,6 +58,16 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
 
     let state = AppState::new(Arc::clone(&store), tokens, read_only);
 
+    // Alongside the server, not before it. A first build of a large maildir
+    // takes over a minute, and holding the listener until it finished would
+    // make a first start look hung — while the index it is waiting for saves,
+    // at most, tens of milliseconds a request. Reads fall through to notmuch
+    // until it is ready, which is exactly what they did before it existed.
+    tokio::spawn({
+        let store = Arc::clone(&store);
+        async move { build_the_index(&store).await }
+    });
+
     let _watcher = if no_watch {
         None
     } else {
@@ -110,4 +120,24 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
 
     let cors = (!allowed_origins.is_empty()).then_some(allowed_origins);
     app::serve(listener, state, cors, web.as_deref()).await
+}
+
+/// The index is a cache, so a failure here is reported and then ignored: the
+/// server runs without it and every read asks notmuch, which is what it did
+/// before the index existed.
+async fn build_the_index(store: &NotmuchStore) {
+    match store.refresh_index().await {
+        Ok(Some(built)) => {
+            let what = if built.rebuilt { "built" } else { "caught up" };
+            tracing::info!(
+                messages = built.messages,
+                took_ms = built.took.as_millis() as u64,
+                "mail index {what}"
+            );
+        }
+        Ok(None) => tracing::info!("the mail index is off; every read will ask notmuch"),
+        Err(err) => {
+            tracing::warn!(%err, "could not build the mail index; every read will ask notmuch")
+        }
+    }
 }

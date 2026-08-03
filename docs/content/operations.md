@@ -370,8 +370,13 @@ Home Manager module and what each artifact carries. In short:
 | Symptom | Check |
 |---|---|
 | Server refuses to start | `ecr doctor` — it names the failure and a fix |
+| Client says it cannot reach the server | Nothing answered at that address. Is `ecr serve` running, and is the address the machine's own rather than `localhost` from another device? The prompt takes a new one |
+| Client says the device is not authorised | The server answered and refused it. Paste a token from `ecr token new`; if that keeps failing, check the address in the same prompt — another ecr would refuse it too |
+| A setting will not stick | The status bar says `settings: not saved — …`. A read-only server (`--read-only`) refuses the write |
+| A message reads "could not be read" | notmuch has it indexed and the file is gone or unreadable. `notmuch new` after fixing the maildir |
 | Empty inbox, no error | The query. `/api/v1/threads?q=*` should return everything |
 | `503` responses | A binary is missing from the service's `PATH`; pin absolute paths in `server.toml` |
 | Sync fails with an auth error | `ecr oauth status <account>`; the token may need reauthorizing with `ecr oauth authorize <account>` |
 | New mail does not appear | Was the server started with `--no-watch`? Otherwise check the log for watcher warnings |
 | Tags silently do nothing | `notmuch tag --batch` exits 0 on malformed input; `ecr-store` validates first, so a `400` here is the intended behaviour |
+| A list looks wrong, and you suspect the index | Delete `~/.local/state/ecr/index.sqlite3` and restart, or set `index = false` in `server.toml` to take notmuch's answer directly. If both agree, the index was not it |

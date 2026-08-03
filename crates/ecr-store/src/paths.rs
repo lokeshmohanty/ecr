@@ -152,8 +152,13 @@ pub struct MailPaths {
     /// Where ecr keeps its own files, as opposed to the mail tools' files.
     pub ecr_config_dir: PathBuf,
     /// The same split XDG draws: state is what ecr rewrites as it runs — the
-    /// OAuth tokens — as opposed to what the user edits.
+    /// OAuth tokens and the mail index — as opposed to what the user edits.
     pub ecr_state_dir: PathBuf,
+    /// Whether reads may be answered from the mail index. It is a cache of what
+    /// notmuch holds, so turning it off costs speed and nothing else; the
+    /// switch exists so a suspected disagreement can be settled without
+    /// rebuilding or reinstalling anything.
+    pub use_index: bool,
 }
 
 impl MailPaths {
@@ -209,6 +214,7 @@ impl MailPaths {
             binaries: crate::settings::Binaries::from_settings(settings),
             ecr_config_dir: env.config_dir.join("ecr"),
             ecr_state_dir: env.state_dir.join("ecr"),
+            use_index: settings.index.unwrap_or(true),
         })
     }
 

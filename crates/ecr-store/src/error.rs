@@ -49,6 +49,18 @@ pub enum Error {
     #[error("{0}")]
     Oauth(String),
 
+    #[error("mail index: {0}")]
+    Index(String),
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
+}
+
+/// The index is a cache, so nothing it does is ever reported to a reader: the
+/// error exists to be logged and fallen back from. Flattening SQLite's own
+/// error into a string keeps rusqlite out of this crate's public surface.
+impl From<rusqlite::Error> for Error {
+    fn from(err: rusqlite::Error) -> Self {
+        Error::Index(err.to_string())
+    }
 }

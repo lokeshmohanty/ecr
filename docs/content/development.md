@@ -180,8 +180,12 @@ new suite that serves the demo directory must copy that `env -u` prefix.
 
 ## Known gaps
 
-- **No SQLite cache.** Every request shells out to notmuch. Correct, but it will
-  need caching at 45k messages once the UI issues requests per keystroke.
+- **The mail index covers only part of notmuch's query syntax.** `date:`,
+  `folder:`, `attachment:`, `subject:`, `from:` and any bare word still shell
+  out to notmuch, at the original cost. Text search is the deliberate one: an
+  FTS index does not select the same messages Xapian does. Widening the rest is
+  a matter of proving each addition answers identically first — see the
+  comparison tests in `crates/ecr-store/tests/index.rs`.
 - **The Android APK is unsigned unless the secrets are set.** `release.yml`
   builds and attaches one on every tag, but signs it only when
   `ANDROID_KEYSTORE` is present — and an unsigned build cannot be upgraded in

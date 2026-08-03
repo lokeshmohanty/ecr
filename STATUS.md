@@ -57,11 +57,15 @@ staging tags, and the settings pane.
 
 ## Not built
 
-- **SQLite cache.** Every request shells out to notmuch. Measured: ~200ms for a
-  50-thread page of the 23k inbox. Usable, but too slow for search-as-you-type,
-  which is the point at which this becomes worth building.
 - **`ts-rs` generation.** `web/src/api/types.ts` is hand-maintained and can
   drift from `ecr-core`.
+- **The mail index does not cover text search.** `subject:`, `from:`, `to:`,
+  `date:`, `folder:` and bare-word searches still cost a notmuch process each.
+  For text that is deliberate and probably permanent: FTS5 does not select the
+  same messages Xapian does — measured, `subject:invoice` 108 against notmuch's
+  103 — and being twice as fast about the wrong mail is worse than being slow.
+  Tag and boolean queries are answered from the index and verified identical
+  against the real 46k maildir, 1,907 thread rows, every field.
 
 ## Next time
 

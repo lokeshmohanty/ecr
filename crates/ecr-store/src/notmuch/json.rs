@@ -51,6 +51,22 @@ impl SearchItem {
     }
 }
 
+/// Every message the query matched in this thread. Slot 1 holds the ones it did
+/// not and is deliberately left alone; see `newest_of`.
+pub fn matched_ids(item: &SearchItem) -> Vec<String> {
+    item.query
+        .first()
+        .and_then(|slot| slot.as_deref())
+        .map(|q| {
+            q.split_whitespace()
+                .filter_map(|token| token.strip_prefix("id:"))
+                .map(|id| id.trim_matches('"').to_string())
+                .filter(|id| !id.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// notmuch's `query[0]` is a query naming every matched message, not one id:
 /// `id:msg3@example.com id:msg4@example.com`. Stripping only the leading `id:`
 /// left the rest embedded in the value, which became a query matching nothing —
@@ -65,7 +81,14 @@ fn newest_of(query: &str) -> Option<MessageId> {
         .map(|id| MessageId(id.trim_matches('"').to_string()))
 }
 
-fn split_authors(raw: &str) -> Vec<String> {
+/// notmuch joins the authors of a thread into one string — matched first, then
+/// `|`, then the rest, each list separated by `, ` — and a display name
+/// containing a comma is therefore indistinguishable from two authors.
+/// `Anthropic, PBC` comes back as two. Nothing can recover the difference, so
+/// the mail index renders the same string and splits it here rather than
+/// keeping its own per-message list: one wrong answer everywhere beats two
+/// answers that disagree depending on which path served the request.
+pub fn split_authors(raw: &str) -> Vec<String> {
     raw.split(['|', ','])
         .map(str::trim)
         .filter(|a| !a.is_empty())
@@ -89,12 +112,22 @@ impl ShowOutput {
     }
 }
 
+/// The message is `null` whenever `notmuch show --entire-thread=false` walks
+/// *through* a message the query did not match to reach a reply that it did.
+/// Its replies are still there, so a node has to be skipped rather than
+/// stopping the walk — and typing it as a `ShowMessage` fails the whole parse
+/// with `invalid type: null`, which surfaces as notmuch having malfunctioned.
 #[derive(Debug, Deserialize)]
-pub struct ThreadNode(pub ShowMessage, #[serde(default)] pub Vec<ThreadNode>);
+pub struct ThreadNode(
+    pub Option<ShowMessage>,
+    #[serde(default)] pub Vec<ThreadNode>,
+);
 
 impl ThreadNode {
     fn flatten_into(self, out: &mut Vec<ShowMessage>) {
-        out.push(self.0);
+        if let Some(message) = self.0 {
+            out.push(message);
+        }
         for reply in self.1 {
             reply.flatten_into(out);
         }

@@ -74,4 +74,4 @@ mail configuration in the wrong places and had no way to say so.
 | `web` | complete: read, search, tag, mark queue, compose, mobile layout |
 | `shell` (Tauri desktop) | builds; external-`$EDITOR` command, `mailto:` handling and notifications wired; packaged as deb, AppImage and a Nix derivation |
 | Android | builds and runs; APK and AAB per release, own launcher icon, `mailto:` handler — see [operations.md](@/operations.md#android) |
-| SQLite cache | not built — every request currently shells out to notmuch |
+| SQLite mail index | built: mailbox listings and counts answered from SQLite, with anything it cannot answer identically — text search included — falling through to notmuch |

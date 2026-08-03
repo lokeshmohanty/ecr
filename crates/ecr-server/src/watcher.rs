@@ -66,6 +66,14 @@ async fn debounce_loop(state: AppState, mut rx: mpsc::UnboundedReceiver<()>) {
                     continue;
                 }
 
+                // Ahead of the event, not after it: the clients this wakes ask
+                // for the new page immediately, and an index that has not
+                // caught up yet answers the old one — which reads as mail
+                // arriving and then not being there.
+                if let Err(err) = state.store.refresh_index().await {
+                    tracing::warn!(%err, "could not bring the mail index up to the new mail");
+                }
+
                 tracing::info!(%revision, "indexed newly delivered mail");
                 state.events.publish(ServerEvent::MailChanged { revision });
             }
