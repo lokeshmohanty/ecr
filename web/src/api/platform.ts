@@ -48,18 +48,49 @@ export type ScanResult =
 /**
  * Reads a pairing code with the camera.
  *
+ * The plugin's commands are named directly, the way `openExternal` names the
+ * opener's. That is not a shortcut around a nicer Rust wrapper — there is no
+ * Rust API to wrap: `tauri-plugin-barcode-scanner` exposes
+ * `impl<R: Runtime> BarcodeScanner<R> {}`, an empty block, and everything it
+ * does is reachable only from JavaScript.
+ *
+ * Permission is checked and requested before scanning, because the plugin's
+ * `scan` on a denied camera fails with a message written for a developer.
+ * Asking first means a reader who has never been prompted gets Android's own
+ * dialog, and one who refused earlier gets a sentence naming what to change.
+ *
  * This does not go through `invoke`, which answers `null` for everything that
- * went wrong: a reader who declined the camera permission and a reader who
- * backed out of the scanner would then be indistinguishable, and the first has
- * something to be told while the second must be left alone.
+ * went wrong: a refused camera and a scan the reader backed out of would then
+ * be indistinguishable, and the first has something to be told while the second
+ * must be left alone.
  */
 export async function scanQr(): Promise<ScanResult> {
   const call = invoker();
   if (!call) return { kind: "unavailable", reason: "there is no camera here" };
 
   try {
-    const text = await call<string | null>("scan_qr");
-    return text ? { kind: "scanned", text } : { kind: "cancelled" };
+    let state = await call<{ camera?: string }>(
+      "plugin:barcode-scanner|check_permissions",
+    );
+    if (state?.camera !== "granted") {
+      state = await call<{ camera?: string }>(
+        "plugin:barcode-scanner|request_permissions",
+      );
+    }
+    if (state?.camera !== "granted") {
+      return {
+        kind: "unavailable",
+        reason: "ecr may not use the camera; allow it in the system settings",
+      };
+    }
+
+    const scanned = await call<{ content?: string }>(
+      "plugin:barcode-scanner|scan",
+      { formats: ["QR_CODE"], windowed: false },
+    );
+    return scanned?.content
+      ? { kind: "scanned", text: scanned.content }
+      : { kind: "cancelled" };
   } catch (error) {
     return {
       kind: "unavailable",

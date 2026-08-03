@@ -120,6 +120,13 @@ reproduced in distributions that include the data. The text is at
 **CC0-1.0** (`notify`) is a public-domain dedication and asks nothing of us. It
 is named here only so the table above does not look like an omission.
 
+**CDLA-Permissive-2.0** (`webpki-root-certs`) covers Mozilla's CA certificate
+set, which arrives through reqwest's platform verifier now that `ecr oauth`
+speaks TLS. It is a licence for *data*, not code: it permits use and
+redistribution with no obligation to publish anything in return, and states
+that it imposes no conditions on software that merely uses the data. Shipping
+the certificates is what any TLS client does.
+
 ## Web dependencies
 
 Six runtime packages ship in the bundle:

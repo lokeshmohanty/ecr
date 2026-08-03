@@ -14,6 +14,13 @@ allow = [
   "BSD-2-Clause",
   "BSD-3-Clause",
   "BSL-1.0",
+  # Mozilla's CA certificate set, reached through reqwest's platform verifier
+  # since `ecr oauth` started speaking TLS. CDLA-Permissive-2.0 is a *data*
+  # licence: it grants use and redistribution of the data with no obligation to
+  # share anything back, and explicitly imposes no terms on software that uses
+  # it. Allowed rather than worked around because the alternative is shipping
+  # our own root store, which is a worse answer to the same question.
+  "CDLA-Permissive-2.0",
   "CC0-1.0",
   "ISC",
   "MIT",

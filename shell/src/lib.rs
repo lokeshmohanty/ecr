@@ -140,39 +140,6 @@ fn apk_version(app: tauri::AppHandle) -> Option<String> {
     }
 }
 
-/// Reads a pairing code with the camera, and answers what it said.
-///
-/// `Ok(None)` is a scan the reader cancelled, which is not a failure and must
-/// not be painted as one. `Err` is the camera refusing — no permission, or no
-/// camera — and the client says so; anything else and a reader who declined the
-/// permission prompt would be left looking at a screen that did nothing.
-///
-/// Desktop has no implementation at all, so the command answers an error there
-/// rather than not existing: `invoke` turns a missing command into `null`,
-/// which is indistinguishable from a cancelled scan.
-#[tauri::command]
-async fn scan_qr(_app: tauri::AppHandle) -> Result<Option<String>, String> {
-    #[cfg(any(target_os = "android", target_os = "ios"))]
-    {
-        use tauri_plugin_barcode_scanner::{BarcodeScannerExt, Format, ScanOptions};
-
-        let scanned = _app
-            .barcode_scanner()
-            .scan(ScanOptions {
-                formats: vec![Format::QRCode],
-                windowed: false,
-                camera_direction: None,
-            })
-            .await
-            .map_err(|e| e.to_string())?;
-
-        Ok(Some(scanned.content).filter(|c| !c.is_empty()))
-    }
-
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    Err("this device has no camera to scan with".to_string())
-}
-
 #[tauri::command]
 fn default_server_url() -> String {
     std::env::var("ECR_SERVER_URL").unwrap_or_else(|_| "http://localhost:8383".to_string())
@@ -291,8 +258,7 @@ pub fn run() {
             default_server_url,
             default_token,
             take_launch_mailto,
-            notify,
-            scan_qr
+            notify
         ])
         .run(tauri::generate_context!())
         .expect("error while running ecr");

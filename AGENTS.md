@@ -386,13 +386,24 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   neither is reachable from the phone the code is for. `reachable_address`
   declines both and the code carries the token alone, saying so, rather than
   encoding something that looks like it worked.
-- **The barcode scanner is a mobile-only plugin, so it cannot be a plain
-  dependency or a plain capability.** It is target-gated in `shell/Cargo.toml`
-  and its permissions live in `capabilities/mobile.json` with a `platforms`
-  key — put in `default.json` they name a plugin the desktop build does not
-  have. `scan_qr` answers an *error* on desktop rather than not existing,
-  because `invoke` turns a missing command into `null` and that is
-  indistinguishable from a scan the reader cancelled.
+- **`tauri-plugin-barcode-scanner` has no Rust API to call.** Its whole surface
+  is `impl<R: Runtime> BarcodeScanner<R> {}` — an empty block — and every
+  operation is reachable only from JavaScript, so the client names
+  `plugin:barcode-scanner|scan` directly the way it already names
+  `plugin:opener|open_url`. Wrapping it in a `#[tauri::command]` compiles on
+  desktop, where the crate is absent and the code is `#[cfg]`-ed out, and fails
+  only in the Android job: `.scan(…)` resolves to `Iterator::scan` and the error
+  is *`&BarcodeScanner<…>` is not an iterator*, which reads as a type puzzle
+  rather than as a method that does not exist.
+- **It is mobile-only, so it cannot be a plain dependency or a plain
+  capability.** Target-gated in `shell/Cargo.toml`, and its permissions live in
+  `capabilities/mobile.json` behind a `platforms` key — in `default.json` they
+  name a plugin the desktop build does not have.
+- **Nothing but CI compiles the Android target.** `cargo check -p ecr-desktop`
+  passes with the scanner code entirely `#[cfg]`-ed away, `just check` never
+  touches it, and `just android` needs a multi-gigabyte SDK. So a change to the
+  mobile shell is unverified until the `android` job runs — push before tagging,
+  because a tag that fails there has already been made public.
 - **A `mailto:` in a message is handled here, not by the system.**
   `openExternal` still passes `mailto:` to the shell's opener — it is a valid
   thing to hand over — but no message link reaches it any more:
