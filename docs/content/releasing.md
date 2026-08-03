@@ -181,6 +181,24 @@ gh secret set ANDROID_KEY_ALIAS          # `ecr`, from `-alias` above
 gh secret set ANDROID_KEY_PASSWORD
 ```
 
+**Where ecr's key actually is.** It was generated on 2026-08-03 — 4096-bit RSA,
+alias `ecr`, valid to 2053 — and lives at `~/.local/share/ecr-signing/ecr.jks`,
+outside the repository. The authoritative backup is in `pass`:
+
+```bash
+pass show android/ecr/keystore-base64 | tr -d '\n' | base64 -d > ecr.jks
+pass show android/ecr/store-password
+```
+
+`android/ecr/key-password` and `android/ecr/key-alias` are there too. The store
+and key passwords are deliberately identical: the keystore is PKCS12, which
+supports only one password for both, and keytool *silently discards* a
+different `-keypass` with a warning that is easy to miss — recording two
+different values would mean gradle could not open the key.
+
+A machine is not a backup. If `pass` and this machine are the same disk,
+copy the store somewhere else as well.
+
 ### F-Droid
 
 F-Droid builds and signs the app itself, from source, on its own infrastructure;

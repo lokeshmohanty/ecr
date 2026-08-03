@@ -42,3 +42,13 @@ web/dist/
 # Zola output; the site is built by CI and published to gh-pages.
 docs/public/
 docs/static/giallo-*.css
+
+# Signing material. The real keystore lives outside the repository and is
+# backed up in `pass` under `android/ecr/`; CI reconstructs a throwaway one
+# from a secret. Nothing of the sort belongs in git — a release key that leaks
+# cannot be rotated for anyone who already installed the app, and one that is
+# lost means every install must be removed by hand before it can be upgraded.
+*.jks
+*.keystore
+*.p12
+keystore.properties
