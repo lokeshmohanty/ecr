@@ -9,7 +9,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.2"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 authors = ["Lokesh Mohanty <lokeshmohanty@users.noreply.github.com>"]
@@ -20,9 +20,9 @@ keywords = ["email", "notmuch", "maildir", "mail"]
 categories = ["email", "command-line-utilities"]
 
 [workspace.dependencies]
-ecr-core = { path = "crates/ecr-core", version = "0.1.2" }
-ecr-store = { path = "crates/ecr-store", version = "0.1.2" }
-ecr-server = { path = "crates/ecr-server", version = "0.1.2" }
+ecr-core = { path = "crates/ecr-core", version = "0.2.0" }
+ecr-store = { path = "crates/ecr-store", version = "0.2.0" }
+ecr-server = { path = "crates/ecr-server", version = "0.2.0" }
 
 anyhow = "1"
 thiserror = "2"

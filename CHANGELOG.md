@@ -9,6 +9,55 @@ release; both are frozen at v1.0.0.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-08-03
+
+### Added
+
+- The Android app can check for a newer release. **Updates** in the device
+  settings fetches the newest GitHub release, compares the tag with the
+  installed version and offers the download, which opens in the browser and
+  goes through Android's own installer — so no new permission is needed. It runs
+  only when asked; there is no background check. The section appears on Android
+  and nowhere else: every other way of installing ecr is updated by whatever
+  installed it. An `-unsigned.apk` asset is never offered, since it cannot be
+  installed over a signed build.
+
+### Fixed
+
+- A fresh install no longer reports *theme themes/ecr-dark.toml could not be
+  read* for a palette that ships with ecr. The presets were seeded into
+  `~/.config/ecr/themes/` by `GET /themes` alone, and a client asks for the
+  theme its default setting names long before anything asks for the listing, so
+  the palette answered `404` until the settings page had been opened once.
+  `GET /theme` seeds as well, and still never overwrites a file you have edited.
+- A theme problem no longer masquerades as an outage. `lastError` is the reason
+  the thread list is empty — it is painted under *cannot reach the server*,
+  beside the base URL and a retry — so writing a theme failure there displaced
+  the real HTTP error whenever both requests failed, and named a file that was
+  perfectly fine. A broken `theme` link is now a standing complaint in the
+  status bar, and only when the server actually answered: a request that never
+  arrived says nothing about the palette.
+- `just run` no longer fails with *a valid bearer token is required* once you
+  have issued yourself a device token. Every recipe that launches a client —
+  `run`, `dev`, `desktop` and `android` — now issues and carries a dev token of
+  its own, from a store separate from the real `tokens.toml` so the `verify-*`
+  suites, which need an empty store, are unaffected. The browser recipes pass it
+  on the URL; the desktop reads `ECR_TOKEN` from its environment and the Android
+  debug build has it compiled in, because neither webview is served by the
+  server and so neither ever sees that URL. A token already stored on a device
+  still wins, so a properly paired phone is not overwritten by a dev launch, and
+  a release build carries no token at all.
+- The browser, visual and UX suites no longer run against the developer's real
+  maildir. `ecr_store::paths` ranks `NOTMUCH_CONFIG` above the XDG location, and
+  the dev shell exports it, so pointing `HOME` at the demo directory was not
+  enough: `just visual` compared its baselines against a live inbox and reported
+  a change on nearly every state, and `just verify-marks`, which writes tags, was
+  pointed at it too. Every `demo-env.sh` caller now strips `NOTMUCH_CONFIG`,
+  `NOTMUCH_PROFILE` and `MBSYNCRC`. This never failed in CI, which sets none of
+  them.
+- The connection form asked for a token from `ecr-server token new`, which is
+  not a binary that exists. The command is `ecr token new`.
+
 ## [0.1.2] — 2026-08-03
 
 The first release with a signed Android APK. v0.1.1's was unsigned, and its
@@ -162,6 +211,8 @@ Published to crates.io only; see 0.1.1. See the
 - `fixtures/notmuch-config`, which nothing referenced and which hardcoded an
   absolute home directory.
 
-[Unreleased]: https://github.com/lokeshmohanty/ecr/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/lokeshmohanty/ecr/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/lokeshmohanty/ecr/releases/tag/v0.2.0
+[0.1.2]: https://github.com/lokeshmohanty/ecr/releases/tag/v0.1.2
 [0.1.1]: https://github.com/lokeshmohanty/ecr/releases/tag/v0.1.1
 [0.1.0]: https://github.com/lokeshmohanty/ecr/releases/tag/v0.1.0

@@ -4,15 +4,24 @@ Volatile state. Durable knowledge belongs in `docs/`.
 
 ## Where things stand (2026-08-03)
 
-The revamp is complete and 0.1.1 is out: server, store, web client, desktop
+The revamp is complete and 0.2.0 is out: server, store, web client, desktop
 shell and Android all ship.
+
+Development is no longer broken by having paired a device: every recipe that
+launches a client carries a dev token out of a store separate from the real
+`tokens.toml`. The browser suites are isolated from the real maildir too — the
+dev shell's `NOTMUCH_CONFIG` outranks a `HOME` override, so every launcher
+strips it. Both are written up in `docs/content/development.md`.
+
+The Android build can ask GitHub whether it has been superseded; nothing else
+can, because nothing else is sideloaded.
 
 The editing model is now vim throughout: one grammar drives the composer, the
 settings file and — read-only — the message being read. Compose is labelled
 rows rather than a header buffer, drafts carry attachments, and the list
 selects before it acts.
 
-- 307 Rust tests, 534 web tests, 22 checks in `just verify`, 18 e2e tests,
+- 308 Rust tests, 566 web tests, 22 checks in `just verify`, 18 e2e tests,
   31 visual states
 - Two silent write bugs are gone: `za` on a collapsed message did nothing, and
   tagging any thread of more than one message wrote a notmuch batch line that
@@ -34,6 +43,7 @@ reaching the server through `adb reverse`. Verified on a CPH2491 (Android 16,
 list, the sidebar pane, opening a thread, the safe-area insets and the system
 back gesture all behave. Not yet exercised on the phone: compose and send,
 staging tags, and the settings pane.
+
 - **That phone's USB link is unreliable** — two 20MB pushes succeed and the
   third drops the device off the bus entirely, which truncates an `adb install`
   and surfaces as `Failed to parse base.apk`, a message that reads like a
