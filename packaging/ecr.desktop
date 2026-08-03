@@ -4,7 +4,15 @@ Name=ecr
 GenericName=Mail Client
 Comment=A keyboard-driven mail client for an existing notmuch maildir
 Exec=ecr-desktop
-Icon=ecr
+# `ecr-desktop`, not `ecr`: Tauri names the entry it generates after
+# `productName` but names the icons it installs after the *binary*, so the
+# icons land in hicolor as `ecr-desktop.png` while the file beside them is
+# `ecr.desktop`. linuxdeploy resolves this key against those icons and refuses
+# to build an AppImage when nothing matches — `Could not find suitable icon for
+# Icon entry` — which is how the first release broke. The deb does not check,
+# so there it was only a launcher with no artwork. The Nix package installs the
+# same name for the same reason.
+Icon=ecr-desktop
 Terminal=false
 Categories=Network;Email;
 Keywords=mail;email;notmuch;maildir;vim;

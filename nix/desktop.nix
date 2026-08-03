@@ -86,7 +86,10 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
   # The same three files the deb installs, at the same names — `ecr.desktop`
   # because that is what Tauri's bundler calls the entry it generates from this
-  # very file, and `ecr.png` because that is what it calls the icons.
+  # very file, and `ecr-desktop.png` because that is what it calls the icons.
+  # The two names differ: the entry is named after `productName` and the icons
+  # after the binary. Naming the icons `ecr` here would leave this package the
+  # only one whose artwork the `Icon=` key in that shared entry does not find.
   postInstall = ''
     install -Dm644 packaging/ecr.desktop $out/share/applications/ecr.desktop
     install -Dm644 packaging/dev.lokeshmohanty.ecr.metainfo.xml \
@@ -96,7 +99,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
       size="''${pair%%:*}"
       file="''${pair##*:}"
       install -Dm644 "shell/icons/$file.png" \
-        "$out/share/icons/hicolor/''${size}x''${size}/apps/ecr.png"
+        "$out/share/icons/hicolor/''${size}x''${size}/apps/ecr-desktop.png"
     done
   '';
 
