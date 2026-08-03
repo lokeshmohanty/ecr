@@ -263,3 +263,48 @@ jobs:
       - run: cargo tauri android build --debug
         working-directory: shell
 
+  # The desktop bundles, built here for the same reason Android is: nothing else
+  # runs the bundler. `nix build .#ecr-desktop` compiles the binary but never
+  # packages it, so every failure that lives in the deb and AppImage bundlers —
+  # a desktop entry that will not render, an icon the AppDir cannot find, a
+  # linuxdeploy that refuses — was invisible until a tag was already pushed.
+  # Both of the first release's failures were of exactly that kind.
+  #
+  # Deliberately not `needs: [rust, web]`: this is the only gate on bundling and
+  # it is self-contained, so making it wait on the test suites would delay the
+  # one signal nothing else produces. ubuntu-22.04 to match the release job,
+  # since glibc is forward-compatible but not backward.
+  bundle:
+    name: bundle (deb, AppImage)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install Tauri dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libsoup-3.0-dev librsvg2-dev patchelf file desktop-file-utils
+
+      - run: pnpm --dir web install --frozen-lockfile
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: tauri-cli
+      - run: pnpm --dir web exec vite build
+
+      # `--verbose`, because without it the bundler captures linuxdeploy's
+      # output and reports the whole failure as `failed to run linuxdeploy`,
+      # which names neither the file nor the reason. See release.yml.
+      - run: cargo tauri build --verbose
+        working-directory: shell
+

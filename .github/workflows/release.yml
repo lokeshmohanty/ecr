@@ -164,7 +164,12 @@ jobs:
       # from shell/. Building it here makes the job independent of whichever
       # directory the hook happens to run in.
       - run: pnpm --dir web exec vite build
-      - run: cargo tauri build
+      # `--verbose`, because at the default log level the bundler captures
+      # linuxdeploy's stdout and stderr and reduces the whole failure to
+      # `failed to run linuxdeploy`, naming neither the file nor the reason.
+      # ci.yml's `bundle` job is what stops a break reaching a tag; this is what
+      # makes one readable if it does.
+      - run: cargo tauri build --verbose
         working-directory: shell
 
       - name: Collect bundles
@@ -367,6 +372,13 @@ jobs:
 
       # In dependency order — each crate's path dependencies carry explicit
       # versions that must already exist on the registry.
+      #
+      # A version already on the registry is skipped rather than published. A
+      # release is several jobs and only some of them can be retried: this one
+      # published all four crates on the run whose AppImage bundling then
+      # failed, and an upload is permanent, so without the check re-running that
+      # tag could only ever fail here on `crate version already uploaded`. The
+      # skip is what makes the whole workflow re-runnable against one tag.
       - name: Publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
@@ -375,8 +387,25 @@ jobs:
             echo "::warning::CARGO_REGISTRY_TOKEN is not set; skipping crates.io"
             exit 0
           fi
+          version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
           for crate in ecr-core ecr-store ecr-server ecr-cli; do
-            echo "== $crate =="
+            echo "== $crate $version =="
+            # crates.io rejects a request without a User-Agent, so omitting it
+            # would make every crate look unpublished and every publish fail.
+            code=$(curl -sS -o /dev/null -w '%{http_code}' \
+              -H 'User-Agent: ecr-release (github.com/lokeshmohanty/ecr)' \
+              "https://crates.io/api/v1/crates/$crate/$version")
+            case "$code" in
+              200)
+                echo "already on crates.io; skipping"
+                continue
+                ;;
+              404) ;;
+              *)
+                echo "::error::crates.io answered $code for $crate $version"
+                exit 1
+                ;;
+            esac
             cargo publish -p "$crate" --no-verify
             # The registry index needs a moment before the next crate can see it.
             sleep 30
