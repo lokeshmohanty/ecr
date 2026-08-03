@@ -13,6 +13,7 @@
 //! of truth; the file can be deleted at any point and is rebuilt on the next
 //! refresh.
 
+mod freshness;
 mod plan;
 mod relative;
 mod schema;
@@ -27,6 +28,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+pub use freshness::Freshness;
 pub use sync::{refresh, refresh_incremental, Refreshed};
 
 /// What the index holds, for `ecr doctor`.

@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::index::{IndexStatus, MessageIndex};
+use crate::index::{Freshness, IndexStatus, MessageIndex};
 use crate::notmuch::Notmuch;
 use crate::paths::MailPaths;
 use crate::store::{BodyOptions, MailStore, ProgressSink};
@@ -11,29 +11,15 @@ use ecr_core::message::{
     ThreadSummary,
 };
 use ecr_core::revision::Revision;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
-
-/// How long a read trusts the index without asking notmuch whether the database
-/// has moved. Every writer ecr knows about — its own tag writes, its own sync,
-/// the maildir watcher — says so directly; this window is what bounds how long
-/// a *stranger's* `notmuch tag` can go unnoticed, at one cheap process per
-/// window rather than one per request.
-const REVALIDATE_AFTER: Duration = Duration::from_secs(2);
+use std::sync::Arc;
+use std::time::Instant;
 
 pub struct NotmuchStore {
     paths: Arc<MailPaths>,
     notmuch: Notmuch,
     index: Option<MessageIndex>,
-    /// When the index was last known to stand where notmuch does.
-    verified: Mutex<Option<Instant>>,
-    /// Whether a refresh is writing to the index right now. A read checks this
-    /// rather than queueing behind the write, because the index holds one
-    /// connection behind one mutex: a chunk of a rebuild takes far longer than
-    /// the notmuch call a reader would otherwise be waiting on, so blocking on
-    /// it would make the index *slower* than not having one.
-    building: AtomicBool,
+    /// Whether the index may answer this request. See `index::freshness`.
+    freshness: Freshness,
 }
 
 impl NotmuchStore {
@@ -56,8 +42,7 @@ impl NotmuchStore {
             notmuch: Notmuch::new(Arc::clone(&paths)),
             paths,
             index,
-            verified: Mutex::new(None),
-            building: AtomicBool::new(false),
+            freshness: Freshness::default(),
         }
     }
 
@@ -84,11 +69,13 @@ impl NotmuchStore {
             return Ok(None);
         };
 
-        self.building.store(true, Ordering::SeqCst);
-        let refreshed = index::refresh(index, &self.notmuch).await;
-        self.building.store(false, Ordering::SeqCst);
+        let generation = self.freshness.generation();
 
-        self.mark_verified();
+        self.freshness.begin_build();
+        let refreshed = index::refresh(index, &self.notmuch).await;
+        self.freshness.end_build();
+
+        self.freshness.vouch(generation);
         Ok(Some(refreshed?))
     }
 
@@ -99,14 +86,15 @@ impl NotmuchStore {
     async fn reading_index(&self) -> Option<&MessageIndex> {
         let index = self.index.as_ref()?;
 
-        if self.building.load(Ordering::SeqCst) {
+        if self.freshness.building() {
             return None;
         }
 
-        if self.recently_verified() {
+        if self.freshness.fresh() {
             return Some(index);
         }
 
+        let generation = self.freshness.generation();
         let revision = self.notmuch.revision().await.ok()?;
         let held = index.revision().ok().flatten()?;
 
@@ -117,29 +105,8 @@ impl NotmuchStore {
                 .flatten()?;
         }
 
-        self.mark_verified();
+        self.freshness.vouch(generation);
         Some(index)
-    }
-
-    fn recently_verified(&self) -> bool {
-        self.verified
-            .lock()
-            .ok()
-            .and_then(|at| *at)
-            .is_some_and(|at| at.elapsed() < REVALIDATE_AFTER)
-    }
-
-    fn mark_verified(&self) {
-        if let Ok(mut at) = self.verified.lock() {
-            *at = Some(Instant::now());
-        }
-    }
-
-    /// A write of ours moved the database, so the next read revalidates.
-    fn invalidate(&self) {
-        if let Ok(mut at) = self.verified.lock() {
-            *at = None;
-        }
     }
 
     fn channels_for(&self, accounts: &[AccountId]) -> Vec<String> {
@@ -243,7 +210,7 @@ impl MailStore for NotmuchStore {
 
     async fn tag(&self, ops: &[TagOp]) -> Result<Revision> {
         let revision = self.notmuch.tag(ops).await?;
-        self.invalidate();
+        self.freshness.note_write();
         Ok(revision)
     }
 
@@ -260,7 +227,7 @@ impl MailStore for NotmuchStore {
 
         progress.line("indexing new mail");
         self.notmuch.index_new().await?;
-        self.invalidate();
+        self.freshness.note_write();
 
         let after = self.notmuch.count(&Query::new("*")).await.unwrap_or(before);
 
