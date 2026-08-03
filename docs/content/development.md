@@ -33,7 +33,13 @@ just token phone    # issue a device token, with a pairing QR
 just verify-live    # read-only smoke test against your real mail
 ```
 
-`ECR_BIND` overrides the address `just serve` and `just health` use.
+Every recipe that starts a server binds `0.0.0.0:8399`, and `ECR_BIND` overrides
+it. The port is deliberately not the installed server's 8383: on a machine that
+also runs `ecr serve` as a service — the NixOS module, the home-manager module
+or `packaging/ecr.service` — sharing the port means one of the two loses it, and
+which one depends on the order they happened to start in. Keeping them apart
+lets a working tree and an installed service run side by side, which comparing
+the two needs anyway.
 
 The underlying commands are ordinary and can still be run directly:
 

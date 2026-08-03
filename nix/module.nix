@@ -79,6 +79,14 @@ in
 
       environment = cfg.environment;
 
+      # Wide enough that `RestartSec` below can fill the burst. systemd's
+      # default window is 10s, which five restarts five seconds apart can never
+      # fill, so a permanent failure — the bind address already taken is the one
+      # that happens — retries forever and never reaches `failed`. Nothing then
+      # reports it: the unit looks activating, not broken.
+      startLimitIntervalSec = 300;
+      startLimitBurst = 5;
+
       serviceConfig = {
         ExecStart = lib.escapeShellArgs (
           [

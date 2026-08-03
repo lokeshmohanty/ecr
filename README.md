@@ -1,6 +1,6 @@
 <img src="figures/logo.png" alt="" width="80" align="left" hspace="12" vspace="4">
 
-# ecr
+# ECR (Email Clinet in Rust)
 
 [![ci](https://github.com/lokeshmohanty/ecr/actions/workflows/ci.yml/badge.svg)](https://github.com/lokeshmohanty/ecr/actions/workflows/ci.yml)
 [![licence](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue)](#licence)

@@ -39,8 +39,9 @@ just run              # builds the client, starts the server, opens a browser
 ```
 
 That is the whole thing. `just run` serves the UI and the API from the same
-origin on <http://127.0.0.1:8383>, so there is nothing to configure — no URL to
-paste, no CORS, and no token needed for local use.
+origin on <http://127.0.0.1:8399>, so there is nothing to configure — no URL to
+paste, no CORS, and no token needed for local use. An installed server uses 8383
+instead, and the recipes stay off that port so both can run at once.
 
 For the desktop window instead of a browser tab:
 
@@ -55,7 +56,7 @@ just                  # list every recipe
 just doctor           # explain the mail setup; the server refuses to start unless healthy
 just token phone      # issue a device token, with a pairing QR
 just dev              # web client with hot reload on :1420, against a running server
-ECR_BIND=<tailnet-addr>:8383 just serve   # reachable from a phone
+ECR_BIND=<tailnet-addr>:8399 just serve   # reachable from a phone
 ```
 
 `doctor` is the gate. It resolves every config file, reports which one it chose

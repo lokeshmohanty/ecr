@@ -97,6 +97,14 @@ in
         Documentation = "https://github.com/lokeshmohanty/ecr/tree/main/docs";
         After = [ "network-online.target" ];
         Wants = [ "network-online.target" ];
+
+        # Wide enough that `RestartSec` below can fill the burst. systemd's
+        # default window is 10s, which five restarts five seconds apart can
+        # never fill, so a permanent failure — the bind address already taken
+        # is the one that happens — retries forever and never reaches `failed`.
+        # Nothing then reports it: the unit looks activating, not broken.
+        StartLimitIntervalSec = 300;
+        StartLimitBurst = 5;
       };
 
       Service = {

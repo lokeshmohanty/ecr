@@ -2,7 +2,12 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 
 pkg := "ecr-cli"
 bin := "ecr"
-bind := env_var_or_default("ECR_BIND", "0.0.0.0:8383")
+# 8399, not the installed server's 8383: developing on a machine that also runs
+# `ecr serve` as a service otherwise means one of the two loses the port — a
+# `just serve` that refuses to start, or an installed unit that cannot rebind
+# after a rebuild and restarts until its start limit. The device side of
+# `just android` stays 8383 regardless; it is forwarded to whatever this is.
+bind := env_var_or_default("ECR_BIND", "0.0.0.0:8399")
 
 # List the available recipes.
 default:

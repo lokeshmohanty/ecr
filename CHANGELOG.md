@@ -9,7 +9,20 @@ release; both are frozen at v1.0.0.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- The `just` recipes bind `0.0.0.0:8399` rather than the installed server's
+  8383, so a working tree and an installed service no longer fight over the
+  port. `ECR_BIND` still overrides it, and `just android` still forwards the
+  device's 8383 to whatever the host uses.
+
+### Fixed
+
+- All three units — `services.ecr`, `programs.ecr.server` and
+  `packaging/ecr.service` — now set a start limit. `RestartSec=5` cannot fill
+  systemd's default 10s window, so a permanent failure such as the bind address
+  being taken restarted forever and never reached `failed`, leaving a server
+  that was down while the unit reported activating.
 
 ## [0.1.0] — 2026-08-03
 
