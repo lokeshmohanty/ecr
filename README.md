@@ -1,9 +1,9 @@
 <img src="figures/logo.png" alt="" width="80" align="left" hspace="12" vspace="4">
 
-# ECR (Email Clinet in Rust)
+# ECR (Email Client in Rust)
 
 [![ci](https://github.com/lokeshmohanty/ecr/actions/workflows/ci.yml/badge.svg)](https://github.com/lokeshmohanty/ecr/actions/workflows/ci.yml)
-[![licence](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue)](#licence)
+[![licence](https://img.shields.io/badge/licence-MIT-blue)](#licence)
 [![release](https://img.shields.io/github/v/release/lokeshmohanty/ecr?include_prereleases&sort=semver)](https://github.com/lokeshmohanty/ecr/releases)
 
 **E**mail **C**lient in **R**ust. A keyboard-driven mail client for an existing
@@ -193,7 +193,7 @@ grants `allow-scripts`.
 ## The sidebar
 
 Mailboxes, then whatever the database can tell you about itself: the tags in
-use, the people who write to you, and the mailing lists you are on. Counts come
+use and the mailing lists you are on. Counts come
 from one `notmuch count --batch` for the rows actually on screen.
 
 ![The sidebar, with counts and gathered sections](figures/sidebar.png)
@@ -206,7 +206,7 @@ sections appear and in what order — and you can add rows of your own:
 sidebar_icons = true
 sidebar_leaders = true
 sidebar_counts = true
-sidebar_sections = ["mailboxes", "tags", "people", "lists"]
+sidebar_sections = ["mailboxes", "tags", "lists", "queries"]
 sidebar_custom = [{ name = "Patches", query = "subject:PATCH", icon = "◆" }]
 ```
 

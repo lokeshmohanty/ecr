@@ -12,7 +12,7 @@ weight = 3
 | `ecr-store` | Everything that touches the mail: config discovery, the `MailStore` trait, the notmuch backend, MIME parsing, sync and send. |
 | `ecr-server` | axum: REST, SSE, bearer auth, the maildir watcher. A library — it builds no binary. |
 | `ecr-cli` | The `ecr` binary. Owns the command surface and everything user-facing; deliberately free of GUI dependencies. |
-| `shell` | Tauri v2 desktop (and eventually Android) wrapper around `web/dist`, built as `ecr-desktop`. |
+| `shell` | Tauri v2 desktop and Android wrapper around `web/dist`, built as `ecr-desktop`. |
 | `web` | SolidJS client. The only UI code; every target renders it. |
 
 ## Configuration discovery
@@ -53,7 +53,7 @@ refreshes on its own. Tag changes are not this: marking a message read, whether
 by the reader or by another client, bumps `revision` only, so the sidebar
 counts and the open thread refresh but the list pane is not re-fetched and
 reshuffled — a list being read is not reordered because a message's tags
-changed. A message physically removed from the maildir fires `mail_changed`,
+changed. A message physically removed from the maildir fires `mail:changed`,
 which does refresh the list. The sidebar counts and the open thread refresh
 everywhere regardless, so the inbox badge still rises the moment mail lands.
 
@@ -137,11 +137,11 @@ CORS entirely. `--allowed-origin` restricts it where that is wanted.
   container only exists after data arrives — so it rendered nothing.
 - **Keymap.** A pure module with an explicit mode state machine. One rule
   prevents the stuck-mode class of bugs: while a text field holds focus, only
-  Escape is ours. Transient overlays claim Escape before the keymap sees it:
-  help closes, help, a visual range is abandoned, and with no range on screen
-  Escape clears what `Space` picked and what is staged. The keymap itself
-  reports idle-normal Escape as ignored, so those clearances live in `App.tsx`
-  ahead of `keymap.handle`.
+  Escape and Ctrl chords are ours. Transient overlays claim Escape before the
+  keymap sees it: help closes, a visual range is abandoned, and with no range
+  on screen Escape clears what `Space` picked and what is staged. The keymap
+  itself reports idle-normal Escape as ignored, so those clearances live in
+  `App.tsx` ahead of `keymap.handle`.
 - **Vim.** `keymap/motions.ts` holds the motions and text objects as functions
   of `(text, caret)` and nothing else; `keymap/vim.ts` is the state machine over
   them — visual mode, operators, registers, `.`, in-buffer search, `C-c`
@@ -164,13 +164,13 @@ CORS entirely. `--allowed-origin` restricts it where that is wanted.
   belong to an inert document with no selection until they are inserted.
 - **Data.** Resources keyed by `revision` (sidebar counts, open thread,
   gathered tags/lists) and `listRevision` (the list pane). New mail — an
-  SSE `mail_changed` or `sync_finished` — and user actions go through
+  SSE `mail:changed` or `sync:finished` — and user actions go through
   `bumpRevision`, which bumps both, so every view refreshes. Tag changes
-  (`tags_changed`, or marking a message read after it has been on screen) go
+  (`tags:changed`, or marking a message read after it has been on screen) go
   through `bumpForTagChange`, which bumps `revision` only: the sidebar counts
   and the open thread refresh, but the list pane is not re-fetched and
   reshuffled — a list being read is not reordered because a message's tags
-  changed. A message physically removed from the maildir fires `mail_changed`,
+  changed. A message physically removed from the maildir fires `mail:changed`,
   which does refresh the list.
 - **Held rows.** A refetch is not allowed to take a row out from under the
   reader. When a message is auto-marked read, the store keeps its row — index
@@ -233,7 +233,7 @@ CORS entirely. `--allowed-origin` restricts it where that is wanted.
   describes it: leaving the list pushes, returning to it pops, `popstate` goes
   back to the list.
 - **Safe areas.** `MainActivity` calls `enableEdgeToEdge()`, and from targetSdk
-  35 there is no opting out, so the status and gesture bars are drawn *over* the
+  36 there is no opting out, so the status and gesture bars are drawn *over* the
   app. Only the chrome that touches an edge pays an inset. The insets reach the
   CSS through `--safe-*` variables that default to `env(safe-area-inset-*)`
   rather than through `env()` at each use: a headless browser cannot be given a

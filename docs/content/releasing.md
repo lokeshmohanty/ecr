@@ -4,8 +4,6 @@ description = "How a release is cut, what CI produces, and what has to be true f
 weight = 6
 +++
 
-How a release is cut, what CI produces, and what has to be true first.
-
 ## Versioning
 
 Semantic versioning. One version number for the whole workspace, set in
@@ -32,7 +30,7 @@ git push origin main v0.2.0
 
 The tag starts `.github/workflows/release.yml`, which:
 
-1. Re-runs the full test suite. A tag does not skip verification.
+1. Re-runs fmt, lint and both test suites. A tag does not skip verification.
 2. Builds each artifact on its native runner.
 3. Computes `SHA256SUMS` across all of them.
 4. Creates a **draft** GitHub release with the `CHANGELOG.md` section for that
@@ -47,17 +45,17 @@ works.
 
 | Artifact | Built on | Contents |
 |---|---|---|
-| `ecr-x86_64-unknown-linux-gnu.tar.gz` | `ubuntu-latest` | the `ecr` binary, the built web client, a man page, bash/zsh/fish completions and a systemd user unit |
-| `ecr-aarch64-unknown-linux-gnu.tar.gz` | `ubuntu-24.04-arm` | as above, for arm64 |
-| `ecr_<version>_amd64.deb` | `ubuntu-latest` | desktop client, via `tauri build` |
-| `ecr_<version>_amd64.AppImage` | `ubuntu-latest` | desktop client, self-contained |
+| `ecr-x86_64-unknown-linux-gnu.tar.gz` | `ubuntu-22.04` | the `ecr` binary, the built web client, a man page, bash/zsh/fish completions and a systemd user unit |
+| `ecr-aarch64-unknown-linux-gnu.tar.gz` | `ubuntu-22.04-arm` | as above, for arm64 |
+| `ecr_<version>_amd64.deb` | `ubuntu-22.04` | desktop client, via `tauri build` |
+| `ecr_<version>_amd64.AppImage` | `ubuntu-22.04` | desktop client, self-contained |
 | `ecr-<version>.apk` | `ubuntu-latest` | Android client, for sideloading |
 | `ecr-<version>.aab` | `ubuntu-latest` | the same build in the only format Play accepts |
 | `SHA256SUMS` | `ubuntu-latest` | checksums for everything above |
 
-The `.deb` and AppImage are built on `ubuntu-22.04` deliberately: glibc is
-forward-compatible, not backward, so building on the oldest supported runner is
-what makes the artifact work on newer distributions.
+The tarballs, `.deb` and AppImage are built on `ubuntu-22.04` deliberately:
+glibc is forward-compatible, not backward, so building on the oldest supported
+runner is what makes the artifacts work on newer distributions.
 
 ### Nix
 
@@ -151,7 +149,19 @@ with them. If they are not, the workflow builds an unsigned APK and says so in
 the release notes. An unsigned APK installs fine by sideloading; it cannot go to
 Play Store, and its signature will not match a later signed build, so users would
 have to uninstall before upgrading. Set the secrets before the first APK anyone
-actually installs.
+actually installs — v0.1.1 shipped before they were, and is unsigned.
+
+The secrets alone are not what signs it. Tauri's generated
+`app/build.gradle.kts` has no `signingConfigs` block and never reads
+`keystore.properties`, so setting them used to write a file nothing consumed:
+the workflow announced "APK will be signed." and produced
+`app-universal-release-unsigned.apk` regardless. The signing config lives in
+`shell/android/overlay/app/signing.gradle`, and `scripts/android-overlay.sh`
+appends the `apply(from = …)` line that pulls it in — appended rather than
+overlaid because the generated build file is a template full of substitutions.
+Two gates keep that honest: CI builds a *release* APK signed with a throwaway
+key on every push and fails if it comes out `-unsigned`, and the release job
+refuses to ship an unsigned APK when the keystore secret is set.
 
 Generate a keystore once and keep it somewhere you will not lose it — losing it
 means every existing install must be removed by hand before it can be upgraded:
@@ -160,6 +170,15 @@ means every existing install must be removed by hand before it can be upgraded:
 keytool -genkey -v -keystore ecr.jks -keyalg RSA -keysize 2048 \
   -validity 10000 -alias ecr
 base64 -w0 ecr.jks    # the value for the ANDROID_KEYSTORE secret
+```
+
+Then set all four, so the alias and passwords match the ones just chosen:
+
+```bash
+gh secret set ANDROID_KEYSTORE < <(base64 -w0 ecr.jks)
+gh secret set ANDROID_KEYSTORE_PASSWORD
+gh secret set ANDROID_KEY_ALIAS          # `ecr`, from `-alias` above
+gh secret set ANDROID_KEY_PASSWORD
 ```
 
 ### F-Droid

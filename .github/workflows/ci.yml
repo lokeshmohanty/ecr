@@ -260,8 +260,55 @@ jobs:
       # is where that warning is meant to be seen — CI builds Android on every
       # push, so a template change surfaces here rather than at release time.
       - run: ./scripts/android-overlay.sh
-      - run: cargo tauri android build --debug
-        working-directory: shell
+
+      # A *release* build, signed with a throwaway key generated here and never
+      # leaving the runner. Two things only this catches:
+      #
+      # Tauri's generated gradle has no `signingConfigs` block, so until
+      # `signing.gradle` existed the release workflow wrote the keystore secrets
+      # into a `keystore.properties` that nothing read — it announced "APK will
+      # be signed." and shipped `app-universal-release-unsigned.apk` anyway. A
+      # debug build cannot notice that: it is signed by Android's own debug key
+      # regardless.
+      #
+      # And release is the configuration that ships — minify and proguard run
+      # here and nowhere else. `just android` builds debug locally every day,
+      # so that path is not the one at risk.
+      #
+      # A throwaway key rather than the real secrets on purpose: PRs from forks
+      # cannot see secrets, and this must gate them too.
+      - name: Build a signed release APK with a throwaway key
+        run: |
+          keytool -genkeypair -v -keystore "$RUNNER_TEMP/ci.jks" \
+            -storepass ci-throwaway -keypass ci-throwaway \
+            -alias ci -keyalg RSA -keysize 2048 -validity 30 \
+            -dname "CN=ecr ci, O=ecr, C=ZZ"
+          {
+            echo "storeFile=$RUNNER_TEMP/ci.jks"
+            echo "storePassword=ci-throwaway"
+            echo "keyAlias=ci"
+            echo "password=ci-throwaway"
+          } > shell/gen/android/keystore.properties
+          (cd shell && cargo tauri android build --apk)
+
+      - name: The release APK is signed
+        run: |
+          apk=$(find shell/gen/android -path '*/build/outputs/*' -name '*.apk' | head -1)
+          if [ -z "$apk" ]; then
+            echo "::error::no APK was produced"
+            exit 1
+          fi
+          echo "$apk"
+          # gradle names the artifact `-unsigned` exactly when the release build
+          # type has no signing config, which is the whole failure being pinned.
+          case "$apk" in
+            *-unsigned.apk)
+              echo "::error::the release APK is unsigned — signing.gradle did not apply"
+              exit 1
+              ;;
+          esac
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort | tail -1)
+          "$apksigner" verify --verbose "$apk"
 
   # The desktop bundles, built here for the same reason Android is: nothing else
   # runs the bundler. `nix build .#ecr-desktop` compiles the binary but never

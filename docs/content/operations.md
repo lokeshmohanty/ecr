@@ -85,8 +85,8 @@ ecr serve --bind 127.0.0.1:8383
 applies and the client defaults its API base to wherever it was loaded from.
 
 It looks for `web/dist` relative to the working directory and then beside the
-binary. If it cannot find one it serves a page saying so rather than a 404.
-Build it with `just build-web`.
+binary. If it cannot find one it serves a page that says so. Build it with
+`just build-web`.
 
 The desktop shell embeds its own copy of the same client and reads the server
 URL from `ECR_SERVER_URL` (default `http://localhost:8383`). If that server is
@@ -202,8 +202,6 @@ SDK is read-only, so whatever the Tauri template asks for has to be pinned in
 on NixOS.
 
 `bundle.android.minSdkVersion` is set to 28 in `shell/tauri.conf.json`.
-
-The web client is also a working PWA and can be added to the home screen today.
 
 ## Installing a release
 

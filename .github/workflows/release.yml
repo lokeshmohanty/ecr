@@ -275,11 +275,23 @@ jobs:
       - run: cargo tauri android build --apk --aab
         working-directory: shell
 
+      # Only what gradle puts under `build/outputs`. Searching the whole tree
+      # also finds `intermediary-bundle.aab` under `build/intermediates` — a
+      # 62MB step on the way to the real AAB, which v0.1.1 shipped as a release
+      # asset beside it, so the page offered two bundles and did not say which
+      # one to take.
       - name: Collect the APK and the AAB
         run: |
           mkdir -p out
-          find shell/gen/android \( -name '*.apk' -o -name '*.aab' \) -exec cp {} out/ \;
+          find shell/gen/android -path '*/build/outputs/*' \
+            \( -name '*.apk' -o -name '*.aab' \) -exec cp {} out/ \;
           ls -la out
+          # The signed APK is the point of the keystore step above; shipping an
+          # unsigned one when signing was configured would be silent.
+          if [ -n "$ANDROID_KEYSTORE" ] && ls out/*-unsigned.apk >/dev/null 2>&1; then
+            echo "::error::signing was configured but the APK is unsigned"
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         with:

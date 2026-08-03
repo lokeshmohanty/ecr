@@ -15,8 +15,12 @@ unauthenticated and logs a warning.
 | GET | `/health` | Full doctor report. Unauthenticated. |
 | GET | `/revision` | `{ uuid, lastmod }` |
 | GET | `/accounts` | Accounts with their real folder trees |
+| GET | `/addresses` | Ranked addresses for the composer's completion |
+| GET | `/tags` | Every tag in the database, for query completion |
+| POST | `/counts` | `{ queries: [] }` → `{ counts: [] }`, positional, via one `notmuch count --batch`. At most 200 queries |
+| GET | `/lists` | `{ lists, searchable }`. `searchable` is false when `index.header.List` is unset |
 | GET | `/threads?q=&limit=&offset=` | `ETag`; honours `If-None-Match` with `304`. `limit` clamps to 1..500 |
-| GET | `/threads/{id}` | Messages with part metadata. `404` if unknown |
+| GET | `/threads/{id}` | The messages in the thread. `404` if unknown |
 | GET | `/messages/{id}` | One message with part metadata |
 | GET | `/messages/{id}/body?html=&remote=` | Sanitized body. `html` defaults true, `remote` false |
 | GET | `/messages/{id}/parts/{n}` | Raw part bytes with content-type and disposition |

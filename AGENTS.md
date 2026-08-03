@@ -11,7 +11,7 @@ when it dangles.
 
 A client/server mail client. `ecr-server` (Rust/axum) owns all mail state over
 notmuch/mbsync/msmtp; `web/` (SolidJS) is the only UI, shipping to browser,
-desktop (Tauri) and eventually Android.
+desktop (Tauri) and Android.
 
 One binary drives it: `ecr`, from `crates/ecr-cli`. The desktop client is a
 second binary, `ecr-desktop`, so a headless install never links WebKitGTK.
@@ -222,6 +222,24 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   both workflows. The overlay owns `AndroidManifest.xml` outright, so the script
   also diffs what Tauri just generated against `shell/android/upstream/` and
   warns when the template moves.
+- **Setting the Android keystore secrets does not sign anything by itself.**
+  Tauri's generated `app/build.gradle.kts` carries no `signingConfigs` block and
+  never reads `keystore.properties`, so the release job's "Decode the keystore"
+  step wrote a file nothing consumed — it printed "APK will be signed." and
+  shipped `app-universal-release-unsigned.apk`, which is what v0.1.1 released.
+  `shell/android/overlay/app/signing.gradle` holds the config and the overlay
+  script *appends* `apply(from = "signing.gradle")` rather than overlaying the
+  build file, which is a Handlebars template whose substitutions a static copy
+  would freeze. Gradle names an artifact `-unsigned` exactly when the release
+  build type has no signing config, so that name is the assertion: CI builds a
+  release APK with a throwaway key on every push and fails on it, and the
+  release job fails on it whenever `ANDROID_KEYSTORE` is set. A debug build
+  proves nothing here — it is signed by Android's own debug key either way.
+- **Collect Android artifacts from `build/outputs`, not from the whole tree.**
+  `build/intermediates` holds `intermediary-bundle.aab`, a 62MB step on the way
+  to the real AAB. v0.1.1 shipped it as a release asset beside
+  `app-universal-release.aab`, so the page offered two bundles and said nothing
+  about which one to take.
 - **A factory `vi.mock` replaces the whole module, so a new export breaks the
   tests that mock it.** `store.autorefresh.test.ts` and `store.held.test.ts`
   mock `../api/platform` with `() => ({ shellServerUrl: vi.fn() })`. Adding
@@ -272,7 +290,7 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   something uncommitted. Do not `--approve` in that state on someone else's
   behalf: approving bakes whatever else is in the working tree into the
   baselines, and the next person inherits it as the intended look.
-- **`just visual` is the regression net for anything you can see.** 26 states
+- **`just visual` is the regression net for anything you can see.** 31 states
   against the fixture maildir, compared pixel by pixel. Real mail cannot be a
   baseline — it changes. Review `screenshots/visual/diff` before approving.
   The last three are the phone, at the CSS viewport of a real device rather

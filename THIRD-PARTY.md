@@ -97,14 +97,16 @@ is named here only so the table above does not look like an omission.
 
 ## Web dependencies
 
-Five runtime packages ship in the bundle:
+Six runtime packages ship in the bundle:
 
 | Package | Licence |
 |---|---|
 | `solid-js` | MIT |
 | `@solidjs/router` | MIT |
 | `smol-toml` | BSD-3-Clause |
-| `@fontsource-variable/*` | OFL-1.1 (see above) |
+| `@fontsource-variable/space-grotesk` | OFL-1.1 (see above) |
+| `@fontsource-variable/nunito` | OFL-1.1 (see above) |
+| `@fontsource-variable/cascadia-code` | OFL-1.1 (see above) |
 
 Build-time packages (Vite, Tailwind, Vitest, Playwright, TypeScript) are MIT,
 Apache-2.0 or ISC and are not redistributed.

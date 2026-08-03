@@ -60,4 +60,15 @@ fi
 # icons. Without the overlay the app wears the Tauri logo.
 cp -r "$OVERLAY/." "$GEN/"
 
+# `app/build.gradle.kts` is the one file the overlay cannot own: it is a
+# Handlebars template and the generated copy carries substitutions — the
+# identifier, the ABI list, the min SDK — that a static copy would freeze.
+# Appending one line adds the signing config without owning anything, and the
+# grep makes it idempotent for the runs where gen/ already carries it.
+gradle="$GEN/app/build.gradle.kts"
+apply_line='apply(from = "signing.gradle")'
+if [ -f "$gradle" ] && ! grep -qF "$apply_line" "$gradle"; then
+  printf '\n%s\n' "$apply_line" >> "$gradle"
+fi
+
 echo "android overlay applied to shell/gen/android"

@@ -156,6 +156,29 @@ describe("rows held after they stop matching the query", () => {
 		page = [];
 	}
 
+	it("marks the row read in place when the query still matches it", async () => {
+		saveConnection({ baseUrl: "http://test:8383", token: "t" });
+
+		await withStore(async (store) => {
+			await flush();
+			store.selectQuery("tag:inbox");
+			await flush();
+			expect(store.items()[0]?.tags).toContain("unread");
+
+			store.setOpenThread(ROW.id);
+			store.markReadWhenSeen("a@x", ["unread"]);
+			await flush();
+			await flush();
+
+			// The list is not refetched, so the page still says unread; the row
+			// reads as read anyway, in the position it was already in.
+			expect(store.items()).toHaveLength(1);
+			expect(store.items()[0]?.id).toBe(ROW.id);
+			expect(store.items()[0]?.tags).not.toContain("unread");
+			expect(store.items()[0]?.tags).toContain("inbox");
+		});
+	});
+
 	it("keeps the row when new mail refetches the list under it", async () => {
 		saveConnection({ baseUrl: "http://test:8383", token: "t" });
 

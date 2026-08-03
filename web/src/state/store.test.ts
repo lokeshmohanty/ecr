@@ -3,12 +3,14 @@ import {
 	badgesFor,
 	isMessageOpen,
 	markToOps,
+	mergeHeld,
 	parseTagInput,
 	DEFAULT_VIEWS,
 	MARK_TAGS,
 	type Mark,
 } from "./store";
 import { tagsWithoutAccounts } from "./store/sidebar";
+import type { ThreadSummary } from "../api/types";
 
 /** What the store stages for one message. */
 const staged = (marks: Mark[], add: string[] = [], remove: string[] = []) => ({
@@ -177,6 +179,39 @@ describe("what the margin tape shows", () => {
 	it("marks typed tags with a T", () => {
 		expect(badgesFor(staged([], ["work"]))).toBe("T");
 		expect(badgesFor(staged(["delete"], [], ["inbox"]))).toBe("DT");
+	});
+});
+
+describe("held rows merged into a page", () => {
+	const row = (id: string, tags: string[]): ThreadSummary => ({
+		id,
+		subject: id,
+		authors: [],
+		timestamp: 0,
+		date_relative: "",
+		matched: 1,
+		total: 1,
+		tags,
+		newest_message: `${id}@x`,
+	});
+
+	it("puts back a row the query stopped matching, where it was", () => {
+		const held = [{ index: 1, row: row("b", ["inbox"]) }];
+		const merged = mergeHeld([row("a", []), row("c", [])], held);
+		expect(merged.map((thread) => thread.id)).toEqual(["a", "b", "c"]);
+	});
+
+	it("drops unread from a row the page still carries as unread", () => {
+		const held = [{ index: 0, row: row("a", ["inbox"]) }];
+		const merged = mergeHeld([row("a", ["inbox", "unread"])], held);
+		expect(merged).toHaveLength(1);
+		expect(merged[0]?.tags).toEqual(["inbox"]);
+	});
+
+	it("leaves the server's copy alone while the thread is still unread", () => {
+		const held = [{ index: 0, row: row("a", ["inbox", "unread"]) }];
+		const fetched = [row("a", ["inbox", "unread", "flagged"])];
+		expect(mergeHeld(fetched, held)).toEqual(fetched);
 	});
 });
 

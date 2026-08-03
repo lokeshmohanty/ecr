@@ -36,9 +36,9 @@ just check
 ```
 
 `fmt`, `clippy`, the Rust suite, the web suite, and the browser, visual and UX
-verification. CI runs the same thing. If it passes locally it passes there,
-with one exception: `just verify-live*` drives your real mail and is deliberately
-not in `check` or CI.
+verification. CI runs the same suite with one omission: the `e2e` Playwright
+suite is not in CI, so it needs a local run. `just verify-live*` drives your
+real mail and is deliberately in neither.
 
 Run `just` bare to see every recipe.
 
@@ -51,8 +51,9 @@ Run `just` bare to see every recipe.
 | `web` | `tsc --noEmit`, `pnpm test`, `vite build`, and that the font licences shipped |
 | `browser` | a matrix: `verify`, `verify-compose`, `verify-view`, `verify-marks`, `verify-ux`, `visual` |
 | `licences and advisories` | `cargo deny check licenses bans sources advisories` |
-| `nix` | `nix flake check` and `nix build .#ecr` |
+| `nix` | `nix flake check` and `nix build .#ecr .#ecr-web .#ecr-desktop` |
 | `android` | a debug APK builds |
+| `bundle` | the `.deb` and AppImage build, on `ubuntu-22.04` |
 
 On a failed browser job the screenshots and pixel diffs are uploaded as an
 artifact — a visual failure is not actionable without them.
@@ -88,7 +89,7 @@ button. The browser caught all five.
   windowing arithmetic, the mark queue and the settings file generator.
 - **Browser verification** drives a real Chrome against a real server on a demo
   maildir.
-- **Visual regression** (`just visual`) compares 23 states pixel by pixel against
+- **Visual regression** (`just visual`) compares 31 states pixel by pixel against
   `screenshots/visual/baseline`. Review `screenshots/visual/diff` before
   approving a change to a baseline — a diff you accept without looking is a
   regression you shipped.
@@ -104,7 +105,7 @@ screen. If you add a verifier that touches real mail, write its output there too
 
 ## Licensing
 
-Contributions are dual licensed under MIT and Apache-2.0, matching the project.
+Contributions are licensed under the MIT licence, matching the project.
 Submitting a pull request is how you agree to that; there is no CLA.
 
 Adding a dependency means adding its licence to the tree. `cargo deny check`

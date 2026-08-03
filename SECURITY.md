@@ -51,8 +51,9 @@ scope.
 ## What is not in scope
 
 - **`ecr` running with no tokens configured.** With no tokens the API is
-  unauthenticated by design, for local single-user use. Binding it to a public
-  address in that state is a misconfiguration; `ecr doctor` warns about it.
+  unauthenticated by design, for local single-user use; the server says so in
+  its log at startup. Binding it to a public address in that state is a
+  misconfiguration.
 - **Vulnerabilities in `notmuch`, `mbsync` or `msmtp`.** Report those upstream.
   A way to make `ecr` *invoke* them dangerously is in scope; a flaw inside them
   is not.
@@ -64,7 +65,8 @@ scope.
 
 ## Hardening notes for operators
 
-- Bind to a tailnet or VPN address, not a public one. `ECR_BIND` controls it.
+- Bind to a tailnet or VPN address, not a public one — `ecr serve --bind`,
+  or `ECR_BIND` when launching through the `just` recipes.
 - Issue a token per device: `ecr token new phone --qr`. Revoke with
   `ecr token revoke phone`.
 - `ecr serve --read-only` refuses every write. It is the right way to try a new

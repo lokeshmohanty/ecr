@@ -54,8 +54,8 @@ Published to crates.io only; see 0.1.1. See the
 
 ### Added
 
-- Dual MIT / Apache-2.0 licensing, third-party notices in `THIRD-PARTY.md`, and
-  a `cargo deny` gate that fails CI if a copyleft dependency enters the tree.
+- MIT licensing, third-party notices in `THIRD-PARTY.md`, and a `cargo deny`
+  gate that fails CI if a copyleft dependency enters the tree.
 - OFL-1.1 licences for the three bundled webfonts, copied into the built site so
   the licence travels with the fonts it covers.
 - `just deny` and `just licenses` for auditing dependency licences.
@@ -130,5 +130,6 @@ Published to crates.io only; see 0.1.1. See the
 - `fixtures/notmuch-config`, which nothing referenced and which hardcoded an
   absolute home directory.
 
-[Unreleased]: https://github.com/lokeshmohanty/ecr/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/lokeshmohanty/ecr/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/lokeshmohanty/ecr/releases/tag/v0.1.1
 [0.1.0]: https://github.com/lokeshmohanty/ecr/releases/tag/v0.1.0

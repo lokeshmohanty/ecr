@@ -20,8 +20,8 @@ pnpm, `hurl`, `sqlite`, and the WebKitGTK closure Tauri needs.
 ```bash
 just install        # web dependencies
 just doctor         # verify the mail setup — do this first
-just test           # 275 Rust tests
-just test-web       # 424 web tests + tsc
+just test           # 307 Rust tests
+just test-web       # 534 web tests + tsc
 just verify         # 22 checks in a real browser
 just check          # fmt, lint, both suites, browser, visual and UX verification
 just deny           # licences, bans, sources, advisories
@@ -77,8 +77,10 @@ thread, the body renders sandboxed, no script survived, the inline image
 actually loads, Escape closes the help, and there is no horizontal scroll at
 390px. It writes `screenshots/web-client.png`.
 
-On NixOS Playwright's bundled chromium fails on `libnspr4.so`; the script
-launches `/run/current-system/sw/bin/google-chrome-stable` instead.
+On NixOS Playwright's bundled chromium fails on `libnspr4.so`; `web/browser.mjs`
+picks `/run/current-system/sw/bin/google-chrome-stable` instead. `just visual`
+pins its own browser through `ECR_CHROME`, because two browser builds rasterise
+the same glyph differently.
 
 **End-to-end** (`just e2e`) is the `@playwright/test` suite in `web/e2e/`. A
 worker-scoped fixture builds its own demo maildir and runs a server on port

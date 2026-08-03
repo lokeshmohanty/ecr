@@ -1,0 +1,44 @@
+// Release signing, applied onto Tauri's generated `app/build.gradle.kts`.
+//
+// Tauri's template has no `signingConfigs` block at all and never reads this
+// file's input, so before this existed the release workflow's "Decode the
+// keystore" step wrote `keystore.properties` that nothing consumed: setting the
+// four secrets printed "APK will be signed." and still produced
+// `app-universal-release-unsigned.apk`. Gradle names the artifact `-unsigned`
+// precisely when the release build type has no signing config, which is the
+// signal the release job now fails on.
+//
+// Groovy rather than Kotlin on purpose: an applied `.kts` script gets no
+// type-safe accessors for the `android` extension, while Groovy resolves it
+// dynamically. `android-overlay.sh` appends the `apply(from = …)` line, because
+// the generated build file is a Handlebars template full of substitutions —
+// the ABI list, the identifier, the min SDK — and overlaying a static copy of
+// it would freeze those and silently rot when the template moves.
+//
+// Absent `keystore.properties` the build is left exactly as it was: an unsigned
+// APK sideloads fine, and a contributor building locally has no keystore and
+// should not need one.
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+
+if (keystorePropertiesFile.exists()) {
+    def keystoreProperties = new Properties()
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+
+    android {
+        signingConfigs {
+            release {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                // `password`, not `keyPassword`: the name the release workflow
+                // writes. The two must agree or the key is silently not found.
+                keyPassword keystoreProperties['password']
+            }
+        }
+        buildTypes {
+            release {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+}

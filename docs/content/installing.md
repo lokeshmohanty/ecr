@@ -23,14 +23,14 @@ the version string, and `ecr --version` reports it:
 
 ```
 $ ecr --version
-ecr 0.2.0+20260802.a1b2c3d
+ecr 0.1.1+20260803.a1b2c3d
 ```
 
-The same string is what `nix profile list` shows. `0.2.0` is the release the
+The same string is what `nix profile list` shows. `0.1.1` is the release the
 tree is at or after; the date and the short revision say exactly which commit.
 
 A build from a source tarball or plain `cargo install` has no revision to stamp
-and reports `0.2.0`.
+and reports `0.1.1`.
 
 ## Home Manager
 

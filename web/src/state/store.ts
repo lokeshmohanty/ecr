@@ -116,8 +116,11 @@ export interface HeldRows {
 
 /**
  * Puts the held rows back into a page that no longer carries them, at the
- * index each was last seen at. A row the query matches again is left alone —
- * the server's copy is the current one.
+ * index each was last seen at. A row the query still matches keeps the
+ * server's copy — except for `unread`, which reading it has just dropped: a
+ * tag change deliberately does not refetch the list, so the page in hand
+ * predates that write and the row would otherwise stay bold, with its unread
+ * tape, until something unrelated refetched.
  */
 export function mergeHeld(
 	fetched: ThreadSummary[],
@@ -126,7 +129,16 @@ export function mergeHeld(
 	if (rows.length === 0) return fetched;
 
 	const present = new Set(fetched.map((thread) => thread.id));
-	const merged = [...fetched];
+	const read = new Set(
+		rows
+			.filter(({ row }) => !row.tags.includes("unread"))
+			.map(({ row }) => row.id),
+	);
+	const merged = fetched.map((thread) =>
+		read.has(thread.id) && thread.tags.includes("unread")
+			? { ...thread, tags: thread.tags.filter((tag) => tag !== "unread") }
+			: thread,
+	);
 	for (const { index, row } of rows) {
 		if (present.has(row.id)) continue;
 		merged.splice(Math.min(index, merged.length), 0, row);
