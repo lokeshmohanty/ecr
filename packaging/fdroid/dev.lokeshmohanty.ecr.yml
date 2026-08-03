@@ -21,7 +21,7 @@
 
 Categories:
   - Internet
-License: MIT
+License: GPL-3.0-or-later OR MIT
 AuthorName: Lokesh Mohanty
 SourceCode: https://github.com/lokeshmohanty/ecr
 IssueTracker: https://github.com/lokeshmohanty/ecr/issues

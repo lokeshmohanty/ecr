@@ -100,7 +100,7 @@ jobs:
           mkdir -p "$stage/bin" "$stage/share/ecr"
           cp "$bin" "$stage/bin/"
           cp -r web/dist "$stage/share/ecr/web"
-          cp README.md CHANGELOG.md LICENSE THIRD-PARTY.md "$stage/"
+          cp README.md CHANGELOG.md LICENSE LICENSE-MIT COPYING THIRD-PARTY.md "$stage/"
           cp -r licenses "$stage/licenses"
 
           # Nothing starts the server on a machine that is not running NixOS,

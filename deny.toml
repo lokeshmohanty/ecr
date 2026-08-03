@@ -2,7 +2,9 @@
 all-features = true
 
 [licenses]
-# ecr is MIT. Everything here is a licence we can ship under that.
+# ecr is dual-licensed MIT OR GPL-3.0-or-later. The dependency tree is kept
+# permissively licensed by choice — a permissive tree is easier to reason about
+# and keeps the MIT distribution free of copyleft obligations from dependencies.
 # The list is deliberately closed: a new licence appearing in the tree fails CI
 # and forces a decision rather than a silent obligation.
 allow = [

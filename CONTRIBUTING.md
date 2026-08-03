@@ -105,18 +105,21 @@ screen. If you add a verifier that touches real mail, write its output there too
 
 ## Licensing
 
-Contributions are licensed under the MIT licence, matching the project.
-Submitting a pull request is how you agree to that; there is no CLA.
+The project is dual-licensed under the MIT License or GPL-3.0-or-later — see
+[LICENSE](LICENSE), [LICENSE-MIT](LICENSE-MIT) and [COPYING](COPYING).
+Submitting a pull request is how you agree to those terms; there is no CLA.
 
 Adding a dependency means adding its licence to the tree. `cargo deny check`
 fails on anything outside the allowlist in `deny.toml`, and the allowlist is
-closed on purpose — a new licence should be a decision, not a surprise.
+closed on purpose — a new licence should be a decision, not a surprise. The
+list is kept permissive-only by choice, not necessity — a permissive tree is
+easier to reason about, and it keeps the MIT distribution free of copyleft
+obligations from dependencies.
 
-**Do not link `libnotmuch`.** `ecr` drives notmuch as a subprocess, which is why
-this project can be permissively licensed at all. Linking it would make the
-whole workspace a derivative of a GPL-3.0 library. If that tradeoff is ever
-worth making it is a relicensing decision, not an optimisation.
-See [THIRD-PARTY.md](THIRD-PARTY.md).
+**Do not link `libnotmuch` without discussion.** `ecr` drives notmuch as a
+subprocess. Now that the project offers GPL-3.0-or-later that is no longer a
+licensing barrier — GPL into GPL is fine — but it is still a design choice, not
+an optimisation to slip in. See [THIRD-PARTY.md](THIRD-PARTY.md).
 
 ## Reporting bugs
 

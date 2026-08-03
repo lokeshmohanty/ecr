@@ -2,7 +2,7 @@
 <component type="desktop-application">
   <id>dev.lokeshmohanty.ecr</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>MIT</project_license>
+  <project_license>MIT OR GPL-3.0-or-later</project_license>
 
   <name>ecr</name>
   <summary>A keyboard-driven mail client for an existing notmuch maildir</summary>

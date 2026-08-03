@@ -116,7 +116,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
   meta = {
     description = "Desktop client for ecr";
     homepage = "https://github.com/lokeshmohanty/ecr";
-    license = lib.licenses.mit;
+    license = [ lib.licenses.mit lib.licenses.gpl3Plus ];
     mainProgram = "ecr-desktop";
     platforms = lib.platforms.linux;
   };

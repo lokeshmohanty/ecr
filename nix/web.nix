@@ -61,6 +61,6 @@ stdenv.mkDerivation (finalAttrs: {
 
   meta = {
     description = "Built SolidJS client for ecr";
-    license = lib.licenses.mit;
+    license = [ lib.licenses.mit lib.licenses.gpl3Plus ];
   };
 })

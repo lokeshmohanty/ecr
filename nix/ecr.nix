@@ -125,7 +125,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
   meta = {
     description = "A keyboard-driven mail client for an existing notmuch maildir";
     homepage = "https://github.com/lokeshmohanty/ecr";
-    license = lib.licenses.mit;
+    license = [ lib.licenses.mit lib.licenses.gpl3Plus ];
     mainProgram = "ecr";
     platforms = lib.platforms.unix;
   };

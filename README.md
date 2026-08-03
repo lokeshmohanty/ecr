@@ -3,7 +3,7 @@
 # ECR (Email Client in Rust)
 
 [![ci](https://github.com/lokeshmohanty/ecr/actions/workflows/ci.yml/badge.svg)](https://github.com/lokeshmohanty/ecr/actions/workflows/ci.yml)
-[![licence](https://img.shields.io/badge/licence-MIT-blue)](#licence)
+[![licence](https://img.shields.io/badge/licence-MIT%20OR%20GPL--3.0--or--later-blue)](#licence)
 [![release](https://img.shields.io/github/v/release/lokeshmohanty/ecr?include_prereleases&sort=semver)](https://github.com/lokeshmohanty/ecr/releases)
 
 **E**mail **C**lient in **R**ust. A keyboard-driven mail client for an existing
@@ -374,19 +374,19 @@ OFL-1.1; see [THIRD-PARTY.md](THIRD-PARTY.md) for every dependency and what its
 licence obliges.
 
 **Written with AI assistance.** Much of this codebase was written in
-collaboration with coding agents, and it seems dishonest not to say so:
-[Claude](https://claude.com/) (largely through
-[Claude Code](https://claude.com/claude-code)), `pi` running GLM-5.2, and
-Antigravity. The design decisions, the traps
-recorded in [AGENTS.md](AGENTS.md) and the review of every line remain mine.
+collaboration with coding agents:
+
+[Claude Code](https://claude.com/claude-code), `pi` running GLM-5.2, and
+Antigravity. 
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE).
+Dual-licensed under the MIT License or GPL-3.0-or-later — see [LICENSE](LICENSE),
+[LICENSE-MIT](LICENSE-MIT) and [COPYING](COPYING). You may use ecr under either.
 
 ecr drives `notmuch`, `mbsync` and `msmtp` as separate processes and does not
-link them, so their GPL terms do not extend to this project. The bundled
-webfonts are OFL-1.1. [THIRD-PARTY.md](THIRD-PARTY.md) records every
-dependency's licence and what each obliges.
+link them. The bundled webfonts are OFL-1.1. [THIRD-PARTY.md](THIRD-PARTY.md)
+records every dependency's licence and what each obliges.
 
-Contributions are MIT, on the same terms. There is no CLA.
+Contributions are accepted under the same dual terms — submitting a pull request
+is how you agree to that. There is no CLA.

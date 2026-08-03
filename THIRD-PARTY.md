@@ -1,6 +1,6 @@
 # Third-party notices
 
-`ecr` itself is licensed under the [MIT licence](LICENSE). This file records what else ships in, or is required by, a build,
+`ecr` itself is dual-licensed under [MIT](LICENSE-MIT) or [GPL-3.0-or-later](COPYING). This file records what else ships in, or is required by, a build,
 and what each of those things obliges us to do.
 
 Regenerate the dependency audit with:
@@ -42,18 +42,24 @@ Running a GPL program as a subprocess does not make the caller a derivative work
 so this imposes no licence obligation on `ecr`. We do not link `libnotmuch`, we do
 not redistribute any of these binaries, and we do not embed their source.
 
-> **This is load-bearing.** Linking `libnotmuch` — for the SQLite cache, or for
-> speed, or by pulling in a crate that does — would make `ecr-store` a derivative
-> work of a GPL-3.0 library and force the whole project to GPL-3.0. If that
-> tradeoff ever looks worth making, it is a deliberate relicensing decision, not
-> an implementation detail. `just licenses` fails the build if a GPL crate enters
-> the tree, which is the tripwire for exactly this.
+> **Still a deliberate choice, no longer a licensing one.** Now that `ecr`
+> offers GPL-3.0-or-later, linking `libnotmuch` would no longer force a
+> relicensing — GPL into GPL is fine. It is still not done: `ecr` speaks to
+> notmuch as a subprocess, and `deny.toml` keeps the dependency tree
+> permissive-only by choice, so a GPL crate entering it still fails CI. Moving
+> to `libnotmuch` is a design change to weigh on its own merits, not something a
+> dependency update should slip in.
+>
+> The mail index is shaped by that subprocess model. It is fed by parsing the
+> output of `notmuch show` and `notmuch search`, which is why it carries headers
+> rather than reading Xapian, and why `notmuch` remains the only writer of mail
+> state. The obvious faster design — open the database through `libnotmuch` — is
+> the one thing above.
 
 ## System libraries — dynamically linked
 
 The desktop shell links WebKitGTK, GTK 3 and libsoup (LGPL-2.1 / LGPL-2.0 / BSD)
-dynamically, through Tauri. LGPL permits dynamic linking from a permissively
-licensed program provided the user can substitute their own build of the library,
+dynamically, through Tauri. LGPL permits dynamic linking from a GPL program provided the user can substitute their own build of the library,
 which dynamic linking satisfies. No LGPL source is redistributed.
 
 ## Rust dependencies
