@@ -9,6 +9,14 @@ release; both are frozen at v1.0.0.
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-08-03
+
+The first release whose artifacts were all actually built. v0.1.0 reached
+crates.io and stopped there: the AppImage bundler refused the tag, so no
+GitHub release, no `.deb` and no APK were ever published under it. Nothing
+below changes the library code, and the four crates are unchanged from 0.1.0
+apart from the version.
+
 ### Changed
 
 - The `just` recipes bind `0.0.0.0:8399` rather than the installed server's
@@ -23,10 +31,26 @@ release; both are frozen at v1.0.0.
   systemd's default 10s window, so a permanent failure such as the bind address
   being taken restarted forever and never reached `failed`, leaving a server
   that was down while the unit reported activating.
+- The desktop entry names the icon Tauri installs. Tauri names the entry after
+  `productName` and the icons after the binary, so the icons are
+  `ecr-desktop.png` beside a file called `ecr.desktop`; the entry claimed
+  `Icon=ecr`, which matched neither. linuxdeploy checks and refused to build an
+  AppImage at all, while the deb shipped a launcher with no artwork. The Nix
+  package installed the same wrong name and now agrees with the other two.
+- CI builds the `.deb` and the AppImage on every push. Nothing but the release
+  workflow ever ran the bundler, so a bundling failure could not be discovered
+  before a tag had been pushed — which is how both of v0.1.0's failures reached
+  a tag. Both jobs also pass `--verbose`, because at the default log level the
+  bundler swallows linuxdeploy's output and reports only `failed to run
+  linuxdeploy`, naming neither the file nor the reason.
+- The crates.io job skips a version already on the registry, so a release whose
+  later jobs fail can be re-run against the same tag instead of failing
+  permanently on `crate version already uploaded`.
 
 ## [0.1.0] — 2026-08-03
 
-First public release. See the [roadmap](README.md#roadmap) for what it covers.
+Published to crates.io only; see 0.1.1. See the
+[roadmap](README.md#roadmap) for what it covers.
 
 ### Added
 

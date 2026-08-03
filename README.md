@@ -275,7 +275,7 @@ files an agent reads out of `docs/content/`:
 Releases are marked here. A box ticks when the work is on `main` **and** covered
 by a test that runs in CI.
 
-### v0.1.0 — first public release &nbsp;·&nbsp; `[x]` released 2026-08-03
+### v0.1.1 — first public release &nbsp;·&nbsp; `[x]` released 2026-08-03
 
 The client is complete for daily reading and writing. This release is about
 making it installable by someone other than me.
