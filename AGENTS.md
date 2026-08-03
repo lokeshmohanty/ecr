@@ -253,6 +253,15 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   package installs that same file under that same name so all three artifacts
   agree.
 
+- **A stub binary must be renamed into place, never written in place.** A
+  `cargo test` run is many threads in one process, and exec refuses a file any
+  of them still holds open for writing with `ETXTBSY` — reported as "Text file
+  busy", surfacing as the *wrong error* from whatever was being tested rather
+  than as anything resembling a race. `write_stub` in `ecr-store`'s test
+  support writes to a `.staging` sibling and renames, so the inode that runs is
+  never the inode that was written. It failed exactly once, in the release
+  workflow, having passed every local run and every CI run before it.
+
 ## Testing rules
 
 - **A visual failure is not evidence of a stale baseline.** The way to tell is

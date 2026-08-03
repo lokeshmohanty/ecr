@@ -110,20 +110,35 @@ impl Fixture {
         self.capture_path()
     }
 
+    /// Writes an executable stub, atomically.
+    ///
+    /// Writing in place and running it immediately races: a `cargo test` run is
+    /// many threads in one process, and exec refuses a file any of them still
+    /// holds open for writing with `ETXTBSY` — "Text file busy". It surfaced as
+    /// a send failing with that instead of the message the test was asserting
+    /// on, once, on a release build, having passed everywhere for weeks.
+    ///
+    /// Renaming sidesteps it rather than narrowing the window: the inode that
+    /// gets executed is never the inode that was written, so there is nothing
+    /// for exec to object to.
     fn write_stub(&self, path: &Path, body: &str) {
         let script = format!(
             "#!/bin/sh\nECR_TEST_INBOX='{}'\nECR_TEST_CAPTURE='{}'\n{body}",
             self.inbox().display(),
             self.capture_path().display(),
         );
-        std::fs::write(path, script).expect("write stub");
+
+        let staged = path.with_extension("staging");
+        std::fs::write(&staged, script).expect("write stub");
 
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
+            std::fs::set_permissions(&staged, std::fs::Permissions::from_mode(0o755))
                 .expect("chmod stub");
         }
+
+        std::fs::rename(&staged, path).expect("install stub");
     }
 }
 
