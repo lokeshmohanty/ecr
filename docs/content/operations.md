@@ -104,6 +104,34 @@ stored on that device and the mail loads without a reload. Dismiss the prompt to
 go and fetch a token — the thread list keeps an **enter a token** button for the
 way back.
 
+A refusal is not the same as silence, and the client keeps them apart. It asks
+`/api/v1/health`, the one route authentication does not cover, so it can tell a
+server that answered and will not talk to this device from an address where
+nothing is listening at all. The first gets the token prompt above; the second
+gets **cannot reach the server**, with the address in a field. That prompt is
+reachable everywhere — the browser takes its address from the page it was served
+by and the desktop and Android shells are handed one, so before it existed a
+client pointed at the wrong host had no way to be pointed at the right one. The
+address is probed before it is kept, and the token is carried across, since an
+address is usually changed to reach the *same* server by another name —
+`localhost` from the machine it runs on, an address on the network from a phone.
+
+It raises itself only when this client has never reached the address it was
+given, and only once per address. A server that was reached and then lost is a
+laptop that slept or a phone in a tunnel; the thread list says so and offers
+**change address**, without a dialog over mail that is still on screen.
+
+## What the server says about itself
+
+`/api/v1/health` is the same report `ecr doctor` prints, so the client can show
+it. The server refuses to start on a failing check, which means what reaches a
+running client are the warnings it started anyway with — an expired OAuth token,
+a `post-new` hook that is not wired up, a notmuch without `index.header.List`.
+Each is otherwise experienced as mail that quietly does not arrive or a sidebar
+section that is quietly empty, so the status bar carries a **! n checks** badge
+that opens the report, each check beside the doctor's own hint for it. They are
+fixed on the machine holding the mail, not in the client.
+
 ## OAuth
 
 Gmail and Outlook will not accept a password. `ecr oauth` holds a *profile* per
@@ -184,7 +212,23 @@ maildir_root   = "/home/you/.local/share/Mail"
 notmuch_bin = "/run/current-system/sw/bin/notmuch"
 mbsync_bin  = "/run/current-system/sw/bin/mbsync"
 msmtp_bin   = "/run/current-system/sw/bin/msmtp"
+
+# Send every read back to notmuch instead of the SQLite mail index. Slower, and
+# answers the same — the switch exists so a suspected disagreement can be
+# settled without rebuilding or reinstalling anything.
+index = false
 ```
+
+### The mail index
+
+`ecr serve` builds a SQLite mirror of what notmuch knows at
+`~/.local/state/ecr/index.sqlite3` and answers searches and counts from it.
+It is a cache: **deleting the file is safe** and costs one rebuild on the next
+start. Nothing else has to be told, and no mail state lives there.
+
+`ecr doctor` reports its size and how far behind it is. A first build on a
+large inbox takes a few seconds and happens before the server starts
+listening; after that it catches up only on what changed.
 
 ## Reaching it from a phone
 

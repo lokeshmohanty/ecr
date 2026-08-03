@@ -14,7 +14,13 @@ import {
 	type Connection,
 } from "../api/client";
 import { notify, shellServerUrl, shellToken } from "../api/platform";
-import type { Account, Draft, ServerEvent, ThreadSummary } from "../api/types";
+import type {
+	Account,
+	Check,
+	Draft,
+	ServerEvent,
+	ThreadSummary,
+} from "../api/types";
 import type { Mode, Pane } from "../keymap/engine";
 import {
 	fromToml,
@@ -219,6 +225,31 @@ export function createAppStore() {
 	/** Where a v/V range started, or null when no range is being drawn. */
 	const [visualAnchor, setVisualAnchor] = createSignal<number | null>(null);
 	const [connected, setConnected] = createSignal(false);
+	/**
+	 * The server refused this device. A token is not optional once one has been
+	 * issued, so this is the ordinary state of a browser opened at the server's
+	 * address for the first time — and of one whose token was revoked while it
+	 * was running. Raised from the one place every request passes through, so no
+	 * caller's `.catch()` can turn it into an empty pane.
+	 *
+	 * Whether the prompt is *showing* is a second signal, because dismissing it
+	 * does not authorise anything: the token has to be fetched from the server,
+	 * which takes as long as it takes, and folding the two together meant
+	 * dismissing the prompt also retracted the reason the client was empty —
+	 * leaving the thread list claiming it could not reach a server that had
+	 * answered, and no way back to the field but a reload.
+	 */
+	const [needsToken, setNeedsToken] = createSignal(false);
+	const [askingToken, setAskingToken] = createSignal(false);
+	/**
+	 * Whether the address prompt is showing. Separate from anything derived,
+	 * for the same reason `askingToken` is: an address is fixed by typing one,
+	 * which takes as long as finding out what it should be, and a prompt that
+	 * reopens itself under the reader on every failed poll is not a prompt.
+	 */
+	const [askingServer, setAskingServer] = createSignal(false);
+	/** Whether the doctor's report is showing. */
+	const [askingDoctor, setAskingDoctor] = createSignal(false);
 	const [lastError, setLastError] = createSignal("");
 	/** Survives a healthy connection: only editing the file clears it. */
 	const [settingsProblem, setSettingsProblem] = createSignal("");
@@ -244,6 +275,14 @@ export function createAppStore() {
 	const [countMap, setCountMap] = createSignal<Record<string, number>>({});
 	/** True once the server's settings have been read, or failed to be. */
 	const [configSettled, setConfigSettled] = createSignal(false);
+
+	api.onUnauthorized(() => {
+		// Only a refusal the reader has not already dismissed opens the prompt:
+		// a client left running against a revoked token keeps refetching, and
+		// re-opening it under them on every poll is not a prompt, it is a trap.
+		if (!needsToken()) setAskingToken(true);
+		setNeedsToken(true);
+	});
 
 	// `just run` and `just dev` open the browser with ?token= so the
 	// connection form is never seen. Capture it before any resource
@@ -296,19 +335,92 @@ export function createAppStore() {
 			setConnection(next);
 	});
 
-	// Every request source keys on the base URL as well as the revision. Under
-	// Tauri the URL arrives asynchronously from the shell, so a resource that
-	// does not depend on it fires once against an empty base and never retries.
+	// Every request source keys on this as well as the revision. Under Tauri the
+	// URL arrives asynchronously from the shell, so a resource that does not
+	// depend on it fires once against an empty base and never retries. The token
+	// is half of it because a device paired after a cold start changes nothing
+	// else: keyed on the URL alone, every resource whose requests were refused
+	// would stay empty behind the prompt that just fixed them.
+	const endpoint = () =>
+		connection().baseUrl ? `${connection().baseUrl}|${connection().token}` : "";
+
+	/**
+	 * What the server says about itself, asked at the public route and keyed on
+	 * the address alone — a token has nothing to do with whether a host is
+	 * there. This is what separates the two failures that otherwise look
+	 * identical from inside the client: an empty pane because nothing answered,
+	 * and an empty pane because what answered will not talk to this device.
+	 *
+	 * `null` means nothing answered. It is not an error the resource holds: the
+	 * sidebar and the thread list read this while rendering, and a resource that
+	 * lets a failure out re-throws it at its reader and takes the client down —
+	 * which is precisely the state this is meant to explain.
+	 */
+	const [health, { refetch: recheckServer }] = createResource(
+		() => connection().baseUrl || null,
+		async (base) => await api.probe(base).catch(() => null),
+	);
+
+	/** Whether anything at all answered at the configured address. */
+	const reachable = () => health.loading || health() !== null;
+
+	/**
+	 * Whether this address has ever answered in this session, and the addresses
+	 * already asked about. Together they are what keeps the prompt from becoming
+	 * the trap the token prompt documents.
+	 *
+	 * A client that reached its server and then lost it is on a train, or behind
+	 * a laptop that slept — the address is not wrong, and throwing a modal over
+	 * the mail still on screen fixes nothing. The thread list already says so,
+	 * with the same button, and waits. A client that has *never* reached the
+	 * address it was given has nothing else to offer and no mail to cover, so it
+	 * asks — once per address, so a server that stays down does not reopen the
+	 * dialog under whoever just dismissed it.
+	 */
+	let everReached = false;
+	const asked = new Set<string>();
+
+	createEffect(() => {
+		const base = connection().baseUrl;
+		if (!base || health.loading) return;
+
+		if (health() !== null) {
+			everReached = true;
+			return;
+		}
+
+		if (everReached || asked.has(base)) return;
+		asked.add(base);
+		setAskingServer(true);
+	});
+
+	/**
+	 * The checks `ecr doctor` is not happy about, failures first. The server
+	 * refuses to start at all when one of them is a failure, so in practice
+	 * these are warnings — an account whose OAuth token has expired, a missing
+	 * `index.header.List`, a `post-new` hook that is not wired up. Every one of
+	 * them is a thing the reader will otherwise experience as mail that quietly
+	 * does not arrive.
+	 */
+	const serverChecks = (): Check[] => {
+		const report = health();
+		if (!report) return [];
+		const rank = (check: Check) => (check.status === "fail" ? 0 : 1);
+		return report.checks
+			.filter((check) => check.status !== "ok")
+			.sort((a, b) => rank(a) - rank(b));
+	};
+
 	const [accounts] = createResource(
-		() => connection().baseUrl,
-		async (baseUrl) =>
-			baseUrl ? await api.accounts().catch(() => []) : ([] as Account[]),
+		endpoint,
+		async (server) =>
+			server ? await api.accounts().catch(() => []) : ([] as Account[]),
 	);
 
 	const [threads] = createResource(
-		() => [query(), listRevision(), connection().baseUrl] as const,
-		async ([q, , baseUrl]) => {
-			if (!baseUrl) {
+		() => [query(), listRevision(), endpoint()] as const,
+		async ([q, , server]) => {
+			if (!server) {
 				return {
 					revision: { uuid: "", lastmod: 0 },
 					total: 0,
@@ -328,8 +440,15 @@ export function createAppStore() {
 			} catch (error) {
 				const message =
 					error instanceof Error ? error.message : "request failed";
-				setStatus(message);
-				setLastError(message);
+				// A refusal is not this slot's to report. `lastError` means the
+				// server could not be reached, and is painted under exactly that
+				// heading; the prompt is already saying the true thing, and
+				// repeating *a valid bearer token is required* in the status bar
+				// only adds a second, less useful voice.
+				if (!(error instanceof ApiError && error.isAuth)) {
+					setStatus(message);
+					setLastError(message);
+				}
 				setConnected(false);
 				return {
 					revision: { uuid: "", lastmod: 0 },
@@ -341,9 +460,9 @@ export function createAppStore() {
 	);
 
 	const [addressBook] = createResource(
-		() => connection().baseUrl,
-		async (baseUrl) => {
-			if (!baseUrl) return [] as AddressEntry[];
+		endpoint,
+		async (server) => {
+			if (!server) return [] as AddressEntry[];
 			const raw = await api.addresses().catch(() => []);
 			return raw
 				.map((a) =>
@@ -356,21 +475,87 @@ export function createAppStore() {
 	);
 
 	const [allTags] = createResource(
-		() => [connection().baseUrl, revision()] as const,
-		async ([baseUrl]) =>
-			baseUrl ? await api.tags().catch(() => []) : ([] as string[]),
+		() => [endpoint(), revision()] as const,
+		async ([server]) =>
+			server ? await api.tags().catch(() => []) : ([] as string[]),
 	);
 
 	const [thread] = createResource(
-		() => [openThread(), revision(), connection().baseUrl] as const,
-		async ([id, , baseUrl]) =>
-			id && baseUrl ? await api.threadCached(id).catch(() => null) : null,
+		() => [openThread(), revision(), endpoint()] as const,
+		async ([id, , server]) =>
+			id && server ? await api.threadCached(id).catch(() => null) : null,
 	);
 
 	function setConnection(next: Connection) {
 		saveConnection(next);
 		api.update(next);
 		setConnectionSignal(next);
+		bumpRevision();
+	}
+
+	/**
+	 * Pairs this device with a token pasted from `ecr token new`. The server is
+	 * asked before the token is kept, so a mistyped one says so where it was
+	 * typed rather than being saved and leaving every pane empty. Answers the
+	 * reason it was refused, or "" when it was accepted.
+	 */
+	async function authenticate(token: string): Promise<string> {
+		const trimmed = token.trim();
+		if (trimmed === "") return "paste the token issued by ecr token new";
+
+		try {
+			if (!(await api.accepts(trimmed))) return "the server refused that token";
+		} catch (error) {
+			return error instanceof Error ? error.message : "request failed";
+		}
+
+		setNeedsToken(false);
+		setAskingToken(false);
+		setConnection({ ...connection(), token: trimmed });
+		return "";
+	}
+
+	/**
+	 * Points this device at a server. The address is probed before it is kept,
+	 * for exactly the reason a token is: one saved because it was typed leaves
+	 * every pane empty with nothing on screen to say the host was wrong, and no
+	 * way back to the address that worked. `/api/v1/health` is public, so this
+	 * answers for a server this device has never been paired with — which is the
+	 * ordinary case for an address being entered for the first time.
+	 *
+	 * The token is carried over rather than dropped. An address is changed far
+	 * more often to reach the same server by another name — `localhost` from the
+	 * machine it runs on, an address on the network from a phone — than to reach
+	 * a different one, and a token that turns out to belong elsewhere is a 401,
+	 * which already has a prompt of its own. `needsToken` is cleared so that
+	 * prompt is asked afresh about the new server rather than being suppressed
+	 * as a refusal the reader already dismissed.
+	 *
+	 * Answers the reason it was refused, or "" when it was adopted.
+	 */
+	async function reachServer(url: string): Promise<string> {
+		const trimmed = url.trim().replace(/\/+$/, "");
+		if (trimmed === "") return "enter the address ecr serve is listening on";
+		if (!/^https?:\/\//i.test(trimmed))
+			return "the address needs a scheme: http:// or https://";
+
+		try {
+			await api.probe(trimmed);
+		} catch (error) {
+			return error instanceof Error
+				? `${trimmed} did not answer: ${error.message}`
+				: `nothing answered at ${trimmed}`;
+		}
+
+		setNeedsToken(false);
+		setAskingServer(false);
+		setConnection({ ...connection(), baseUrl: trimmed });
+		return "";
+	}
+
+	/** Asks again, both for the mail and for the server's own report. */
+	function retryServer() {
+		void recheckServer();
 		bumpRevision();
 	}
 
@@ -382,7 +567,41 @@ export function createAppStore() {
 		bumpRevision();
 		void api
 			.saveConfig(source)
-			.catch(() => setLastError("settings could not reach the server"));
+			.then(clearSaveProblem)
+			.catch((error) => reportSaveProblem(saveRefusal(error)));
+	}
+
+	/**
+	 * A save that did not land is not an outage, and must not be reported as
+	 * one: `lastError` is painted under the heading *cannot reach the server*,
+	 * so writing there sent the reader to their network over a server that had
+	 * answered and refused — a read-only one, or one this device is not paired
+	 * with. It is a settings problem, and it outlives the moment in the way that
+	 * slot is for: the option is on screen as chosen and is not what the server
+	 * holds, and nothing about that changes until it is saved again.
+	 */
+	let saveComplaint = "";
+
+	function reportSaveProblem(message: string) {
+		saveComplaint = message;
+		reportSettingsProblem(message);
+	}
+
+	/** Only this complaint is retracted; a bad line in the file is still bad. */
+	function clearSaveProblem() {
+		if (saveComplaint !== "" && settingsProblem() === saveComplaint)
+			setSettingsProblem("");
+		saveComplaint = "";
+	}
+
+	function saveRefusal(error: unknown): string {
+		if (error instanceof ApiError) {
+			if (error.status === 403)
+				return "not saved — the server is running read-only";
+			if (error.isAuth) return "not saved — this device is not authorised";
+			return `not saved — the server answered ${error.status}`;
+		}
+		return "not saved — the server could not be reached";
 	}
 
 	/**
@@ -502,8 +721,10 @@ export function createAppStore() {
 				// that did not answer says nothing about the theme: that is the
 				// connection failure the thread list already reports, with the
 				// URL it tried and a retry, and claiming the palette is broken
-				// on top of it sends the reader to the wrong file.
-				if (error instanceof ApiError)
+				// on top of it sends the reader to the wrong file. A refusal is
+				// the same: 401 is about this device, not about the palette,
+				// and the token prompt is already saying so.
+				if (error instanceof ApiError && !error.isAuth)
 					reportThemeProblem(`theme ${path}: ${error.message}`);
 			}
 		})();
@@ -512,18 +733,26 @@ export function createAppStore() {
 	// Gathered from the database rather than configured. Each is fetched once per
 	// connection and refreshed on a revision bump, since new mail can introduce a
 	// tag, a correspondent or a list that was not there before.
-	const gathered = () =>
-		connection().baseUrl ? `${connection().baseUrl}|${revision()}` : null;
+	const gathered = () => (endpoint() ? `${endpoint()}|${revision()}` : null);
 
+	// Each answers empty on a failure rather than letting it out. A resource
+	// holding an error re-throws it at whoever reads it, and these are read
+	// while the sidebar renders — so a server that refuses this device, or is
+	// not there at all, took the whole client down with it and left nothing on
+	// screen to say so. The thread list and the token prompt are where a failure
+	// is reported; a sidebar section simply has no rows to gather.
 	const [tagList] = createResource(gathered, async () => {
-		const tags = await api.tags();
+		const tags = await api.tags().catch(() => []);
 		return [...tags].sort((a, b) => a.localeCompare(b));
 	});
 
 	const sidebarTags = () =>
 		tagsWithoutAccounts(tagList() ?? [], accounts() ?? []);
 
-	const [listInfo] = createResource(gathered, async () => await api.lists());
+	const [listInfo] = createResource(
+		gathered,
+		async () => await api.lists().catch(() => null),
+	);
 	const listList = () => listInfo()?.lists;
 
 	const counts = createCounts(
@@ -539,8 +768,8 @@ export function createAppStore() {
 	);
 
 	const [themeList] = createResource(
-		() => connection().baseUrl || null,
-		async () => (await api.themes()).presets,
+		() => endpoint() || null,
+		async () => await api.themes().then((t) => t.presets).catch(() => []),
 	);
 
 	/**
@@ -1444,6 +1673,19 @@ export function createAppStore() {
 		api,
 		connection,
 		setConnection,
+		needsToken,
+		askingToken,
+		setAskingToken,
+		authenticate,
+		askingServer,
+		setAskingServer,
+		askingDoctor,
+		setAskingDoctor,
+		reachServer,
+		retryServer,
+		health,
+		reachable,
+		serverChecks,
 		settings,
 		setSettings,
 		settingsSource,

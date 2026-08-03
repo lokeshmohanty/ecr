@@ -16,7 +16,15 @@ import { ReadingPane } from "./ui/ReadingPane";
 import { Palette } from "./ui/Palette";
 import { ComposePane, emptyDraft } from "./ui/ComposePane";
 import { SettingsPane } from "./ui/SettingsPane";
-import { ConnectionSetup, Help, StatusBar, TopBar } from "./ui/Chrome";
+import {
+	AuthAlert,
+	ConnectionSetup,
+	DoctorAlert,
+	Help,
+	ServerAlert,
+	StatusBar,
+	TopBar,
+} from "./ui/Chrome";
 import type { Draft, Message } from "./api/types";
 import { quoteBody, replyAttribution } from "./state/quote";
 import { parseMailto } from "./state/mailto";
@@ -627,6 +635,33 @@ export function App() {
 				/>
 
 				<Palette store={store} />
+
+				{/*
+          Over everything, because a refused device has no working pane behind
+          it to act on — including the palette and the help sheet.
+        */}
+				{/*
+          Over everything, and ahead of the token prompt: an address that
+          answers nothing cannot refuse a token either, so asking for one first
+          would be asking the reader to fix the second problem before the first.
+        */}
+				<Show when={store.askingServer()}>
+					<ServerAlert
+						store={store}
+						onClose={() => store.setAskingServer(false)}
+					/>
+				</Show>
+
+				<Show when={store.askingToken() && !store.askingServer()}>
+					<AuthAlert store={store} onClose={() => store.setAskingToken(false)} />
+				</Show>
+
+				<Show when={store.askingDoctor()}>
+					<DoctorAlert
+						store={store}
+						onClose={() => store.setAskingDoctor(false)}
+					/>
+				</Show>
 
 				<Show when={showHelp()}>
 					<Help

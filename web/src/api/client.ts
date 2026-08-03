@@ -69,6 +69,17 @@ export class ApiError extends Error {
 export class Api {
   constructor(private connection: Connection) {}
 
+  private refused: (() => void) | null = null;
+
+  /**
+   * Called whenever the server refuses this device. Every request goes through
+   * one place, and most callers swallow their errors to keep a pane quiet, so
+   * this is the only point at which a missing or revoked token is still visible.
+   */
+  onUnauthorized(handler: () => void): void {
+    this.refused = handler;
+  }
+
   update(connection: Connection): void {
     this.connection = connection;
   }
@@ -107,14 +118,50 @@ export class Api {
       } catch {
         // keep the status text
       }
+      if (response.status === 401) this.refused?.();
       throw new ApiError(response.status, code, detail);
     }
 
     return (await response.json()) as T;
   }
 
-  health(): Promise<Doctor> {
-    return this.request("/api/v1/health");
+  /**
+   * Whether the server accepts this token, without adopting it first — a token
+   * saved before it is known to work leaves every pane empty with nothing left
+   * on screen to say why. Checked against a protected route: `/api/v1/health`
+   * is public and answers the same for a token that is worthless.
+   */
+  async accepts(token: string): Promise<boolean> {
+    const response = await fetch(this.url("/api/v1/revision"), {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (response.status === 401) return false;
+    if (!response.ok) {
+      throw new ApiError(response.status, "http_error", response.statusText);
+    }
+    return true;
+  }
+
+  /**
+   * The server's own account of itself, asked at the one route that is public.
+   *
+   * That is what makes it the probe for whether an address is a server at all.
+   * Every other route answers 401 for a device that has not been paired, so
+   * without this "nothing is listening there" and "you are not authorised here"
+   * arrive as the same silence — and they have entirely different fixes, one in
+   * the address field and one in the token field.
+   *
+   * Takes the address rather than reading it, so a URL can be tried before it is
+   * adopted: a client pointed at the wrong host to find out is a client with no
+   * way back to the one that worked.
+   */
+  async probe(baseUrl?: string): Promise<Doctor> {
+    const base = (baseUrl ?? this.baseUrl).replace(/\/$/, "");
+    const response = await fetch(`${base}/api/v1/health`);
+    if (!response.ok) {
+      throw new ApiError(response.status, "http_error", response.statusText);
+    }
+    return (await response.json()) as Doctor;
   }
 
   revision(): Promise<Revision> {

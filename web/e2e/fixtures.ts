@@ -100,9 +100,17 @@ export const test = base.extend<{ page: Page }, { server: Server }>({
 
     // Wrapped: this also runs inside the sandboxed message iframe, where
     // localStorage throws.
+    //
+    // Once per context, not once per navigation: an init script runs again on
+    // every reload, so seeding unconditionally means a reload puts back what
+    // the client itself stored — which is exactly what a test that reloads to
+    // check something was *kept* is asking about. Each test gets a fresh
+    // context, so the guard still seeds every test.
     await page.addInitScript(
       ({ baseUrl, token }) => {
         try {
+          if (localStorage.getItem("ecr.e2e.seeded")) return;
+          localStorage.setItem("ecr.e2e.seeded", "1");
           localStorage.setItem("ecr.connection", JSON.stringify({ baseUrl, token }));
           localStorage.removeItem("ecr.settings");
           localStorage.removeItem("ecr.settings.toml");

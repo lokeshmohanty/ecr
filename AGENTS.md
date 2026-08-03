@@ -177,6 +177,89 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   answered. A request that never arrived says nothing about the palette.
   Because both complaints share that one slot, a theme that loads retracts only
   the message the theme itself wrote.
+- **A refused device is not an unreachable server, and only one place can tell
+  the difference.** Every caller of the API swallows its own errors to keep a
+  pane quiet, so a 401 is raised from `Api.request` itself, through
+  `onUnauthorized`, and read as `store.needsToken()`. Whether the *prompt* is
+  showing is a second signal, `askingToken`: dismissing it authorises nothing —
+  the token still has to be fetched from the server — and while the two were one
+  signal, dismissing the prompt also retracted the reason the client was empty,
+  so the thread list went back to claiming it could not reach a server that had
+  answered. `authenticate` asks `/api/v1/revision` before storing what was
+  pasted, because `/api/v1/health` is public and answers the same for a token
+  that is worthless, and a token saved before it is known to work leaves every
+  pane empty with nothing on screen to say why. Every resource keys on
+  `endpoint()` — the base URL *and* the token — so pairing mid-session refetches
+  rather than leaving each pane empty behind the prompt that just fixed it.
+- **`ecr init` cannot make a fresh machine servable, and is not meant to.** It
+  writes the notmuch config, creates the maildir and runs `notmuch new` — which
+  clears three of doctor's failures. The fourth, `accounts`, is a `Check::fail`
+  whenever no account directory exists under the maildir root, and a maildir
+  that was just created never has one. So `ecr serve` still refuses after a
+  successful init, deliberately: what init removes is having to compose a
+  notmuch config by hand before anything can even be *diagnosed*. Anything that
+  makes init look like a complete setup path is wrong about this.
+  `is_configured()` asks `MailPaths::discover()` rather than testing for a file,
+  because the four-step order is the only thing that knows where a config may
+  legitimately be — and init runs before `NotmuchStore::open`, which is what
+  would otherwise fail first.
+- **An interactive command needs a terminal, and a server is often started
+  without one.** Every write `ecr init` makes is confirmed, so `require_a_terminal`
+  refuses when stdin is not a TTY instead of prompting: under systemd or in a
+  container a prompt is not a question, it is a process stopped for a reason
+  nobody can see. `ecr serve --no-init` is the flag that says so up front.
+  `ask` also treats a zero-length read as the pipe closing rather than as
+  accepting the default — otherwise a closed stdin agrees to every remaining
+  question, which is the one failure mode a confirmation exists to prevent.
+- **`index.header.List` is free at init and expensive afterwards.** notmuch
+  applies it only to mail indexed *after* it is set, so a database with mail in
+  it needs a full `notmuch reindex '*'` — which is why the generated config
+  carries it from the start. It is the same setting doctor warns about, and the
+  warning otherwise lasts the life of the install.
+- **`/api/v1/health` being public is what makes "not there" and "will not talk
+  to you" different questions, and every fixture that guards it erases the
+  difference.** It is the one route auth does not cover, so it is the only thing
+  a client can ask before it has proved anything: `Api.probe` takes a URL rather
+  than reading one, and `store.health` — keyed on the base URL alone, since a
+  token has nothing to do with whether a host is there — answers `null` when
+  nothing replied. `reachable()` is that, and it decides which of two prompts a
+  reader gets. Both the unit stub in `store.auth.test.ts` and visual state
+  `31-auth-refused` originally answered 401 to *every* `/api/v1/**`, which is a
+  server that is not running rather than one that refused a device — so the
+  client correctly asked for an address, and the auth fixtures broke. The fix is
+  in the fixtures, and they now let health through the way the real router does.
+  This cannot be caught by reasoning about the client: only a fixture that
+  models the router's public/guarded split at all will show it.
+- **The address prompt must not raise itself over a session that merely
+  blipped.** `ServerAlert` opens by itself only when this client has *never*
+  reached the address it was given, and only once per address — `everReached`
+  and `asked` in the store. A client that reached its server and then lost it is
+  behind a laptop that slept or a phone in a tunnel: the address is not wrong,
+  and a modal over the mail still on screen fixes nothing the thread list's own
+  *change address* button does not. Without the once-per-address guard a server
+  that stays down reopens the dialog under whoever just dismissed it, on every
+  poll — the same trap `askingToken` documents above.
+- **A save the server refused is not an outage.** `setSettings` used to write
+  `lastError` when `saveConfig` failed, and that slot is painted under the
+  heading *cannot reach the server* — so a read-only server, or one this device
+  is not paired with, sent the reader to their network over a server that had
+  answered them. It is a `settingsProblem`, which is the slot that survives:
+  the option is on screen as chosen and is not what the server holds, and
+  nothing about that changes until it is saved again. It retracts only its own
+  complaint, the same way the theme's does, or a save landing would wipe a bad
+  line in the file that is still bad.
+- **A resource that lets a failure out takes the client down with it.**
+  `createResource` holds the error and re-throws it at whoever reads it, and
+  `tagList`, `listInfo` and `themeList` are read while the sidebar renders — so
+  a server that refused this device, or was not there at all, blanked the whole
+  app and left nothing on screen to say so. They answer empty on a failure; the
+  thread list and the token prompt are where a failure is reported.
+- **An `addInitScript` runs again on every navigation.** The e2e `page` fixture
+  seeds `ecr.connection`, so an unguarded seed puts the fixture's token back on
+  the reload that a test is using to check the client *kept* something —
+  passing whether or not the client stored anything. Both that seed and the
+  auth spec's un-pairing one are guarded by a marker key, so they run once per
+  context; each test gets a fresh context, so every test is still seeded.
 - **Issuing yourself a device token breaks every recipe that launches a
   client.** An empty token store means the API is unauthenticated, which is what
   the whole development setup silently relied on; the first `ecr token new`
