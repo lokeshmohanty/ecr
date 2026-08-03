@@ -8,7 +8,7 @@
  * documents the file, which is what stops an option existing in one and not
  * the other.
  */
-import { For, Index, Match, Show, Switch } from "solid-js";
+import { For, Index, Match, Show, Switch, createResource, createSignal } from "solid-js";
 import {
   CLIENT_KEYS,
   DEFAULT_PREFERENCES,
@@ -18,6 +18,8 @@ import {
 } from "../state/settings";
 import { DATE_FORMATS } from "../state/datetime";
 import { SECTION_IDS, type CustomView } from "../state/views";
+import { checkForUpdate, type UpdateState } from "../state/updates";
+import { apkVersion, openExternal } from "../api/platform";
 import type { AppStore } from "../state/store";
 
 export function DeviceSettings(props: { store: AppStore }) {
@@ -80,8 +82,134 @@ export function DeviceSettings(props: { store: AppStore }) {
           </section>
         )}
       </For>
+
+      <Updates />
     </div>
   );
+}
+
+/**
+ * The update check, which is here and nowhere else because it belongs to the
+ * device in the same way the theme does — one phone can be a version behind
+ * without that being true of anything else reading the same mailbox.
+ *
+ * The section is absent, not disabled, wherever there is no APK: a control that
+ * cannot do anything is worse than no control, and on the desktop the answer to
+ * "is there a newer version" is the package manager's to give.
+ */
+function Updates() {
+  const [installed] = createResource(apkVersion);
+  const [state, setState] = createSignal<UpdateState>({ kind: "unchecked" });
+
+  const check = async (version: string) => {
+    setState({ kind: "checking" });
+    setState(await checkForUpdate(version));
+  };
+
+  return (
+    <Show when={installed()}>
+      {(version) => (
+        <section class="mb-5">
+          <h2 class="label mb-1">Updates</h2>
+          <p class="mb-2 text-xs text-ink-3">
+            This build was installed as an APK, so nothing updates it on its own.
+            The check asks GitHub for the newest release; it happens when you ask
+            for it and at no other time.
+          </p>
+
+          <div class="mb-2 rounded border border-rule bg-card px-3 py-2">
+            <div class="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+              <div class="min-w-0 flex-1">
+                <div class="text-ink">
+                  Version <span class="mono">{version()}</span>
+                </div>
+                {/*
+                  Announced, not just painted: the result of pressing the button
+                  is this line changing, and a reader who cannot see it changing
+                  has no way to know the check finished.
+                */}
+                <div class="text-xs leading-relaxed text-ink-3" aria-live="polite">
+                  {message(state())}
+                </div>
+              </div>
+
+              {/* Wrapped: three buttons and a version number do not fit one
+                  phone-width row, and the third would go off the edge. */}
+              <div class="flex shrink-0 flex-wrap gap-1 self-start md:self-auto">
+                <button
+                  type="button"
+                  class="touch-target rounded border border-rule px-2 py-1 text-xs text-ink-2 hover:bg-neutral-bg"
+                  disabled={state().kind === "checking"}
+                  onClick={() => void check(version())}
+                >
+                  {state().kind === "unchecked" ? "check" : "check again"}
+                </button>
+
+                {/*
+                  The download leaves the app on purpose. Fetching the APK here
+                  would need `REQUEST_INSTALL_PACKAGES` and a FileProvider to
+                  hand it to the installer; the browser reaches that same
+                  installer with nothing added to the manifest.
+                */}
+                <Show when={available(state())}>
+                  {(release) => (
+                    <>
+                      <Show when={release().apk}>
+                        {(apk) => (
+                          <button
+                            type="button"
+                            class="touch-target rounded border border-obligation bg-obligation-bg px-2 py-1 text-xs text-ink"
+                            onClick={() => void openExternal(apk())}
+                          >
+                            download {release().version}
+                          </button>
+                        )}
+                      </Show>
+                      <button
+                        type="button"
+                        class="touch-target rounded border border-rule px-2 py-1 text-xs text-ink-2 hover:bg-neutral-bg"
+                        onClick={() => void openExternal(release().page)}
+                      >
+                        release notes
+                      </button>
+                    </>
+                  )}
+                </Show>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+    </Show>
+  );
+}
+
+/** Narrows to the release, so the buttons do not each re-test the state's kind. */
+function available(state: UpdateState) {
+  return state.kind === "available" ? state.release : undefined;
+}
+
+/**
+ * The one line under the version, for every state the check can be in.
+ *
+ * A failure names its reason rather than saying nothing, because the state a
+ * failed check must never be confused with is "you are up to date".
+ */
+function message(state: UpdateState): string {
+  switch (state.kind) {
+    case "unchecked":
+      return "Not checked since the app started.";
+    case "checking":
+      return "Asking GitHub…";
+    case "current":
+      return "This is the newest release.";
+    case "failed":
+      return `Could not check — ${state.reason}.`;
+    case "available":
+      return state.release.apk
+        ? `${state.release.version} is available.`
+        : `${state.release.version} is available, but that release carries no APK.`;
+  }
 }
 
 /** `sidebarIcons` reads as "Sidebar icons" without a second table to maintain. */

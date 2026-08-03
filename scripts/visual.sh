@@ -69,7 +69,11 @@ sleep 0.5
 cargo build -q -p ecr-cli || exit 1
 pnpm --dir web build > /dev/null 2>&1 || exit 1
 
-HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config RUST_LOG=warn \
+# -u, not just HOME: the dev shell exports NOTMUCH_CONFIG, which paths.rs ranks
+# above the XDG location, so without this the suite serves the real maildir and
+# every baseline differs for reasons that have nothing to do with the UI.
+env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
+  HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config RUST_LOG=warn \
   ./target/debug/ecr serve --bind "127.0.0.1:$PORT" --no-watch \
   > /tmp/ecr-visual-server.log 2>&1 &
 SRV=$!

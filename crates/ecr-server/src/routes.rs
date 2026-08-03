@@ -564,6 +564,13 @@ pub async fn theme(
     State(state): State<AppState>,
     AxumQuery(query): AxumQuery<ThemeQuery>,
 ) -> ApiResult<Json<ConfigFile>> {
+    // The default setting names a shipped preset, and a client asks for it long
+    // before anything asks for the listing. Seeding only there left a fresh
+    // install answering 404 for its own default until the settings page had
+    // been opened once — the palette that ships with ecr, reported as a broken
+    // link. Writing a file that is already there is not a write.
+    let _ = ecr_store::themes::seed(&state.store.paths().themes_dir());
+
     let path = state
         .store
         .paths()

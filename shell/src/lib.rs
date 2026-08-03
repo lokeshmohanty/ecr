@@ -119,9 +119,51 @@ fn compose_in_editor(initial: String) -> Result<String, String> {
     Ok(body)
 }
 
+/// This build's version, but only where an APK is what someone installed.
+///
+/// The answer is what decides whether the client offers an update check at all,
+/// so `None` is the whole point of it: a deb, an AppImage, the Nix package and
+/// the browser client are all updated by whatever installed them, and a mail
+/// client that goes looking at a code host on their behalf is offering to
+/// replace a package the system is managing.
+///
+/// `cfg!` rather than `#[cfg]` so that the command exists on every target and
+/// the client has one shape of answer to read. The version comes from
+/// `package_info`, which Tauri fills from `tauri.conf.json` — the same value the
+/// APK's `versionName` is generated from, so the two cannot drift.
+#[tauri::command]
+fn apk_version(app: tauri::AppHandle) -> Option<String> {
+    if cfg!(target_os = "android") {
+        Some(app.package_info().version.to_string())
+    } else {
+        None
+    }
+}
+
 #[tauri::command]
 fn default_server_url() -> String {
     std::env::var("ECR_SERVER_URL").unwrap_or_else(|_| "http://localhost:8383".to_string())
+}
+
+/// The device token a development launch was handed, if any.
+///
+/// Two sources because the two platforms can only be reached in different ways.
+/// `just desktop` sets `ECR_TOKEN` in the environment it runs the binary under,
+/// the same way it already sets `ECR_SERVER_URL`. A phone has no such
+/// environment — it runs an installed APK, reaching this machine back down the
+/// USB cable — so `just android` sets the variable at *build* time and
+/// `option_env!` bakes it into the debug APK. A release build is compiled
+/// without it and answers `None`, which is what keeps this out of a shipped
+/// artifact.
+///
+/// The client only reads this when it has no token of its own, so pairing a
+/// device properly still wins over whatever a dev build was born with.
+#[tauri::command]
+fn default_token() -> Option<String> {
+    std::env::var("ECR_TOKEN")
+        .ok()
+        .or_else(|| option_env!("ECR_TOKEN").map(str::to_string))
+        .filter(|token| !token.is_empty())
 }
 
 /// Gives the screen a resolution before WebKit reads one.
@@ -203,8 +245,10 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            apk_version,
             compose_in_editor,
             default_server_url,
+            default_token,
             take_launch_mailto,
             notify
         ])

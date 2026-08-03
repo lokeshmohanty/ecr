@@ -33,6 +33,30 @@ export async function shellServerUrl(): Promise<string | null> {
   return invoke<string>("default_server_url");
 }
 
+/**
+ * The device token a development launch handed the shell, or null.
+ *
+ * `just desktop` and `just android` start the server against a dev-only token
+ * store and pass that token through, so a client the server does not serve
+ * itself — and which therefore never sees a `?token=` URL — still starts
+ * authenticated. Null in a browser and in any release build.
+ */
+export async function shellToken(): Promise<string | null> {
+  return invoke<string | null>("default_token").then((token) => token ?? null);
+}
+
+/**
+ * This build's version when it was installed as an APK, and null otherwise.
+ *
+ * Null is the answer everywhere else — in a browser, because there is no shell
+ * to ask, and on the desktop, because the shell declines. It is what gates the
+ * update check: only a sideloaded APK has no other way to hear that it has been
+ * superseded. See `state/updates.ts`.
+ */
+export async function apkVersion(): Promise<string | null> {
+  return invoke<string | null>("apk_version").then((version) => version ?? null);
+}
+
 /** Opens $EDITOR on the desktop. Null anywhere the command does not exist. */
 export async function composeInEditor(initial: string): Promise<string | null> {
   return invoke<string>("compose_in_editor", { initial });

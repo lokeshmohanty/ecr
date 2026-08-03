@@ -9,6 +9,15 @@ bin := "ecr"
 # `just android` stays 8383 regardless; it is forwarded to whatever this is.
 bind := env_var_or_default("ECR_BIND", "0.0.0.0:8399")
 
+# A dev-only token store in parallel with the real tokens.toml. The
+# verify-* recipes use the real config in place and rely on auth being off — an
+# empty store — so a dev token must not live there. scripts/dev-token.sh issues
+# and caches the plaintext; `just run` and `just dev` serve with --tokens pointing
+# here and open the browser with ?token=<plaintext>.
+home := env_var_or_default("HOME", "")
+config_home := env_var_or_default("XDG_CONFIG_HOME", home + "/.config")
+dev_tokens := env_var_or_default("ECR_DEV_TOKENS", config_home + "/ecr/dev-tokens.toml")
+
 # List the available recipes.
 default:
     @just --list --unsorted
@@ -37,31 +46,51 @@ serve-readonly:
 run: build-web
     #!/usr/bin/env bash
     set -euo pipefail
+    token="$(bash scripts/dev-token.sh)"
     if curl -sf "http://{{bind}}/api/v1/health" >/dev/null 2>&1; then
         echo "a server is already listening on {{bind}}"
     else
-        cargo run -q -p {{pkg}} -- serve --bind {{bind}} &
+        cargo run -q -p {{pkg}} -- --tokens "{{dev_tokens}}" serve --bind {{bind}} &
         trap 'kill %1 2>/dev/null || true' EXIT
         for _ in $(seq 1 60); do
             curl -sf "http://{{bind}}/api/v1/health" >/dev/null && break
             sleep 0.5
         done
     fi
-    (xdg-open "http://{{bind}}" >/dev/null 2>&1 &) || echo "open http://{{bind}}"
+    (xdg-open "http://{{bind}}/?token=$token" >/dev/null 2>&1 &) || echo "open http://{{bind}}/?token=$token"
     wait
 
-# Web client with hot reload on http://localhost:1420, against a running server.
+# Web client with hot reload on http://localhost:1420. Starts the server if
+# none is running and opens the browser with a dev token, so auth is seamless.
 dev:
-    pnpm --dir web dev
+    #!/usr/bin/env bash
+    set -euo pipefail
+    token="$(bash scripts/dev-token.sh)"
+    if curl -sf "http://{{bind}}/api/v1/health" >/dev/null 2>&1; then
+        echo "using the server already on {{bind}}"
+    else
+        cargo run -q -p {{pkg}} -- --tokens "{{dev_tokens}}" serve --bind {{bind}} &
+        trap 'kill %1 2>/dev/null || true' EXIT
+        for _ in $(seq 1 60); do
+            curl -sf "http://{{bind}}/api/v1/health" >/dev/null && break
+            sleep 0.5
+        done
+    fi
+    # vite is a foreground blocking process, so open the browser from a
+    # background subshell that waits for :1420 to answer first.
+    (for _ in $(seq 1 30); do curl -sf "http://localhost:1420" >/dev/null 2>&1 && break; sleep 0.5; done
+     xdg-open "http://localhost:1420/?token=$token" >/dev/null 2>&1) &
+    ECR_BIND="{{bind}}" pnpm --dir web dev
 
 # Run the desktop app. Starts the server first unless one is already listening.
 desktop: build-web
     #!/usr/bin/env bash
     set -euo pipefail
+    token="$(bash scripts/dev-token.sh)"
     if curl -sf "http://{{bind}}/api/v1/health" >/dev/null 2>&1; then
         echo "using the server already on {{bind}}"
     else
-        cargo run -q -p {{pkg}} -- serve --bind {{bind}} &
+        cargo run -q -p {{pkg}} -- --tokens "{{dev_tokens}}" serve --bind {{bind}} &
         trap 'kill %1 2>/dev/null || true' EXIT
         for _ in $(seq 1 60); do
             curl -sf "http://{{bind}}/api/v1/health" >/dev/null && break
@@ -74,7 +103,9 @@ desktop: build-web
     if [[ "$bind" == 0.0.0.0:* ]]; then
         server_url="http://localhost:${bind##*:}"
     fi
-    env ECR_SERVER_URL="$server_url" cargo run -q -p ecr-desktop
+    # The webview is not served by the server, so there is no `?token=` URL to
+    # open it with: the shell reads ECR_TOKEN and answers `default_token`.
+    env ECR_SERVER_URL="$server_url" ECR_TOKEN="$token" cargo run -q -p ecr-desktop
 
 # Build, install and run the app on a connected Android device over USB.
 android *args:
@@ -130,6 +161,8 @@ android-run *args: build-web
     # http server at all. See scripts/android-overlay.sh.
     ./scripts/android-overlay.sh
 
+    token="$(bash scripts/dev-token.sh)"
+
     server_pid=""
     trap 'adb reverse --remove tcp:8383 >/dev/null 2>&1 || true
           [ -n "$server_pid" ] && kill "$server_pid" 2>/dev/null || true' EXIT
@@ -137,7 +170,7 @@ android-run *args: build-web
     if curl -sf "http://{{bind}}/api/v1/health" >/dev/null 2>&1; then
         echo "using the server already on {{bind}}"
     else
-        cargo run -q -p {{pkg}} -- serve --bind {{bind}} &
+        cargo run -q -p {{pkg}} -- --tokens "{{dev_tokens}}" serve --bind {{bind}} &
         server_pid=$!
         for _ in $(seq 1 60); do
             curl -sf "http://{{bind}}/api/v1/health" >/dev/null && break
@@ -147,8 +180,8 @@ android-run *args: build-web
 
     # The APK carries no server address: the shell's built-in default is
     # localhost:8383, so the phone is pointed at this machine by forwarding that
-    # port back down the cable. The mail never leaves USB and no device token is
-    # needed. ECR_BIND may move the host port; the device side stays 8383.
+    # port back down the cable. The mail never leaves USB.
+    # ECR_BIND may move the host port; the device side stays 8383.
     on_device reverse tcp:8383 "tcp:$port"
 
     # `build`, not `dev`: a `dev` build on mobile proxies *every* asset request
@@ -166,7 +199,13 @@ android-run *args: build-web
             exit 1
             ;;
     esac
-    (cd shell && cargo tauri android build --debug --apk true --target "$target" {{args}})
+    # ECR_TOKEN at *build* time, not run time: a phone runs an installed APK
+    # and has no environment to read. `default_token` picks it up through
+    # `option_env!`, so only this debug build carries it — a release is compiled
+    # without the variable and answers None. shell/build.rs declares
+    # rerun-if-env-changed, or a rotated token would leave a cached binary
+    # presenting the old one and the app would look unable to reach the server.
+    (cd shell && ECR_TOKEN="$token" cargo tauri android build --debug --apk true --target "$target" {{args}})
 
     apk=""
     for candidate in $(find shell/gen/android/app/build/outputs/apk -name '*.apk'); do
@@ -308,7 +347,8 @@ verify-v4:
     ./scripts/demo-env.sh /tmp/ecr-v4 > /dev/null
     cargo build -q -p {{pkg}}
     pnpm --dir web build > /dev/null
-    HOME=/tmp/ecr-v4 XDG_CONFIG_HOME=/tmp/ecr-v4/.config RUST_LOG=warn \
+    env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
+      HOME=/tmp/ecr-v4 XDG_CONFIG_HOME=/tmp/ecr-v4/.config RUST_LOG=warn \
       ./target/debug/{{bin}} serve --bind "127.0.0.1:$port" --no-watch &
     trap 'kill %1 2>/dev/null || true' EXIT
     for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null && break; sleep 0.5; done
@@ -323,7 +363,8 @@ verify-settings:
     ./scripts/demo-env.sh /tmp/ecr-settings > /dev/null
     cargo build -q -p {{pkg}}
     pnpm --dir web build > /dev/null
-    HOME=/tmp/ecr-settings XDG_CONFIG_HOME=/tmp/ecr-settings/.config RUST_LOG=warn \
+    env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
+      HOME=/tmp/ecr-settings XDG_CONFIG_HOME=/tmp/ecr-settings/.config RUST_LOG=warn \
       ./target/debug/{{bin}} serve --bind "127.0.0.1:$port" --no-watch &
     trap 'kill %1 2>/dev/null || true' EXIT
     for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null && break; sleep 0.5; done
@@ -338,7 +379,8 @@ verify-compose:
     ./scripts/demo-env.sh /tmp/ecr-compose > /dev/null
     cargo build -q -p {{pkg}}
     pnpm --dir web build > /dev/null
-    HOME=/tmp/ecr-compose XDG_CONFIG_HOME=/tmp/ecr-compose/.config RUST_LOG=warn \
+    env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
+      HOME=/tmp/ecr-compose XDG_CONFIG_HOME=/tmp/ecr-compose/.config RUST_LOG=warn \
       ./target/debug/{{bin}} serve --bind "127.0.0.1:$port" --no-watch &
     trap 'kill %1 2>/dev/null || true' EXIT
     for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null && break; sleep 0.5; done
@@ -353,7 +395,8 @@ verify-view:
     ./scripts/demo-env.sh /tmp/ecr-view > /dev/null
     cargo build -q -p {{pkg}}
     pnpm --dir web build > /dev/null
-    HOME=/tmp/ecr-view XDG_CONFIG_HOME=/tmp/ecr-view/.config RUST_LOG=warn \
+    env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
+      HOME=/tmp/ecr-view XDG_CONFIG_HOME=/tmp/ecr-view/.config RUST_LOG=warn \
       ./target/debug/{{bin}} serve --bind "127.0.0.1:$port" --no-watch &
     trap 'kill %1 2>/dev/null || true' EXIT
     for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null && break; sleep 0.5; done
@@ -368,7 +411,8 @@ verify-marks:
     ./scripts/demo-env.sh /tmp/ecr-marks > /dev/null
     cargo build -q -p {{pkg}}
     pnpm --dir web build > /dev/null
-    HOME=/tmp/ecr-marks XDG_CONFIG_HOME=/tmp/ecr-marks/.config RUST_LOG=warn \
+    env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
+      HOME=/tmp/ecr-marks XDG_CONFIG_HOME=/tmp/ecr-marks/.config RUST_LOG=warn \
       ./target/debug/{{bin}} serve --bind "127.0.0.1:$port" --no-watch &
     trap 'kill %1 2>/dev/null || true' EXIT
     for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null && break; sleep 0.5; done
@@ -428,7 +472,8 @@ verify-ux:
     ./scripts/demo-env.sh /tmp/ecr-visual > /dev/null
     cargo build -q -p {{pkg}}
     pnpm --dir web build > /dev/null
-    HOME=/tmp/ecr-visual XDG_CONFIG_HOME=/tmp/ecr-visual/.config RUST_LOG=warn \
+    env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
+      HOME=/tmp/ecr-visual XDG_CONFIG_HOME=/tmp/ecr-visual/.config RUST_LOG=warn \
       ./target/debug/{{bin}} serve --bind "127.0.0.1:$port" --no-watch &
     trap 'kill %1 2>/dev/null || true' EXIT
     for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null && break; sleep 0.5; done

@@ -6,6 +6,7 @@ import { createAppStore } from "./store";
 // `shellServerUrl` is async; mock it so it never overrides the persisted URL.
 vi.mock("../api/platform", () => ({
 	shellServerUrl: vi.fn(),
+	shellToken: vi.fn(),
 	// A factory mock replaces the whole module, so anything the store imports
 	// from it has to appear here. Leaving `notify` out made it `undefined`, and
 	// calling it threw straight through the server-event handler — the list

@@ -8,11 +8,12 @@ import {
 import { createStore, reconcile } from "solid-js/store";
 import {
 	Api,
+	ApiError,
 	loadConnection,
 	saveConnection,
 	type Connection,
 } from "../api/client";
-import { notify, shellServerUrl } from "../api/platform";
+import { notify, shellServerUrl, shellToken } from "../api/platform";
 import type { Account, Draft, ServerEvent, ThreadSummary } from "../api/types";
 import type { Mode, Pane } from "../keymap/engine";
 import {
@@ -244,13 +245,55 @@ export function createAppStore() {
 	/** True once the server's settings have been read, or failed to be. */
 	const [configSettled, setConfigSettled] = createSignal(false);
 
+	// `just run` and `just dev` open the browser with ?token= so the
+	// connection form is never seen. Capture it before any resource
+	// fires, save it to localStorage, and strip the param from the URL
+	// so it does not linger in history or logs. The token is dev-only
+	// and lives in a separate store (scripts/dev-token.sh), so the real
+	// token store stays empty and the verify-* recipes that rely on
+	// unauthenticated access keep working.
+	if (typeof location !== "undefined" && location.search) {
+		const params = new URLSearchParams(location.search);
+		const token = params.get("token");
+		if (token) {
+			// `just run` and `just dev` open the browser at the server's own
+			// origin, so the base URL is this origin — not whatever a prior
+			// connection left in localStorage. Under Tauri the protocol is
+			// tauri:, not http:, and the shell supplies the URL instead.
+			const baseUrl = location.protocol.startsWith("http")
+				? location.origin
+				: connection().baseUrl;
+			const next = { baseUrl, token };
+			saveConnection(next);
+			api.update(next);
+			setConnectionSignal(next);
+			params.delete("token");
+			const rest = params.toString();
+			history.replaceState(
+				null,
+				"",
+				location.pathname + (rest ? `?${rest}` : "") + location.hash,
+			);
+		}
+	}
+
 	// Under Tauri there is no usable origin, so the shell supplies the URL.
 	// ECR_SERVER_URL is the authoritative server for a desktop launch, so a
-	// value persisted from an earlier run must not shadow it — only the auth
-	// token is kept from storage. Outside Tauri, shellServerUrl() is null.
-	void shellServerUrl().then((url) => {
-		if (url && url !== connection().baseUrl)
-			setConnection({ ...connection(), baseUrl: url });
+	// value persisted from an earlier run must not shadow it. The token goes the
+	// other way: a device paired properly keeps the token it was paired with,
+	// and the shell's is only the fallback a dev launch provides — otherwise
+	// running `just desktop` once would overwrite a real token with a dev one.
+	// Both are asked for together and applied in one write; two independent
+	// `setConnection` calls would each build on the same stale snapshot and the
+	// second would undo the first. Outside Tauri both answer null.
+	void Promise.all([shellServerUrl(), shellToken()]).then(([url, token]) => {
+		const current = connection();
+		const next = {
+			baseUrl: url ?? current.baseUrl,
+			token: current.token || (token ?? ""),
+		};
+		if (next.baseUrl !== current.baseUrl || next.token !== current.token)
+			setConnection(next);
 	});
 
 	// Every request source keys on the base URL as well as the revision. Under
@@ -353,6 +396,25 @@ export function createAppStore() {
 		setSettingsProblem(message);
 	}
 
+	/**
+	 * The theme is named by settings.toml, so a broken link is reported through
+	 * the same slot — but only the theme's own complaint is retracted when one
+	 * loads, or a fetch settling after the config was read would wipe a bad line
+	 * the user still has to fix.
+	 */
+	let themeComplaint = "";
+
+	function reportThemeProblem(message: string) {
+		themeComplaint = message;
+		reportSettingsProblem(message);
+	}
+
+	function clearThemeProblem() {
+		if (themeComplaint !== "" && settingsProblem() === themeComplaint)
+			setSettingsProblem("");
+		themeComplaint = "";
+	}
+
 	/** Applies edited text, or reports why it cannot. */
 	function applySettingsText(text: string): string[] {
 		const { settings: parsed, errors } = fromToml(text);
@@ -428,13 +490,21 @@ export function createAppStore() {
 				const file = await api.theme(path);
 				const { theme, errors } = parseTheme(file.raw);
 				if (errors.length > 0) {
-					setLastError(`${file.path}: ${errors[0]}`);
+					reportThemeProblem(`theme ${path}: ${errors[0]}`);
 					return;
 				}
 				applyTheme(theme, document.documentElement);
 				saveThemeText(file.raw);
-			} catch {
-				setLastError(`theme ${path} could not be read`);
+				clearThemeProblem();
+			} catch (error) {
+				// A server that answered has an opinion about this path worth
+				// repeating — the file is missing, or the link is refused. One
+				// that did not answer says nothing about the theme: that is the
+				// connection failure the thread list already reports, with the
+				// URL it tried and a retry, and claiming the palette is broken
+				// on top of it sends the reader to the wrong file.
+				if (error instanceof ApiError)
+					reportThemeProblem(`theme ${path}: ${error.message}`);
 			}
 		})();
 	});

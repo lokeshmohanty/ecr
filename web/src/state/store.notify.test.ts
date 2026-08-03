@@ -4,6 +4,7 @@ import { createAppStore } from "./store";
 
 vi.mock("../api/platform", () => ({
 	shellServerUrl: vi.fn(),
+	shellToken: vi.fn(),
 	notify: vi.fn(),
 }));
 

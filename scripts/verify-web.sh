@@ -31,10 +31,15 @@ sleep 1
 cargo build -q -p ecr-cli || exit 1
 (cd web && pnpm exec vite build > /dev/null 2>&1) || exit 1
 
-TOKEN=$(HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config \
+# -u, not just HOME: the dev shell exports NOTMUCH_CONFIG, which paths.rs ranks
+# above the XDG location, so without this the suite runs against the real
+# maildir. See the note in demo-env.sh.
+TOKEN=$(env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
+  HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config \
   ./target/debug/ecr --tokens "$DEMO/tokens.toml" token new verify 2>/dev/null)
 
-HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config \
+env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
+  HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config \
   ./target/debug/ecr --tokens "$DEMO/tokens.toml" \
   serve --bind "127.0.0.1:$API_PORT" > "$DEMO/server.log" 2>&1 &
 SRV=$!

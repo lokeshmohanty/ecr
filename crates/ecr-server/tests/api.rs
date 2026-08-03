@@ -683,6 +683,25 @@ async fn a_theme_reads_back_the_file_its_link_names() {
     );
 }
 
+/// The client asks for the theme the default setting names before anything asks
+/// for the listing, so seeding only there answered 404 for the palette ecr
+/// ships with until the settings page had been opened once.
+#[tokio::test]
+async fn the_default_theme_reads_without_a_listing_first() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let response = server.get("/api/v1/theme?path=themes/ecr-dark.toml").await;
+    assert_eq!(response.status(), 200);
+
+    let body: serde_json::Value = response.json().await.expect("json");
+    assert!(
+        body["raw"].as_str().expect("raw").contains("name ="),
+        "{body}"
+    );
+}
+
 #[tokio::test]
 async fn a_theme_link_cannot_read_outside_the_config_dir() {
     let Some(server) = Server::start().await else {

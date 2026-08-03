@@ -41,6 +41,48 @@ which one depends on the order they happened to start in. Keeping them apart
 lets a working tree and an installed service run side by side, which comparing
 the two needs anyway.
 
+## The dev token
+
+Once you have issued yourself a device token the API is authenticated, and every
+request without one is a 401 — including the ones the client you are developing
+makes. So the recipes that launch a client issue and carry their own token
+rather than leaving you to paste one in.
+
+`scripts/dev-token.sh` issues it, into `~/.config/ecr/dev-tokens.toml` and
+**not** the real `tokens.toml`. That separation is load-bearing in both
+directions: the `verify-*` recipes drive the real config in place and rely on
+auth being off, which an empty store is what gives them, and a dev token in
+there would break every one of them. It also caches the plaintext in
+`~/.config/ecr/dev-token`, because `ecr token new` prints a token once and a
+second command would otherwise have no way to recover the one a running server
+was started with. `ECR_DEV_TOKENS` and `ECR_DEV_TOKEN_FILE` move both.
+
+Each client then gets the token by the only route open to it:
+
+| Recipe | How the token arrives |
+| --- | --- |
+| `just run` | `?token=` on the URL the browser is opened with |
+| `just dev` | the same, on `localhost:1420`; vite proxies `/api` to the server |
+| `just desktop` | `ECR_TOKEN` in the environment, read by the shell's `default_token` |
+| `just android` | `ECR_TOKEN` at **build** time, baked into the debug APK |
+
+The browser cases work because the client strips `?token=` out of the URL as it
+starts — it saves the token, rewrites the address bar with `replaceState` so it
+does not linger in history, and never shows the connection form.
+
+The two shell cases have no URL to carry anything: the webview is not served by
+the server. The desktop reads the environment it was launched with. A phone has
+no such environment — it runs an installed APK and reaches this machine back
+down the USB cable — so `just android` sets `ECR_TOKEN` for the build and
+`option_env!` compiles it in. Only that debug build carries it; a release is
+compiled without the variable and `default_token` answers `None`, which is what
+keeps a dev token out of a shipped artifact. `shell/build.rs` declares
+`rerun-if-env-changed=ECR_TOKEN`, or rotating the token would leave a cached
+binary presenting the old one and the app would look unable to reach the server.
+
+A token stored on the device always wins over the shell's, so pairing a phone
+properly with `just token phone` is not undone by later running `just android`.
+
 The underlying commands are ordinary and can still be run directly:
 
 ```bash
@@ -109,6 +151,17 @@ screen. A new verifier that touches real mail must write there too.
 
 Maildir flags are authoritative: a file named `:2,S` is Seen and notmuch will
 strip `unread` from it. Fixtures use `:2,` so they index as unread.
+
+`scripts/demo-env.sh` builds the throwaway maildir the browser suites drive, and
+anything serving it must be launched with `NOTMUCH_CONFIG`, `NOTMUCH_PROFILE` and
+`MBSYNCRC` **stripped** — `env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC`
+— not merely with `HOME` and `XDG_CONFIG_HOME` pointed at the demo directory.
+[`paths`](@/architecture.md) ranks the environment variable above the XDG
+location, which is right for someone who exported it on purpose and wrong for a
+test that inherited it: the dev shell exports `NOTMUCH_CONFIG`, so a launcher
+that only overrode `HOME` served the real mailbox. `just visual` compared 31
+baselines against a live inbox that way, and `just verify-marks` writes tags. A
+new suite that serves the demo directory must copy that `env -u` prefix.
 
 ## Adding an endpoint
 

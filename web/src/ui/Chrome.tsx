@@ -254,7 +254,7 @@ export function ConnectionSetup(props: { store: AppStore }) {
         <h1 class="mb-1 text-base text-obligation">Connect to ecr-server</h1>
         <p class="mb-4 text-xs text-ink-3">
           Issue a token on the server with{" "}
-          <code>ecr-server token new &lt;name&gt;</code>.
+          <code>ecr token new &lt;name&gt;</code>.
         </p>
 
         <label class="mb-3 block">

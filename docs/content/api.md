@@ -29,8 +29,8 @@ unauthenticated and logs a warning.
 | POST | `/send` | `{ account, to, cc, bcc, subject, body, in_reply_to, references, attachments }` |
 | GET | `/config` | `{ path, raw }`. An absent settings file is `raw: ""`, not a `404` |
 | PUT | `/config` | `{ raw }`. Written only if it parses; `422 invalid_toml` carries `line` and `column` |
-| GET | `/themes` | `{ dir, presets: [{ path, name, builtin }] }`. Seeds the shipped presets on first call |
-| GET | `/theme?path=` | `{ path, raw }`. `path` is relative to the config dir; a missing file is a `404` |
+| GET | `/themes` | `{ dir, presets: [{ path, name, builtin }] }`. Seeds the shipped presets |
+| GET | `/theme?path=` | `{ path, raw }`. `path` is relative to the config dir; a missing file is a `404`. Seeds too |
 | PUT | `/theme` | `{ path, raw }`. Same `422 invalid_toml` as `/config` |
 | GET | `/events` | SSE. Accepts `?access_token=` because EventSource cannot set headers |
 
@@ -38,6 +38,13 @@ unauthenticated and logs a warning.
 through `MailPaths::resolve_relative`: absolute paths, any `..` component and
 anything that is not a `.toml` file are `400`, never clamped. A theme therefore
 cannot name a file outside `~/.config/ecr/`.
+
+Both theme routes seed the shipped presets into `~/.config/ecr/themes/`, and
+neither overwrites a file that is already there. The read seeds as well as the
+listing because a client asks for the theme its default setting names —
+`themes/ecr-dark.toml` — long before anything asks for the listing: seeding on
+the listing alone left a fresh install answering `404` for the palette ecr ships
+with, until the settings page had been opened once.
 
 ## Server-sent events
 

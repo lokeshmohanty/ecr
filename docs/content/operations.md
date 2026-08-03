@@ -150,6 +150,31 @@ and the release notes say which — Android will refuse to upgrade it in place f
 a later signed build. Uninstall first in that case. See
 [releasing.md](@/releasing.md#android).
 
+### Checking for a newer version
+
+A sideloaded APK has no idea it has been superseded, so the **Updates** section
+of the device settings asks: it fetches the newest GitHub release, compares the
+tag with this build's version and offers the download.
+
+It is a button, never a timer. Nothing about this happens in the background —
+the unauthenticated GitHub API allows 60 requests an hour per address, which is
+plenty for someone pressing a button and not enough for polling, and a mail
+client quietly reaching a code host is a surprise to whoever is reading the
+network.
+
+The section exists **only** on Android, and its absence elsewhere is the point.
+`apk_version` in the shell answers `None` on every other target, so a deb, an
+AppImage, the Nix package and the browser client show nothing: those are updated
+by whatever installed them, and offering to replace a package the system manages
+is not this app's business.
+
+The download opens in the browser rather than installing in place. Fetching the
+APK here and handing it to the installer would mean `REQUEST_INSTALL_PACKAGES`
+and a FileProvider in the manifest; the browser reaches that same system
+installer with no new permission at all. An `-unsigned.apk` asset is never
+offered — v0.1.1 shipped one, and it cannot install over a signed build, so
+pointing anyone at it would break a working app rather than update it.
+
 ### Running it on a device you have plugged in
 
 ```bash

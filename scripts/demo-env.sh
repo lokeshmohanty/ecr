@@ -79,6 +79,18 @@ EOF
 
 NOTMUCH_CONFIG="$DEMO/.config/notmuch/default/config" notmuch new --quiet
 
+# Whatever serves this directory must be run with NOTMUCH_CONFIG, NOTMUCH_PROFILE
+# and MBSYNCRC *stripped* — `env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC`
+# — and not merely with HOME and XDG_CONFIG_HOME pointed here.
+#
+# `ecr_store::paths` puts the env var ahead of the XDG path, correctly: someone
+# who exports NOTMUCH_CONFIG means it. But the dev shell exports it, so a suite
+# that only overrides HOME inherits the developer's *real* config, indexes their
+# real maildir and renders it. That is how `just visual` came to compare 31
+# baselines against a live inbox — every state differing, none of it about the
+# UI — and `just verify-marks` writes tags, so the same gap could have tagged
+# real mail.
+
 echo "demo mail root: $DEMO/Mail"
 echo "run the server with:"
 echo "  HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config cargo run -p ecr-cli -- serve --bind 127.0.0.1:8099"

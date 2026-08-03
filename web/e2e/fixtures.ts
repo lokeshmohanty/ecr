@@ -52,6 +52,13 @@ export const test = base.extend<{ page: Page }, { server: Server }>({
         XDG_CONFIG_HOME: `${dir}/.config`,
         RUST_LOG: "warn",
       };
+      // Deleted, not just overridden: `paths.rs` ranks NOTMUCH_CONFIG above the
+      // XDG location — correctly, since exporting it is a deliberate act — and
+      // the dev shell exports it. Inheriting it points this worker at the
+      // developer's real maildir instead of its own. See demo-env.sh.
+      delete env.NOTMUCH_CONFIG;
+      delete env.NOTMUCH_PROFILE;
+      delete env.MBSYNCRC;
       const child: ChildProcess = spawn(
         bin,
         ["--tokens", tokensFile, "serve", "--bind", `127.0.0.1:${port}`, "--no-watch"],

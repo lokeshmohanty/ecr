@@ -3,6 +3,13 @@ use std::process::Command;
 use std::time::SystemTime;
 
 fn main() {
+    // `default_token` reads this through `option_env!`, so it is baked in at
+    // compile time and cargo would otherwise reuse a binary carrying the old
+    // one. That only bites the Android build, where the value cannot arrive any
+    // other way, and it bites silently: the phone presents a revoked token and
+    // the app looks like it cannot reach the server.
+    println!("cargo:rerun-if-env-changed=ECR_TOKEN");
+
     rebuild_web_if_stale();
     tauri_build::build()
 }

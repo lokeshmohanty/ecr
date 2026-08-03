@@ -188,6 +188,21 @@ CORS entirely. `--allowed-origin` restricts it where that is wanted.
   replaces a single value in place so a switch on the settings page leaves the
   user's own comments and ordering intact. The server writes it only if it
   parses, so no client can leave behind a file no client can read.
+- **Where a failure is reported decides what it means.** The client has two
+  channels and they are not interchangeable. `lastError` is the reason the
+  thread list is empty: it is painted in one place, under *cannot reach the
+  server*, beside the base URL and a retry, and the threads resource wipes it
+  the moment the server answers. `settingsProblem` is the status bar — a
+  standing complaint about a file, which survives every refresh because it is
+  still true until someone edits that file. A bad line in `settings.toml` and a
+  broken `theme` link both belong to the second, and a theme is complained
+  about only when the server actually answered: a request that never arrived
+  says nothing about the palette, and the empty list already reports the
+  outage. Writing a theme failure into `lastError` made an outage read as a
+  broken palette — the theme message displaced the real HTTP error whenever
+  both requests failed, naming a file that was perfectly fine. Because the two
+  complaints share one slot, a theme that loads retracts only the message the
+  theme itself wrote.
 - **The phone.** A narrow screen shows one pane at a time, and which one it
   shows is `store.pane()` — the same three names the desktop moves between with
   `h`/`l`, so there is no second notion of where you are to drift. A `☰` in the

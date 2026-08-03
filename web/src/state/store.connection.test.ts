@@ -3,14 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { saveConnection } from "../api/client";
 import { createAppStore } from "./store";
 
-// The desktop shell exposes its server URL through a Tauri command. The store
-// must treat that as authoritative for a launch — a value persisted from an
-// earlier run must not shadow ECR_SERVER_URL.
+// The desktop shell exposes its server URL and, for a dev launch, its token
+// through Tauri commands. The store must treat the URL as authoritative for a
+// launch — a value persisted from an earlier run must not shadow
+// ECR_SERVER_URL — and the token as a fallback, which is the other way round.
 vi.mock("../api/platform", () => ({
 	shellServerUrl: vi.fn(),
+	shellToken: vi.fn(),
 }));
 
-import { shellServerUrl } from "../api/platform";
+import { shellServerUrl, shellToken } from "../api/platform";
 
 // createAppStore fires fetches through its resources and the settings effect;
 // none of them matter to the connection under test, so they resolve to empty,
@@ -35,6 +37,7 @@ function stubFetch(): void {
 beforeEach(() => {
 	localStorage.clear();
 	vi.mocked(shellServerUrl).mockReset();
+	vi.mocked(shellToken).mockReset();
 	stubFetch();
 });
 
@@ -92,6 +95,41 @@ describe("desktop shell server URL", () => {
 		await withStore((store) => {
 			expect(store.connection().baseUrl).toBe("http://env:1234");
 			expect(store.connection().token).toBe("tok");
+		});
+	});
+});
+
+// `just desktop` and `just android` hand the shell a dev token, because a
+// client the server does not serve itself never sees a `?token=` URL.
+describe("desktop shell token", () => {
+	it("adopts the shell's token when nothing is stored", async () => {
+		vi.mocked(shellServerUrl).mockResolvedValue("http://env:1234");
+		vi.mocked(shellToken).mockResolvedValue("dev-token");
+
+		await withStore((store) => {
+			expect(store.connection().token).toBe("dev-token");
+			expect(store.connection().baseUrl).toBe("http://env:1234");
+		});
+	});
+
+	// A paired device outranks a dev launch, or running `just desktop` once
+	// would overwrite the token that device was actually paired with.
+	it("keeps a stored token over the shell's", async () => {
+		saveConnection({ baseUrl: "http://env:1234", token: "paired" });
+		vi.mocked(shellServerUrl).mockResolvedValue("http://env:1234");
+		vi.mocked(shellToken).mockResolvedValue("dev-token");
+
+		await withStore((store) => {
+			expect(store.connection().token).toBe("paired");
+		});
+	});
+
+	it("leaves the token empty in a browser, where the shell offers none", async () => {
+		vi.mocked(shellServerUrl).mockResolvedValue(null);
+		vi.mocked(shellToken).mockResolvedValue(null);
+
+		await withStore((store) => {
+			expect(store.connection().token).toBe("");
 		});
 	});
 });

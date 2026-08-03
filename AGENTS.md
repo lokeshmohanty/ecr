@@ -166,6 +166,44 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   clicking a preset silently did nothing. Set client-scoped preferences
   directly through `setSettings`. `withValue` is for `[packages.*]`, which the
   server owns. Only `just e2e` caught this.
+- **`lastError` is not a status line — it is the reason the thread list is
+  empty.** It is painted in one place, under the heading *cannot reach the
+  server*, beside the base URL and a retry button, and the threads resource
+  wipes it the moment the server answers. So anything else that writes there
+  claims an outage: the theme effect's `theme … could not be read` displaced
+  the real HTTP error whenever both requests failed, and named a file that was
+  perfectly fine. A broken theme link is a `settingsProblem` — the status bar,
+  where it survives until someone fixes it — and only when the server actually
+  answered. A request that never arrived says nothing about the palette.
+  Because both complaints share that one slot, a theme that loads retracts only
+  the message the theme itself wrote.
+- **Issuing yourself a device token breaks every recipe that launches a
+  client.** An empty token store means the API is unauthenticated, which is what
+  the whole development setup silently relied on; the first `ecr token new`
+  turns auth on for everything and the client answers *a valid bearer token is
+  required*. The recipes therefore carry their own token, out of a **separate**
+  store — `~/.config/ecr/dev-tokens.toml`, via `scripts/dev-token.sh`. It cannot
+  live in the real `tokens.toml`: the `verify-*` scripts drive the real config
+  in place and rely on that store being empty, so a dev token there fails all of
+  them at once. The plaintext is cached beside it because `ecr token new` prints
+  a token exactly once and a second command has no other way to recover the one
+  a running server was started with.
+- **A client the server does not serve has no `?token=` to be opened with.**
+  `just run` and `just dev` put the token in the URL and the store strips it on
+  boot, but the desktop and Android webviews are loaded out of the binary, so
+  the shell has to hand it over: `default_token` in `shell/src/lib.rs`. It reads
+  `ECR_TOKEN` at run time for the desktop and falls back to `option_env!` for
+  Android, where the phone runs an installed APK and there is no environment to
+  read — `just android` sets the variable for the *build*. A release build is
+  compiled without it and answers `None`, which is what keeps the token out of a
+  shipped APK, and `shell/build.rs` declares `rerun-if-env-changed=ECR_TOKEN`
+  because a cached binary would otherwise present a rotated token's predecessor
+  and look like a server it could not reach. The store takes the shell's token
+  only when it has none of its own — the opposite of how it treats
+  `ECR_SERVER_URL`, which is authoritative — or `just desktop` would overwrite
+  the token a device was properly paired with. Both are asked for in one
+  `Promise.all` and applied in one write; two `setConnection` calls would each
+  build on the same stale snapshot and the second would undo the first.
 - **Below `md` the pane wrappers need `min-w-0`, not just `min-h-0`.** The
   three-column grid pins each track with `minmax(0, …)`; the single implicit
   column a phone gets has no such bound, so one wide message stretched the
@@ -316,6 +354,17 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   the runner loads two copies and refuses to collect any test.
 - Integration tests build a throwaway notmuch database from `fixtures/` in a
   tempdir. They must never touch the real maildir.
+- **Pointing `HOME` at the demo directory is not enough to isolate a suite.**
+  `ecr_store::paths` ranks `NOTMUCH_CONFIG` *above* the XDG location — correctly,
+  because exporting it is a deliberate act — and the dev shell exports it. So
+  every `demo-env.sh` caller that set only `HOME` and `XDG_CONFIG_HOME` served
+  the developer's **real** maildir: `just visual` compared all 31 baselines
+  against a live inbox, reporting a 31% pixel change on nearly every state with
+  nothing wrong in the UI. The same gap pointed `just verify-marks` — which
+  *writes* tags — at that inbox too. Every launcher now runs under
+  `env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC`. CI never saw it,
+  having none of those variables set — this fails only on a real mail setup,
+  which is the one place the suites are most likely to be run.
 - Sync and send are tested against stub binaries injected via
   `ServerSettings::{mbsync_bin, msmtp_bin}`. Never let a test reach Gmail.
 - If a change touches the UI, run `just check` — it includes the browser,
@@ -467,8 +516,12 @@ only a copy, for starting before the server answers.
 The palette is a second TOML file, linked from the first: `theme =
 "themes/ecr-dark.toml"`, relative to settings.toml's own directory. Ten presets
 ship embedded in the server (`crates/ecr-store/src/themes.rs`, sources in
-`themes/`) and are written into `~/.config/ecr/themes/` on first listing,
-never overwriting a file the user has edited. **Theming works because Tailwind
+`themes/`) and are written into `~/.config/ecr/themes/` by both theme routes —
+the listing *and* the read — never overwriting a file the user has edited.
+Seeding on the listing alone meant a fresh install answered 404 for the palette
+it ships with, because a client asks for the theme its default setting names
+long before anything asks for the listing, and the client painted that as
+`theme themes/ecr-dark.toml could not be read`. **Theming works because Tailwind
 v4 compiles every utility to `var(--color-*)` rather than a literal** — so
 `applyTheme` writing those properties onto the document element restyles the
 whole client, and no component ever knows a theme exists. `@theme` must stay
