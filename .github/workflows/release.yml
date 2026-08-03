@@ -301,7 +301,7 @@ jobs:
             out/*.aab
 
   publish:
-    name: draft release
+    name: publish release
     needs: [tarball, desktop, android]
     runs-on: ubuntu-latest
     steps:
@@ -331,11 +331,16 @@ jobs:
           fi
           cat notes.md
 
-      # Left as a draft on purpose: CI proves the build succeeded, not that the
-      # artifacts run. Download one per platform before publishing.
+      # Published outright, not left as a draft: a draft is invisible to
+      # everyone without write access, and one left unpublished is a release
+      # that silently never happened. The tag is the decision to release; `verify`
+      # and every build job gate this one, so nothing reaches this step unless
+      # the whole matrix is green. Smoke-testing an artifact moves to *after*
+      # publication — a bad one is withdrawn with a patch release, which is what
+      # every already-downloaded copy needs anyway.
       - uses: softprops/action-gh-release@v2
         with:
-          draft: true
+          draft: false
           body_path: notes.md
           files: artifacts/*
           fail_on_unmatched_files: true
@@ -347,9 +352,9 @@ jobs:
   # would have to edit their configuration on every release.
   #
   # It runs after the artifacts are built, not before: a tag whose build fails
-  # must not become what everyone's `nix flake update` pulls. It does *not* wait
-  # for the draft release to be published, because the flake is consumed from
-  # git rather than from an artifact, and the tag is already immutable.
+  # must not become what everyone's `nix flake update` pulls. It runs beside
+  # `publish` rather than after it, because the flake is consumed from git
+  # rather than from an artifact, and the tag is already immutable.
   release-branch:
     name: release branch
     needs: [tarball, desktop, android]

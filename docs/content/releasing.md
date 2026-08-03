@@ -33,13 +33,19 @@ The tag starts `.github/workflows/release.yml`, which:
 1. Re-runs fmt, lint and both test suites. A tag does not skip verification.
 2. Builds each artifact on its native runner.
 3. Computes `SHA256SUMS` across all of them.
-4. Creates a **draft** GitHub release with the `CHANGELOG.md` section for that
+4. **Publishes** a GitHub release with the `CHANGELOG.md` section for that
    version as the body.
 5. Publishes the crates to crates.io, in dependency order.
 
-I leave the release as a draft on purpose. Download at least one artifact and
-run it before pressing publish: CI proves the build succeeded, not that it
-works.
+Nothing is left to press. Pushing the tag is the decision to release; a draft
+is invisible to anyone without write access, so one left unpublished is a
+release that silently never happened — which is what became of v0.2.0.
+
+The gate is therefore the tag, not the publish. Everything before step 4 has to
+be green for it to run at all, so `just check` on a clean tree is what stands
+between a mistake and the public — verify before tagging, not after. Smoke-test
+the artifacts once they are up; a bad one is withdrawn with a patch release,
+which is what everyone who already downloaded it needs regardless.
 
 ## Artifacts
 
@@ -76,8 +82,8 @@ a push that would rewrite history means the tag is wrong, and failing loudly is
 the right answer. It runs after `tarball`, `desktop` and `android`: a tag whose build fails must
 never become what everyone's `nix flake update` pulls.
 
-It does **not** wait for the draft release to be published. The flake is
-consumed from git, not from an artifact, and the tag is already immutable.
+It runs beside the `publish` job rather than after it. The flake is consumed
+from git, not from an artifact, and the tag is already immutable.
 
 `nix flake check` and `nix build .#ecr .#ecr-web .#ecr-desktop` run in CI on
 every push, and CI pushes the results to `lokeshmohanty.cachix.org`, which
@@ -239,9 +245,8 @@ Before tagging:
 - [ ] Version bumped in all three manifests
 - [ ] The migration path is documented if the settings file or API changed
 
-After the workflow finishes:
+After the workflow finishes — the release is already public by then:
 
 - [ ] Download one artifact per platform and run it
 - [ ] `sha256sum -c SHA256SUMS` passes
-- [ ] Publish the draft
 - [ ] Open a `## [Unreleased]` section in `CHANGELOG.md`
