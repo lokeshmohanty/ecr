@@ -1,5 +1,6 @@
 import { For, Show, createSignal, onMount } from "solid-js";
 import type { AppStore } from "../state/store";
+import { canScanQr } from "../api/platform";
 import { ALL_ACCOUNTS } from "../state/views";
 
 export function TopBar(props: { store: AppStore; onSync: () => void; onSettings: () => void }) {
@@ -393,6 +394,15 @@ export function ServerAlert(props: { store: AppStore; onClose: () => void }) {
   const [checking, setChecking] = createSignal(false);
   let input: HTMLInputElement | undefined;
 
+  async function scan() {
+    setProblem("");
+    setChecking(true);
+    const reason = await props.store.pairByScanning();
+    setChecking(false);
+    setProblem(reason);
+    if (reason === "") props.onClose();
+  }
+
   onMount(() => {
     input?.focus();
     input?.select();
@@ -459,6 +469,26 @@ export function ServerAlert(props: { store: AppStore; onClose: () => void }) {
         >
           {checking() ? "trying…" : "Connect"}
         </button>
+
+        {/*
+          A phone is where typing an address and a 64-character token hurts
+          most, and is the only thing with a camera — so the scanner is offered
+          only where it exists, rather than shown everywhere and refused.
+        */}
+        <Show when={canScanQr()}>
+          <button
+            type="button"
+            class="touch-target mt-2 w-full rounded border border-rule px-3 py-2 disabled:opacity-50"
+            disabled={checking()}
+            onClick={() => void scan()}
+          >
+            Scan a pairing code
+          </button>
+          <p class="mt-2 text-xs text-ink-3">
+            Run <code>ecr token new phone --qr --url http://your-host:8383</code>{" "}
+            on the server and point the camera at it.
+          </p>
+        </Show>
 
         <Show when={problem()}>
           {(reason) => (
@@ -589,6 +619,13 @@ export function ConnectionSetup(props: { store: AppStore }) {
     setChecking(false);
   }
 
+  async function scan() {
+    setProblem("");
+    setChecking(true);
+    setProblem(await props.store.pairByScanning());
+    setChecking(false);
+  }
+
   return (
     <div class="chrome-sides flex h-full items-center justify-center p-6">
       <form
@@ -626,6 +663,26 @@ export function ConnectionSetup(props: { store: AppStore }) {
         >
           {checking() ? "trying…" : "Connect"}
         </button>
+
+        {/*
+          A phone is where typing an address and a 64-character token hurts
+          most, and is the only thing with a camera — so the scanner is offered
+          only where it exists, rather than shown everywhere and refused.
+        */}
+        <Show when={canScanQr()}>
+          <button
+            type="button"
+            class="touch-target mt-2 w-full rounded border border-rule px-3 py-2 disabled:opacity-50"
+            disabled={checking()}
+            onClick={() => void scan()}
+          >
+            Scan a pairing code
+          </button>
+          <p class="mt-2 text-xs text-ink-3">
+            Run <code>ecr token new phone --qr --url http://your-host:8383</code>{" "}
+            on the server and point the camera at it.
+          </p>
+        </Show>
 
         <Show when={problem()}>
           {(reason) => (

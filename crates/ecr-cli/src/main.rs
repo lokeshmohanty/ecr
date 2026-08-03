@@ -253,6 +253,11 @@ enum TokenCommand {
         name: String,
         #[arg(long, help = "also print a QR code for pairing a phone")]
         qr: bool,
+        #[arg(
+            long,
+            help = "the address the phone should reach this server on, put in the QR alongside the token"
+        )]
+        url: Option<String>,
     },
     List,
     Revoke {
@@ -317,7 +322,9 @@ async fn dispatch() -> anyhow::Result<()> {
         }
 
         Command::Token { command } => match command {
-            TokenCommand::New { name, qr } => token::new(&token_path, &name, qr),
+            TokenCommand::New { name, qr, url } => {
+                token::new(&token_path, &name, qr, url.as_deref())
+            }
             TokenCommand::List => token::list(&token_path),
             TokenCommand::Revoke { name } => token::revoke(&token_path, &name),
         },

@@ -28,6 +28,46 @@ export async function invoke<T>(
   }
 }
 
+/**
+ * Whether this build can read a pairing code with a camera.
+ *
+ * The plugin is compiled into the mobile shell only, so asking anywhere else
+ * gets an error rather than a camera. The user agent is what distinguishes
+ * them: a Tauri webview on Android says so, and the desktop shell does not.
+ */
+export function canScanQr(): boolean {
+  if (!isTauri() || typeof navigator === "undefined") return false;
+  return /android|iphone|ipad/i.test(navigator.userAgent);
+}
+
+export type ScanResult =
+  | { kind: "scanned"; text: string }
+  | { kind: "cancelled" }
+  | { kind: "unavailable"; reason: string };
+
+/**
+ * Reads a pairing code with the camera.
+ *
+ * This does not go through `invoke`, which answers `null` for everything that
+ * went wrong: a reader who declined the camera permission and a reader who
+ * backed out of the scanner would then be indistinguishable, and the first has
+ * something to be told while the second must be left alone.
+ */
+export async function scanQr(): Promise<ScanResult> {
+  const call = invoker();
+  if (!call) return { kind: "unavailable", reason: "there is no camera here" };
+
+  try {
+    const text = await call<string | null>("scan_qr");
+    return text ? { kind: "scanned", text } : { kind: "cancelled" };
+  } catch (error) {
+    return {
+      kind: "unavailable",
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 /** The server URL the shell was configured with, or null outside Tauri. */
 export async function shellServerUrl(): Promise<string | null> {
   return invoke<string>("default_server_url");

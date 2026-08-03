@@ -85,7 +85,7 @@ start unless this is healthy.
 ## Tokens
 
 ```bash
-ecr token new phone --qr   # prints the token once, plus a pairing QR
+ecr token new phone --qr --url http://<this machine>:8383   # token once, plus a QR
 ecr token list
 ecr token revoke phone
 ```
@@ -265,7 +265,18 @@ on a tailnet, which is encrypted a layer below.
 
 It is a **client only**. `ecr-server` shells out to `notmuch`, `mbsync` and
 `msmtp`, none of which exist on Android, so the app points at a server you run
-elsewhere — over Tailscale, typically. Pair it with `ecr token new phone --qr`.
+elsewhere — over Tailscale, typically. Pair it by scanning: run
+`ecr token new phone --qr --url http://<tailnet-addr>:8383` on the server and
+point the phone's camera at the code from its first screen, or later from
+**Settings → Server → Scan a code** to move it to another server.
+
+The code carries the address and the token together, which is the whole point:
+a tailnet hostname and a 64-character hex token are the two worst things to
+type on a phone. `--url` is separate from `--bind` because the address a phone
+must reach is rarely the socket the server listens on — `0.0.0.0` is every
+address and `127.0.0.1` is only that machine, so neither goes in a code. Given
+neither `--url` nor a usable `ECR_BIND`, the code carries the token alone and
+says so, which is what every code printed before this did.
 
 If the release APK is unsigned — which it is until the signing secrets are set,
 and the release notes say which — Android will refuse to upgrade it in place from

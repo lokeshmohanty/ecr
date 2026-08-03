@@ -370,6 +370,29 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   merge, naming tags that were never refetched, and says nothing about a mock.
   `announceNewMail` now swallows its own errors, because a notification must
   never be able to stop the mail it is about from arriving.
+- **A pairing QR carries a token *and* usually an address, and the address is
+  applied first.** `ecr_core::pairing` and `web/src/state/pairing.ts` are two
+  halves of one format (`ecr://pair?url=…&token=…`), each with its own tests,
+  because the code is written in Rust and read in TypeScript. `authenticate`
+  asks the server whether a token is good, so applying the token first asks the
+  *old* server — which either refuses a token that is perfectly valid for the
+  new one, or accepts it and leaves the device pointed at a server the reader
+  has just replaced. A bare token with no scheme is still a valid code: that is
+  what `--qr` printed before the address was included, and codes already
+  photographed have to keep working.
+- **`--url` is not `--bind`, and defaulting one to the other produces a code
+  that scans cleanly and cannot connect.** `0.0.0.0` is every address rather
+  than an address, and `127.0.0.1` is only the machine the server runs on;
+  neither is reachable from the phone the code is for. `reachable_address`
+  declines both and the code carries the token alone, saying so, rather than
+  encoding something that looks like it worked.
+- **The barcode scanner is a mobile-only plugin, so it cannot be a plain
+  dependency or a plain capability.** It is target-gated in `shell/Cargo.toml`
+  and its permissions live in `capabilities/mobile.json` with a `platforms`
+  key — put in `default.json` they name a plugin the desktop build does not
+  have. `scan_qr` answers an *error* on desktop rather than not existing,
+  because `invoke` turns a missing command into `null` and that is
+  indistinguishable from a scan the reader cancelled.
 - **A `mailto:` in a message is handled here, not by the system.**
   `openExternal` still passes `mailto:` to the shell's opener — it is a valid
   thing to hand over — but no message link reaches it any more:

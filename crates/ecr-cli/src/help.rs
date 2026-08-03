@@ -57,7 +57,7 @@ Reaching your mail from a phone
   internet — this is a mail store, and it has no TLS of its own.
 
     ecr serve --bind 100.83.12.4:8383
-    ecr token new phone --qr
+    ecr token new phone --qr --url http://<this machine>:8383
 
   The token is printed once. Enter the server address in the client on the
   phone, then the token.

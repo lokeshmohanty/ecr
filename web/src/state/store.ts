@@ -13,7 +13,7 @@ import {
 	saveConnection,
 	type Connection,
 } from "../api/client";
-import { notify, shellServerUrl, shellToken } from "../api/platform";
+import { notify, scanQr, shellServerUrl, shellToken } from "../api/platform";
 import type {
 	Account,
 	Check,
@@ -47,6 +47,7 @@ import {
 import { parseAddress, type AddressEntry } from "./suggest";
 import { effectiveFormat, toggled, type MessageFormat } from "./format";
 import { layoutFor, viewportWidth } from "../ui/narrow";
+import { parsePairing } from "./pairing";
 
 import {
 	MARK_TAGS,
@@ -560,6 +561,44 @@ export function createAppStore() {
 		setNeedsToken(false);
 		setAskingServer(false);
 		setConnection({ ...connection(), baseUrl: trimmed });
+		return "";
+	}
+
+	/**
+	 * Pairs this device from a scanned code: the address first, then the token.
+	 *
+	 * That order matters. `authenticate` asks the server whether the token is
+	 * good, so doing it first asks the *old* server — which either refuses a
+	 * token that is perfectly valid for the new one, or accepts it and leaves
+	 * the device pointed somewhere the reader has just replaced. The address is
+	 * probed by `reachServer` before either is kept, so a code for a server that
+	 * is not up changes nothing.
+	 *
+	 * A code carrying only a token is still honoured against whatever address
+	 * this device already has, because that is what every code printed before
+	 * the address was included looks like.
+	 *
+	 * Answers what to tell the reader, or "" when the device is paired.
+	 */
+	async function pairByScanning(): Promise<string> {
+		const result = await scanQr();
+		if (result.kind === "cancelled") return "";
+		if (result.kind === "unavailable") return result.reason;
+
+		const pairing = parsePairing(result.text);
+		if (!pairing) return "that is not an ecr pairing code";
+
+		if (pairing.url) {
+			const refused = await reachServer(pairing.url);
+			if (refused) return refused;
+		}
+
+		const refused = await authenticate(pairing.token);
+		if (refused) return refused;
+
+		setStatus(
+			pairing.url ? `paired with ${pairing.url}` : "paired with this server",
+		);
 		return "";
 	}
 
@@ -1702,6 +1741,7 @@ export function createAppStore() {
 		askingDoctor,
 		setAskingDoctor,
 		reachServer,
+		pairByScanning,
 		retryServer,
 		health,
 		reachable,

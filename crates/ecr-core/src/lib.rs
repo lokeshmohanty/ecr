@@ -2,6 +2,7 @@ pub mod account;
 pub mod compose;
 pub mod doctor;
 pub mod message;
+pub mod pairing;
 pub mod revision;
 
 pub use account::{Account, AccountId, Folder};

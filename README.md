@@ -167,7 +167,7 @@ just run              # builds the client, starts the server, opens a browser
 Reaching it from a phone:
 
 ```bash
-ecr token new phone --qr                  # prints a pairing QR
+ecr token new phone --qr --url http://<tailnet-addr>:8383   # a QR the phone can scan
 ECR_BIND=<tailnet-addr>:8383 ecr serve
 ```
 

@@ -19,7 +19,7 @@ import {
 import { DATE_FORMATS } from "../state/datetime";
 import { SECTION_IDS, type CustomView } from "../state/views";
 import { checkForUpdate, type UpdateState } from "../state/updates";
-import { apkVersion, openExternal } from "../api/platform";
+import { apkVersion, canScanQr, openExternal } from "../api/platform";
 import type { AppStore } from "../state/store";
 
 export function DeviceSettings(props: { store: AppStore }) {
@@ -83,8 +83,67 @@ export function DeviceSettings(props: { store: AppStore }) {
         )}
       </For>
 
+      <Pairing store={props.store} />
       <Updates />
     </div>
+  );
+}
+
+/**
+ * Re-pairing by camera, which belongs to the device for the same reason the
+ * theme does: which server this phone talks to, and with which token, is not
+ * something the mailbox has an opinion about.
+ *
+ * Absent wherever there is no camera, rather than shown and refused — the
+ * desktop's answer to "point this somewhere else" is the address field the
+ * thread list already offers.
+ */
+function Pairing(props: { store: AppStore }) {
+  const [state, setState] = createSignal("");
+  const [scanning, setScanning] = createSignal(false);
+
+  const scan = async () => {
+    setState("");
+    setScanning(true);
+    const reason = await props.store.pairByScanning();
+    setScanning(false);
+    // "" is either a scan that worked or one the reader backed out of, and
+    // neither wants a message: the address on screen is the answer.
+    setState(reason);
+  };
+
+  return (
+    <Show when={canScanQr()}>
+      <section class="mb-5">
+        <h2 class="label mb-1">Server</h2>
+        <p class="mb-2 text-xs text-ink-3">
+          Scanning a pairing code replaces both the address and the token, so
+          this is how to point this device at a different server — or at the
+          same one after it moved.
+        </p>
+
+        <div class="mb-2 rounded border border-rule bg-card px-3 py-2">
+          <div class="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+            <div class="min-w-0 flex-1">
+              <div class="mono break-all text-ink">
+                {props.store.connection().baseUrl || "no address yet"}
+              </div>
+              <div class="text-xs text-ink-3" role="status" aria-live="polite">
+                {state() || (scanning() ? "point the camera at the code" : "")}
+              </div>
+            </div>
+            <button
+              type="button"
+              class="touch-target rounded border border-rule px-3 py-1.5 disabled:opacity-50"
+              disabled={scanning()}
+              onClick={() => void scan()}
+            >
+              {scanning() ? "scanning…" : "Scan a code"}
+            </button>
+          </div>
+        </div>
+      </section>
+    </Show>
   );
 }
 

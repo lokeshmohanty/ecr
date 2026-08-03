@@ -28,6 +28,18 @@
          prompt that precedes anything to be notified about gets refused. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Reading a pairing code. Declared here rather than left to the scanner
+         plugin's own manifest so that what this app asks the phone for is
+         readable in one file — the overlay owns this manifest outright, and a
+         permission that only appears after a merge is one nobody reviewing the
+         app can see. Requested at the moment the reader taps Scan.
+
+         The camera is `required="false"` so the APK still installs on a device
+         that has none: everything except pairing by code works without it, and
+         the address can always be typed. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
     <application
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
