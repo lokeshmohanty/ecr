@@ -308,7 +308,14 @@ jobs:
               ;;
           esac
           apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort | tail -1)
-          "$apksigner" verify --verbose "$apk"
+          "$apksigner" verify --verbose "$apk" | tee verify.txt
+          # v3 is what carries a rotation proof. AGP is content with v2 alone at
+          # minSdk 28, and a v2-only APK's signing key can never be rotated, so
+          # the scheme is asserted rather than assumed.
+          grep -q "APK Signature Scheme v3): true" verify.txt || {
+            echo "::error::the release APK is not v3-signed; its key could never be rotated"
+            exit 1
+          }
 
   # The desktop bundles, built here for the same reason Android is: nothing else
   # runs the bundler. `nix build .#ecr-desktop` compiles the binary but never

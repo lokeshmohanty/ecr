@@ -33,6 +33,16 @@ if (keystorePropertiesFile.exists()) {
                 // `password`, not `keyPassword`: the name the release workflow
                 // writes. The two must agree or the key is silently not found.
                 keyPassword keystoreProperties['password']
+
+                // v3 is what carries a rotation proof, and it is off by
+                // default here: minSdk 28 means AGP is content with v2 alone,
+                // and an APK signed v2-only can never have its key rotated —
+                // the signing identity would be fixed for the life of the app.
+                // v1 stays off because it is JAR signing, superseded since
+                // API 24 and slow to verify.
+                enableV1Signing false
+                enableV2Signing true
+                enableV3Signing true
             }
         }
         buildTypes {
