@@ -169,6 +169,16 @@ Two gates keep that honest: CI builds a *release* APK signed with a throwaway
 key on every push and fails if it comes out `-unsigned`, and the release job
 refuses to ship an unsigned APK when the keystore secret is set.
 
+Both are renamed before they are uploaded. Gradle names its output after the
+*module*, so the APK and the AAB both arrive as `app-universal-release.*` —
+which is what every other Android project's build is called too, and says
+nothing about what the file is once it has left the release page. v0.2.2
+shipped exactly that, beside four artifacts that do name themselves. The rename
+happens after the `-unsigned` check, which is the assertion that name carries,
+and it insists on finding exactly one of each: the build is universal rather
+than split per ABI, so adding `--split-per-abi` later fails loudly here instead
+of quietly collapsing three APKs into one name.
+
 Generate a keystore once and keep it somewhere you will not lose it — losing it
 means every existing install must be removed by hand before it can be upgraded:
 

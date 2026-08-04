@@ -287,11 +287,33 @@ jobs:
             \( -name '*.apk' -o -name '*.aab' \) -exec cp {} out/ \;
           ls -la out
           # The signed APK is the point of the keystore step above; shipping an
-          # unsigned one when signing was configured would be silent.
+          # unsigned one when signing was configured would be silent. This has
+          # to happen before the rename below, which is what erases the marker.
           if [ -n "$ANDROID_KEYSTORE" ] && ls out/*-unsigned.apk >/dev/null 2>&1; then
             echo "::error::signing was configured but the APK is unsigned"
             exit 1
           fi
+
+          # Gradle names its output after the *module*, so both arrive as
+          # `app-universal-release.*` and the release page offered two files
+          # named after nothing — v0.2.2 shipped exactly that, beside four
+          # artifacts that do say what they are. The name is the only thing a
+          # sideloaded file carries once it is off the page, and "app" is what
+          # everyone else's build is called too.
+          #
+          # Exactly one of each is expected: the build is universal, not split
+          # per ABI. Asserting that rather than globbing a rename means adding
+          # `--split-per-abi` later fails here, loudly, instead of silently
+          # overwriting three APKs into one name.
+          shopt -s nullglob
+          version="${GITHUB_REF_NAME#v}"
+          apks=(out/*.apk)
+          aabs=(out/*.aab)
+          [ "${#apks[@]}" -eq 1 ] || { echo "::error::expected one APK, found ${#apks[@]}"; exit 1; }
+          [ "${#aabs[@]}" -eq 1 ] || { echo "::error::expected one AAB, found ${#aabs[@]}"; exit 1; }
+          mv "${apks[0]}" "out/ecr-$version.apk"
+          mv "${aabs[0]}" "out/ecr-$version.aab"
+          ls -la out
 
       - uses: actions/upload-artifact@v4
         with:
