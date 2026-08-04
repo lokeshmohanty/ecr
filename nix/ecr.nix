@@ -7,6 +7,7 @@
   cacert,
   makeWrapper,
   installShellFiles,
+  pkgs,
   ecr-web,
   notmuch,
   isync,
@@ -126,6 +127,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
           msmtp
         ]
       }" \
+      --set SASL_PATH "${pkgs.cyrus-sasl}/lib/sasl2:${pkgs.cyrus-sasl-xoauth2}/lib/sasl2" \
   '';
 
   meta = {
