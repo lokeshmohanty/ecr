@@ -12,6 +12,18 @@ itself — point `PassCmd` and msmtp's `passwordeval` at `ecr oauth token
 <profile>` and there is no third tool to install. The Nix dev shell provides
 the first three.
 
+**Your copies of those three are the ones ecr runs.** ecr manages none of
+their configuration and does not replace the binaries either: the Nix package
+carries `notmuch`, `mbsync` and `msmtp` so a machine with none of them still
+works, but they go on the end of `PATH` rather than the front, so anything you
+installed yourself wins. That matters because they are not interchangeable
+copies — a Nix `mbsync` reaches XOAUTH2 only through `isync.override {
+withCyrusSaslXoauth2 = true; }`, which wraps the binary to put the plugin on
+`SASL_PATH`. Run ecr's plain copy instead and every OAuth account fails with
+`selected SASL mechanism(s) not available` out of a configuration that syncs
+perfectly by hand. ecr knows nothing about SASL plugins; whoever manages
+mbsync manages those.
+
 ## The command
 
 Everything is one binary, `ecr`, built from `crates/ecr-cli`. `just` recipes
@@ -429,6 +441,7 @@ Home Manager module and what each artifact carries. In short:
 | Empty inbox, no error | The query. `/api/v1/threads?q=*` should return everything |
 | `503` responses | A binary is missing from the service's `PATH`; pin absolute paths in `server.toml` |
 | Sync fails with an auth error | `ecr oauth status <account>`; the token may need reauthorizing with `ecr oauth authorize <account>` |
+| Sync fails with `selected SASL mechanism(s) not available`, and `mbsync` run by hand works | ecr ran a different `mbsync`. `systemctl --user show -pEnvironment ecr` and compare the first `mbsync` on that `PATH` with `command -v mbsync` in your shell; the XOAUTH2 plugin comes from your own wrapper, not from ecr. Pinning `mbsync_bin` in `server.toml` settles it |
 | New mail does not appear | Was the server started with `--no-watch`? Otherwise check the log for watcher warnings |
 | Tags silently do nothing | `notmuch tag --batch` exits 0 on malformed input; `ecr-store` validates first, so a `400` here is the intended behaviour |
 | A list looks wrong, and you suspect the index | Delete `~/.local/state/ecr/index.sqlite3` and restart, or set `index = false` in `server.toml` to take notmuch's answer directly. If both agree, the index was not it |

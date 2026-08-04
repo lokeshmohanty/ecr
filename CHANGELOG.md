@@ -11,6 +11,23 @@ release; both are frozen at v1.0.0.
 
 ### Fixed
 
+- **Every OAuth account failed to sync under the Nix package, from a
+  configuration that works by hand.** `mbsync` reported `selected SASL
+  mechanism(s) not available` — listing every mechanism except XOAUTH2 — and
+  the same command run from a shell synced fine. The package put its own
+  `notmuch`, `mbsync` and `msmtp` at the *front* of the wrapper's `PATH`, so
+  ecr ran a plain isync rather than the reader's own, which reaches XOAUTH2
+  through a wrapper that puts `cyrus-sasl-xoauth2` on `SASL_PATH`. Those three
+  are now a `--suffix`: they are still there for a machine that has none of
+  them, and anything installed by the reader wins. ecr carries no knowledge of
+  SASL plugins.
+- **`ecr init` and `ecr serve` no longer write `server.toml`.** Both had begun
+  recording the resolved notmuch, mbsync and msmtp paths there — silently, on
+  every start, over whatever the reader had written in that file, and pinning
+  paths that `ecr_store::paths` is meant to resolve afresh. notmuch, mbsync,
+  imapnotify and msmtp are the reader's to manage; ecr writes a notmuch config
+  only when there is none, and only after asking.
+
 - **Android forgot its server on every launch.** The app had to be paired again
   each time it was opened. The shell answers the client with the server that
   launch was pointed at through `ECR_SERVER_URL`, and the client takes that as

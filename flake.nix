@@ -74,9 +74,6 @@
             isync # provides `mbsync`
             msmtp
           ];
-          # SASL_PATH for mail tools that need Cyrus SASL libraries (including XOAUTH2).
-          # Both the base cyrus-sasl and the xoauth2 plugin are required.
-          saslPath = "${pkgs.cyrus-sasl}/lib/sasl2:${pkgs.cyrus-sasl-xoauth2}/lib/sasl2";
 
           # The Android SDK is unfree and its licence has to be accepted, so it
           # gets its own nixpkgs rather than loosening the one every other build
@@ -202,7 +199,6 @@
 
             RUST_LOG = "debug";
             RUST_BACKTRACE = "1";
-            SASL_PATH = saslPath;
 
             # WebKitGTK under Nix needs its own compositing mode and loaders
             # resolved explicitly, otherwise the Tauri window renders blank.
@@ -242,7 +238,6 @@
 
             RUST_LOG = "debug";
             RUST_BACKTRACE = "1";
-            SASL_PATH = saslPath;
 
             ANDROID_HOME = androidRoot;
             ANDROID_SDK_ROOT = androidRoot;

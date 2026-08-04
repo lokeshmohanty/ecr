@@ -16,30 +16,6 @@ pub struct ServerSettings {
     pub index: Option<bool>,
 }
 
-impl ServerSettings {
-    /// Save the settings to its default location (`~/.config/ecr/server.toml`).
-    /// This writes a TOML representation of the struct, preserving any fields
-    /// that are present. Missing fields are omitted (the default `None` values).
-    pub fn save(&self) -> std::io::Result<()> {
-        let path = Self::default_path().ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "cannot determine config directory for server.toml",
-            )
-        })?;
-        // Serialize to TOML – `toml` crate is already a dependency.
-        let toml_str = toml::to_string_pretty(self).map_err(|e| std::io::Error::other(e))?;
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        // Atomic write – write to a temporary file then rename.
-        let tmp = path.with_extension("toml.new");
-        std::fs::write(&tmp, toml_str)?;
-        std::fs::rename(tmp, path)?;
-        Ok(())
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Binaries {
     pub notmuch: PathBuf,

@@ -61,6 +61,24 @@ in
       };
       description = "Extra environment for the service.";
     };
+
+    path = lib.mkOption {
+      type = lib.types.listOf lib.types.package;
+      default = [ ];
+      example = lib.literalExpression ''
+        [ (pkgs.isync.override { withCyrusSaslXoauth2 = true; }) ]
+      '';
+      description = ''
+        Packages to put ahead of the `notmuch`, `mbsync` and `msmtp` the ecr
+        package carries. Those are a fallback for a machine that has none of
+        them, and two copies at the same version are not always the same
+        binary — XOAUTH2 reaches mbsync only through a wrapper that puts
+        `cyrus-sasl-xoauth2` on `SASL_PATH`. A *system* unit's `PATH` does not
+        reach the served user's profile, so a self-managed tool has to be named
+        here to be the one ecr runs; the alternative is pinning `mbsync_bin` in
+        that user's `server.toml`.
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -78,6 +96,7 @@ in
       wants = [ "network-online.target" ];
 
       environment = cfg.environment;
+      path = cfg.path;
 
       # Wide enough that `RestartSec` below can fill the burst. systemd's
       # default window is 10s, which five restarts five seconds apart can never

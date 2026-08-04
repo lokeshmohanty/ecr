@@ -337,6 +337,31 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   are the client-side belt to this braces — every other route to a refetch,
   including another client's writes, still exists.
 
+- **ecr ships notmuch, mbsync and msmtp so a bare machine works, and must
+  never put them in front of the ones the reader installed.** They go on the
+  wrapper's PATH as a `--suffix`. Two copies of isync at the same version are
+  not the same binary: XOAUTH2 lives in a separate plugin, reached only through
+  `isync.override { withCyrusSaslXoauth2 = true; }`, which *wraps* mbsync to
+  put `cyrus-sasl-xoauth2` on `SASL_PATH`. `--prefix` therefore ran ecr's plain
+  copy instead of that wrapper, and every OAuth account failed with `selected
+  SASL mechanism(s) not available`, listing every mechanism but the one asked
+  for — the local libsasl2's plugin list, not the server's, from a
+  configuration that is perfectly good and that syncs when mbsync is run by
+  hand. It reads as ecr having broken mail rather than as ecr having replaced
+  a binary, and nothing in the error names PATH. The fix is not to teach ecr
+  about SASL: a wrapper that sets `SASL_PATH` itself would be back to
+  overriding a self-managed setup, and would have to be right about every
+  mechanism the reader uses, not just the one that was broken. `$out/bin`
+  stays a prefix, because that is ecr answering itself — `PassCmd "ecr oauth
+  token <profile>"` in an mbsync config, resolved by a child of a systemd user
+  unit that inherits nothing from a login shell. The same rule governs
+  configuration: notmuch, mbsync, imapnotify and msmtp are the reader's to
+  manage, and `ecr init` writes a notmuch config only when there is none and
+  only after confirming it. Nothing else in ecr writes any of the four, and
+  nothing records their resolved paths anywhere — `ecr_store::paths` finds
+  them fresh on each run, which is what lets a self-managed setup move its
+  files without ecr holding a stale answer.
+
 - **A Nix build sees only what the fileset lists, and `include_str!` is
   source.** `nix/ecr.nix` names each path that enters the sandbox, so adding a
   file the crates read at *compile* time — `crates/ecr-store/src/themes.rs`

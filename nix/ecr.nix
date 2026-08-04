@@ -7,7 +7,6 @@
   cacert,
   makeWrapper,
   installShellFiles,
-  pkgs,
   ecr-web,
   notmuch,
   isync,
@@ -105,29 +104,34 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
     install -Dm644 packaging/ecr.service $out/share/doc/ecr/ecr.service
 
-    # ecr-store shells out to these; without them on PATH `ecr doctor` fails and
-    # the server refuses to start.
+    # ecr-store shells out to these, so a machine that has none of them still
+    # has to work — but they go on as a *suffix*, never a prefix. A
+    # self-managed setup's tools are the ones its configs were written for, and
+    # they are not interchangeable with a plain copy from nixpkgs: mbsync
+    # reaches XOAUTH2 through a wrapper that puts cyrus-sasl-xoauth2 on
+    # SASL_PATH, and prefixing ecr's own isync ahead of it ran a *different*
+    # binary than the one a shell runs. Every OAuth account then failed with
+    # `selected SASL mechanism(s) not available`, listing every mechanism but
+    # that one, out of a configuration that is perfectly good and that syncs by
+    # hand — which reads as ecr having broken mbsync rather than as ecr having
+    # replaced it. ecr therefore carries no knowledge of SASL plugins at all:
+    # whoever manages mbsync manages those.
     #
-    # $out/bin is on that list because ecr is now its own OAuth helper: an
-    # mbsync config says `PassCmd "ecr oauth token <profile>"`, and mbsync is a
-    # child of the server, which under a systemd user unit inherits nothing from
-    # a login shell. Without this, every XOAUTH2 account fails to sync with
-    # `ecr: command not found` buried in mbsync's output.
-    #
-    # SASL_PATH is the other half of the same failure: mbsync authenticates
-    # Gmail/Outlook with XOAUTH2, whose mechanism ships in a separate plugin
-    # (cyrus-sasl-xoauth2) that isync's closure does not carry. Without it the
-    # plugin is never loaded and every OAuth account fails with
-    # "selected SASL mechanism(s) not available".
+    # $out/bin stays a prefix, because that is ecr answering itself rather than
+    # shadowing anyone: an mbsync config says `PassCmd "ecr oauth token
+    # <profile>"`, and mbsync is a child of the server, which under a systemd
+    # user unit inherits nothing from a login shell. Without it every XOAUTH2
+    # account fails to sync with `ecr: command not found` buried in mbsync's
+    # output.
     wrapProgram $out/bin/ecr \
-      --prefix PATH : "$out/bin:${
+      --prefix PATH : "$out/bin" \
+      --suffix PATH : "${
         lib.makeBinPath [
           notmuch
           isync
           msmtp
         ]
-      }" \
-      --set SASL_PATH "${pkgs.cyrus-sasl}/lib/sasl2:${pkgs.cyrus-sasl-xoauth2}/lib/sasl2" \
+      }"
   '';
 
   meta = {
