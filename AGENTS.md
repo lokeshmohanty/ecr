@@ -301,6 +301,21 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   both halves of the identity the shell hands it. Fixing this by making
   `ECR_TOKEN` authoritative instead would reintroduce exactly what the rule
   above exists to prevent.
+- **Being authoritative is why a shell with nothing to say must say nothing.**
+  `default_server_url` answered `http://localhost:8383` when `ECR_SERVER_URL`
+  was unset, and Android has no environment for that variable to be in — so
+  every launch wrote that over the address the device had been paired with, and
+  the reader had to scan the pairing code again each time the app was opened.
+  It answers `Option<String>` from the variable alone. Where a client with
+  nothing stored *starts* is `defaultBaseUrl` in `web/src/api/client.ts`, which
+  is consulted only when localStorage is empty and so can never displace a
+  pairing. It has to test `isTauri()` **before** the origin: a shell's origin is
+  `tauri://localhost` on the desktop but `http://tauri.localhost` on Android,
+  which passes for an http origin and would point a fresh install at its own
+  webview. The desktop never showed either half — `just desktop` sets the
+  variable, and an installed desktop's server really is on localhost — and no
+  suite can: the shell's answer is mocked in the web tests, so the invariant is
+  pinned in `shell/src/lib.rs`'s own tests.
 - **Below `md` the pane wrappers need `min-w-0`, not just `min-h-0`.** The
   three-column grid pins each track with `minmax(0, …)`; the single implicit
   column a phone gets has no such bound, so one wide message stretched the

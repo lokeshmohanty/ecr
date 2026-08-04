@@ -9,6 +9,18 @@ release; both are frozen at v1.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Android forgot its server on every launch.** The app had to be paired again
+  each time it was opened. The shell answers the client with the server that
+  launch was pointed at through `ECR_SERVER_URL`, and the client takes that as
+  authoritative — but with the variable unset it answered `http://localhost:8383`
+  instead of nothing, and a phone has no environment for that variable to be in.
+  So every start wrote the built-in default over the address the pairing code had
+  supplied. The token was never lost; the address was, which looks the same from
+  the inside. A client that has never been given an address still starts at
+  `http://localhost:8383`, which is where a desktop install's server is.
+
 ## [0.2.2] — 2026-08-04
 
 ### Fixed

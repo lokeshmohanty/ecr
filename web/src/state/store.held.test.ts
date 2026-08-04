@@ -5,6 +5,7 @@ import type { ThreadSummary } from "../api/types";
 import { createAppStore } from "./store";
 
 vi.mock("../api/platform", () => ({
+	isTauri: vi.fn(),
 	shellServerUrl: vi.fn(),
 	shellToken: vi.fn(),
 	// A factory mock replaces the whole module, so anything the store imports

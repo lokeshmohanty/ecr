@@ -13,7 +13,13 @@ import {
 	saveConnection,
 	type Connection,
 } from "../api/client";
-import { notify, scanQr, shellServerUrl, shellToken } from "../api/platform";
+import {
+	isTauri,
+	notify,
+	scanQr,
+	shellServerUrl,
+	shellToken,
+} from "../api/platform";
 import type {
 	Account,
 	Check,
@@ -308,11 +314,14 @@ export function createAppStore() {
 		if (token) {
 			// `just run` and `just dev` open the browser at the server's own
 			// origin, so the base URL is this origin — not whatever a prior
-			// connection left in localStorage. Under Tauri the protocol is
-			// tauri:, not http:, and the shell supplies the URL instead.
-			const baseUrl = location.protocol.startsWith("http")
-				? location.origin
-				: connection().baseUrl;
+			// connection left in localStorage. A shell is asked first because
+			// its origin is its own: `tauri://localhost` on the desktop, but
+			// `http://tauri.localhost` on Android, which passes for a server
+			// here and is the webview asking itself for mail.
+			const baseUrl =
+				!isTauri() && location.protocol.startsWith("http")
+					? location.origin
+					: connection().baseUrl;
 			const next = { baseUrl, token };
 			saveConnection(next);
 			api.update(next);
@@ -327,12 +336,16 @@ export function createAppStore() {
 		}
 	}
 
-	// Under Tauri there is no usable origin, so the shell supplies the URL.
-	// ECR_SERVER_URL is the authoritative server for a desktop launch, so a
-	// value persisted from an earlier run must not shadow it. The token goes the
-	// other way: a device paired properly keeps the token it was paired with,
-	// and the shell's is only the fallback a dev launch provides — otherwise
-	// running `just desktop` once would overwrite a real token with a dev one.
+	// Under Tauri there is no usable origin, so the shell supplies the URL —
+	// but only when the launch was pointed at one through ECR_SERVER_URL, which
+	// is then authoritative: a value persisted from an earlier run must not
+	// shadow the server `just desktop` just started. A shell that names no
+	// server changes nothing, or a phone — which has no environment to read and
+	// so can never be pointed anywhere — would lose the address it was paired
+	// with on every launch. The token goes the other way again: a device paired
+	// properly keeps the token it was paired with, and the shell's is only the
+	// fallback a dev launch provides — otherwise running `just desktop` once
+	// would overwrite a real token with a dev one.
 	// Both are asked for together and applied in one write; two independent
 	// `setConnection` calls would each build on the same stale snapshot and the
 	// second would undo the first. Outside Tauri both answer null.

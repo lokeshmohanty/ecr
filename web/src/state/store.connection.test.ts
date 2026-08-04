@@ -8,11 +8,12 @@ import { createAppStore } from "./store";
 // launch — a value persisted from an earlier run must not shadow
 // ECR_SERVER_URL — and the token as a fallback, which is the other way round.
 vi.mock("../api/platform", () => ({
+	isTauri: vi.fn(),
 	shellServerUrl: vi.fn(),
 	shellToken: vi.fn(),
 }));
 
-import { shellServerUrl, shellToken } from "../api/platform";
+import { isTauri, shellServerUrl, shellToken } from "../api/platform";
 
 // createAppStore fires fetches through its resources and the settings effect;
 // none of them matter to the connection under test, so they resolve to empty,
@@ -36,6 +37,7 @@ function stubFetch(): void {
 
 beforeEach(() => {
 	localStorage.clear();
+	vi.mocked(isTauri).mockReset();
 	vi.mocked(shellServerUrl).mockReset();
 	vi.mocked(shellToken).mockReset();
 	stubFetch();
@@ -85,6 +87,23 @@ describe("desktop shell server URL", () => {
 		await withStore((store) => {
 			expect(store.connection().baseUrl).toBe("http://host:8383");
 			expect(store.connection().token).toBe("t");
+		});
+	});
+
+	// A phone has no environment for `ECR_SERVER_URL` to be in, so the shell can
+	// never name a server there and every launch used to answer with the
+	// built-in default and write it over the address the device was paired with.
+	// The reader saw a client that could not reach its server and had to scan
+	// the pairing code again, every single time the app was opened.
+	it("keeps a paired address when the shell names no server", async () => {
+		saveConnection({ baseUrl: "http://mail.lan:8383", token: "paired" });
+		vi.mocked(isTauri).mockReturnValue(true);
+		vi.mocked(shellServerUrl).mockResolvedValue(null);
+		vi.mocked(shellToken).mockResolvedValue(null);
+
+		await withStore((store) => {
+			expect(store.connection().baseUrl).toBe("http://mail.lan:8383");
+			expect(store.connection().token).toBe("paired");
 		});
 	});
 

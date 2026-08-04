@@ -5,6 +5,7 @@ import { createAppStore } from "./store";
 
 // `shellServerUrl` is async; mock it so it never overrides the persisted URL.
 vi.mock("../api/platform", () => ({
+	isTauri: vi.fn(),
 	shellServerUrl: vi.fn(),
 	shellToken: vi.fn(),
 	// A factory mock replaces the whole module, so anything the store imports

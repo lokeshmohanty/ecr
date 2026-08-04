@@ -14,6 +14,7 @@ import type {
   ThemeListing,
   MailingLists,
 } from "./types";
+import { isTauri } from "./platform";
 
 export interface Connection {
   baseUrl: string;
@@ -36,14 +37,27 @@ export function saveConnection(connection: Connection): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(connection));
 }
 
+/**
+ * Where a client that has never been given an address starts.
+ *
+ * Only ever consulted when nothing is stored: an address a device was paired
+ * with outranks every default, which is what the shell answering with one broke
+ * on Android.
+ */
 function defaultBaseUrl(): string {
+  // A shell's origin is its own — `tauri://localhost` on the desktop but
+  // `http://tauri.localhost` on Android, which the origin check below would
+  // otherwise take for a server and hand back the webview's own address. The
+  // shell only names a server when one was configured through ECR_SERVER_URL,
+  // so this is the starting point: the machine the app is running on, which is
+  // where a desktop install's server is and is merely unreachable on a phone —
+  // where nothing else is known yet and the pairing prompt opens by itself.
+  if (isTauri()) return "http://localhost:8383";
   // Served by the ecr server itself, so the API is on this very origin. This is
   // what makes opening http://host:8383 work with nothing to configure.
   if (typeof location !== "undefined" && location.protocol.startsWith("http")) {
     return location.origin;
   }
-  // Under Tauri the origin is tauri://localhost; the real URL comes from the
-  // shell asynchronously, so this is only a placeholder until it answers.
   return "";
 }
 

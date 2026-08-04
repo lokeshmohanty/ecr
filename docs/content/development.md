@@ -95,6 +95,14 @@ Separate directories give the dev launch an empty store, so it takes both halves
 of the identity the shell hands it, and an installed ecr is left alone. Set
 `ECR_DEV_DATA` to put it somewhere else; `just clean` removes it.
 
+Being authoritative is also why the shell answers with a server only when
+`ECR_SERVER_URL` names one. It used to fall back to `http://localhost:8383`, and
+a phone has no environment for that variable to be in — so every Android launch
+overwrote the address the device had been paired with, and the app had to be
+paired again each time it was opened. A client with nothing stored still starts
+at that address, but from `defaultBaseUrl` in the client, which is read only when
+localStorage is empty and so cannot displace a pairing.
+
 The underlying commands are ordinary and can still be run directly:
 
 ```bash
