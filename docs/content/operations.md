@@ -223,9 +223,17 @@ It looks for `web/dist` relative to the working directory and then beside the
 binary. If it cannot find one it serves a page that says so. Build it with
 `just build-web`.
 
-The desktop shell embeds its own copy of the same client and reads the server
-URL from `ECR_SERVER_URL` (default `http://localhost:8383`). If that server is
-not running the app says so in its own UI, with a retry.
+The desktop shell embeds its own copy of the same client. A client that has
+never been given an address starts at `http://localhost:8383`, which is where a
+desktop install's own server is; after that the address is the client's, kept on
+the device and changed from the app. `ECR_SERVER_URL` overrides it for a single
+launch and is meant for development. If the server is not running the app says
+so in its own UI, with a retry.
+
+The Android app starts at that same address, which is never right on a phone, so
+it says it cannot reach a server and offers the camera: pair it with the code
+from `ecr token new --qr`. That address is then kept, and the app opens on your
+mail from then on.
 
 ## Configuration
 

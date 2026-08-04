@@ -140,9 +140,22 @@ fn apk_version(app: tauri::AppHandle) -> Option<String> {
     }
 }
 
+/// The server this launch was explicitly pointed at, if it was pointed at one.
+///
+/// The client treats an answer here as authoritative — `just desktop` and
+/// `verify-desktop.sh` start a server on a port of their own and the client has
+/// to go there rather than to whatever an earlier run persisted. A built-in
+/// default cannot be authoritative in the same way, and answering with one was
+/// how a paired phone lost its server on every launch: Android has no
+/// environment to read, so this answered `http://localhost:8383` every time and
+/// the client wrote that over the address the device had been paired with. The
+/// address a device was paired with is the client's to keep; where a client
+/// starts when it has never been paired is `defaultBaseUrl`'s business.
 #[tauri::command]
-fn default_server_url() -> String {
-    std::env::var("ECR_SERVER_URL").unwrap_or_else(|_| "http://localhost:8383".to_string())
+fn default_server_url() -> Option<String> {
+    std::env::var("ECR_SERVER_URL")
+        .ok()
+        .filter(|url| !url.is_empty())
 }
 
 /// The device token a development launch was handed, if any.
@@ -262,4 +275,39 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running ecr");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A launch that was not pointed at a server must not name one.
+    ///
+    /// This is the whole of the Android bug: a phone has no environment for
+    /// `ECR_SERVER_URL` to be in, so an answer here was always the built-in
+    /// default — and the client takes an answer as authoritative, so every
+    /// launch wrote `http://localhost:8383` over the address the device had
+    /// been paired with. The reader had to scan the pairing code again each
+    /// time the app was opened.
+    #[test]
+    fn a_launch_that_was_pointed_nowhere_names_no_server() {
+        let restore = std::env::var("ECR_SERVER_URL").ok();
+
+        std::env::remove_var("ECR_SERVER_URL");
+        assert_eq!(default_server_url(), None);
+
+        // Set but empty is the same as unset: `just desktop` interpolates the
+        // variable, and an empty one is a recipe that failed to resolve a port
+        // rather than an address to send a client to.
+        std::env::set_var("ECR_SERVER_URL", "");
+        assert_eq!(default_server_url(), None);
+
+        std::env::set_var("ECR_SERVER_URL", "http://dev:8399");
+        assert_eq!(default_server_url(), Some("http://dev:8399".to_string()));
+
+        match restore {
+            Some(url) => std::env::set_var("ECR_SERVER_URL", url),
+            None => std::env::remove_var("ECR_SERVER_URL"),
+        }
+    }
 }

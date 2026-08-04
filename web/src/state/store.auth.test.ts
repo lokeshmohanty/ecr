@@ -4,6 +4,7 @@ import { loadConnection, saveConnection } from "../api/client";
 import { createAppStore } from "./store";
 
 vi.mock("../api/platform", () => ({
+	isTauri: vi.fn(),
 	shellServerUrl: vi.fn(),
 	shellToken: vi.fn(),
 	notify: vi.fn(),
