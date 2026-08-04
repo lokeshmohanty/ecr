@@ -182,6 +182,19 @@ compared in constant time. Argon2 is deliberately not used: these are
 high-entropy tokens rather than passwords, so a slow KDF would add per-request
 cost without adding security.
 
+The store is held in memory but re-read when the file moves, because the thing
+that writes it is another process: `ecr token new` writes `tokens.toml` and
+exits, and the running server is never told. Read once at startup, it refused
+the token that command had just printed — reported by the client as the server
+rejecting a valid token, fixable only by restarting a server nobody suspected.
+`AppState::refresh_tokens` compares the file's mtime and size, so a request pays
+one `stat` and reads only on a change, and it runs *ahead* of the "does this
+server require a token at all" question: an empty store means an unauthenticated
+API, so issuing the first token has to start requiring one at once rather than
+at the next restart. A failed read keeps what is already loaded — the file is
+truncated before it is rewritten, and reading a partial one as an empty store
+would disable authentication exactly while a token is being issued.
+
 CORS defaults to allowing any origin. The API authenticates with a bearer token
 and never uses cookies, so the `Origin` header is not a security boundary — a
 hardcoded allowlist would break real deployments (a tailnet hostname, a phone,

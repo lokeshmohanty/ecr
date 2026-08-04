@@ -121,6 +121,29 @@ impl Server {
         format!("{}{path}", self.base)
     }
 
+    /// Where this server read its tokens from, which is a real file the way
+    /// `ecr serve`'s is — so a test can write it the way `ecr token new` does,
+    /// from outside the running server.
+    pub fn token_path(&self) -> PathBuf {
+        self.home.path().join("tokens.toml")
+    }
+
+    /// `ecr token new <name>`, to the letter: load, issue, save, and nothing
+    /// said to the process that is serving.
+    pub fn issue_token(&self, name: &str) -> String {
+        let mut store = ecr_server::TokenStore::load(&self.token_path()).expect("load");
+        let token = store.issue(name).expect("issue");
+        store.save(&self.token_path()).expect("save");
+        token
+    }
+
+    /// `ecr token revoke <name>`, likewise.
+    pub fn revoke_token(&self, name: &str) {
+        let mut store = ecr_server::TokenStore::load(&self.token_path()).expect("load");
+        assert!(store.revoke(name), "no token named {name}");
+        store.save(&self.token_path()).expect("save");
+    }
+
     pub fn request(&self, path: &str) -> reqwest::RequestBuilder {
         self.client.get(self.url(path)).bearer_auth(TOKEN)
     }
@@ -202,13 +225,19 @@ impl Server {
     }
 }
 
-async fn spawn(paths: Arc<MailPaths>, _home: &Path) -> (String, ecr_server::AppState) {
+async fn spawn(paths: Arc<MailPaths>, home: &Path) -> (String, ecr_server::AppState) {
     let store = Arc::new(ecr_store::NotmuchStore::new(paths));
 
     let mut tokens = ecr_server::TokenStore::default();
     tokens.adopt("test", TOKEN);
 
-    let state = ecr_server::AppState::new(store, tokens, false);
+    // Backed by a file, the way `ecr serve`'s is. The tokens are still handed
+    // over directly — this server does not depend on reading them — but naming
+    // the file is what lets a test issue one from outside it.
+    let token_path = home.join("tokens.toml");
+    tokens.save(&token_path).expect("tokens");
+
+    let state = ecr_server::AppState::new(store, tokens, false).with_token_file(token_path);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await

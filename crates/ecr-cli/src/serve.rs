@@ -56,7 +56,10 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
         );
     }
 
-    let state = AppState::new(Arc::clone(&store), tokens, read_only);
+    // With the file it came from: `ecr token new` runs in another process while
+    // this one is serving, and a token nobody can use until the server is
+    // restarted is indistinguishable from a token the server rejected.
+    let state = AppState::new(Arc::clone(&store), tokens, read_only).with_token_file(token_path);
 
     // Alongside the server, not before it. A first build of a large maildir
     // takes over a minute, and holding the listener until it finished would

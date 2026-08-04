@@ -7,9 +7,10 @@ vi.mock("../api/platform", () => ({
 	shellServerUrl: vi.fn(),
 	shellToken: vi.fn(),
 	notify: vi.fn(),
+	scanQr: vi.fn(),
 }));
 
-import { shellServerUrl, shellToken } from "../api/platform";
+import { scanQr, shellServerUrl, shellToken } from "../api/platform";
 
 /**
  * A server with a token store answers 401 to everything but `/api/v1/health`.
@@ -78,6 +79,7 @@ beforeEach(() => {
 	localStorage.clear();
 	vi.mocked(shellServerUrl).mockReset().mockResolvedValue(null);
 	vi.mocked(shellToken).mockReset().mockResolvedValue(null);
+	vi.mocked(scanQr).mockReset();
 });
 
 afterEach(() => {
@@ -252,6 +254,108 @@ describe("pairing a device with a pasted token", () => {
 			expect(threads.length).toBeGreaterThan(0);
 			const headers = new Headers(threads.at(-1)?.[1]?.headers);
 			expect(headers.get("authorization")).toBe("Bearer good-token");
+		});
+	});
+});
+
+// The camera is how a phone answers this prompt: the alternative is 64 hex
+// characters on a soft keyboard. What the store does with what was read is
+// tested here; `pairing.test.ts` covers the format itself.
+describe("pairing a device by scanning a code", () => {
+	it("keeps a token a bare code carried, against the address it already has", async () => {
+		saveConnection({ baseUrl: "http://host:8383", token: "" });
+		stubServer("good-token");
+		vi.mocked(scanQr).mockResolvedValue({ kind: "scanned", text: "good-token" });
+
+		await withStore(async (store) => {
+			expect(await store.pairByScanning()).toBe("");
+			expect(store.needsToken()).toBe(false);
+			expect(store.connection()).toEqual({
+				baseUrl: "http://host:8383",
+				token: "good-token",
+			});
+		});
+	});
+
+	// The address first, then the token. Asking the old server whether the new
+	// one's token is good either refuses something perfectly valid or accepts it
+	// and leaves the device pointed where the reader has just stopped meaning.
+	it("applies the address a code carried before the token", async () => {
+		saveConnection({ baseUrl: "http://host:8383", token: "" });
+		stubServer("good-token");
+		vi.mocked(scanQr).mockResolvedValue({
+			kind: "scanned",
+			text: "ecr://pair?url=http%3A%2F%2Fbox%3A8383&token=good-token",
+		});
+
+		await withStore(async (store) => {
+			expect(await store.pairByScanning()).toBe("");
+			expect(store.connection()).toEqual({
+				baseUrl: "http://box:8383",
+				token: "good-token",
+			});
+			expect(store.needsToken()).toBe(false);
+		});
+	});
+
+	// "" and nothing else changed: the prompt reads that as a camera the reader
+	// waved away and stays where it is, rather than closing over a device that
+	// is still refused.
+	it("changes nothing and says nothing when the reader backs out", async () => {
+		saveConnection({ baseUrl: "http://host:8383", token: "" });
+		stubServer("good-token");
+		vi.mocked(scanQr).mockResolvedValue({ kind: "cancelled" });
+
+		await withStore(async (store) => {
+			expect(await store.pairByScanning()).toBe("");
+			expect(store.needsToken()).toBe(true);
+			expect(store.connection().token).toBe("");
+		});
+	});
+
+	it("reports a camera it may not use", async () => {
+		saveConnection({ baseUrl: "http://host:8383", token: "" });
+		stubServer("good-token");
+		vi.mocked(scanQr).mockResolvedValue({
+			kind: "unavailable",
+			reason: "ecr may not use the camera; allow it in the system settings",
+		});
+
+		await withStore(async (store) => {
+			expect(await store.pairByScanning()).toBe(
+				"ecr may not use the camera; allow it in the system settings",
+			);
+			expect(store.needsToken()).toBe(true);
+		});
+	});
+
+	it("refuses something that is not a pairing code without storing it", async () => {
+		saveConnection({ baseUrl: "http://host:8383", token: "" });
+		stubServer("good-token");
+		vi.mocked(scanQr).mockResolvedValue({
+			kind: "scanned",
+			text: "https://example.com/some other qr",
+		});
+
+		await withStore(async (store) => {
+			expect(await store.pairByScanning()).toBe(
+				"that is not an ecr pairing code",
+			);
+			expect(store.connection().token).toBe("");
+		});
+	});
+
+	// A code is scanned from the prompt that says the *token* is wrong, so a
+	// token the server refuses has to say so there — not leave the device
+	// pointed at the new address with the prompt gone.
+	it("keeps the refusal standing when the scanned token is rejected", async () => {
+		saveConnection({ baseUrl: "http://host:8383", token: "" });
+		stubServer("good-token");
+		vi.mocked(scanQr).mockResolvedValue({ kind: "scanned", text: "stale-token" });
+
+		await withStore(async (store) => {
+			expect(await store.pairByScanning()).toBe("the server refused that token");
+			expect(store.connection().token).toBe("");
 		});
 	});
 });

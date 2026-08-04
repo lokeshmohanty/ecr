@@ -93,6 +93,24 @@ ecr token revoke phone
 Tokens are stored as SHA-256 digests in `~/.config/ecr/tokens.toml` (mode 0600).
 The plaintext is shown exactly once. With no tokens the API is unauthenticated.
 
+The file is re-read when it changes, so `ecr token new` and `ecr token revoke`
+take effect on a server that is already running. They did not before: the store
+was read once at startup, and `ecr token new` is a *different process* — it
+writes the file and exits, and the server went on checking against the copy it
+had loaded. The client reported **the server refused that token** about a token
+printed a moment earlier, and nothing on either side connected the two; the fix
+was to restart a server nobody had any reason to suspect. Revoking had the
+matching failure, which is the worse one: a device the reader believed they had
+cut off stayed connected until the next restart.
+
+What is checked is the file's mtime and size, so an ordinary request pays one
+`stat` and the file is read only when it has actually moved. A read that fails
+is kept rather than adopted — the file is truncated before it is rewritten, and
+taking a partial read for an empty store would switch authentication off at the
+exact moment someone is issuing a token. The store is re-read *before* the
+server asks whether it needs a token at all, so issuing the first one starts
+requiring one immediately rather than leaving the API open until a restart.
+
 Issuing the first one turns authentication on for *everything*, including the
 web client the server itself serves: a browser opened at the server's address
 has the right URL and no token, so every request is refused. The client says so
@@ -103,6 +121,17 @@ prompt instead of being saved to leave every pane empty; once accepted it is
 stored on that device and the mail loads without a reload. Dismiss the prompt to
 go and fetch a token — the thread list keeps an **enter a token** button for the
 way back.
+
+Where there is a camera the prompt also offers **Scan a pairing code**. This is
+the only screen that asks for a token, and on a phone the alternative is 64 hex
+characters on a soft keyboard; the scanner used to be offered on the address
+prompt alone, so a phone that could reach its server never saw it. The address
+is already right here — this server is the one that refused the device — so a
+code carrying nothing but a token is enough, which is what `--qr` prints without
+`--url`. One that does carry an address is still honoured, and replaces this
+one: the address is applied and probed first, then the token, since asking the
+old server whether the new one's token is good either refuses something valid or
+leaves the device pointed where the reader has just stopped meaning.
 
 A refusal is not the same as silence, and the client keeps them apart. It asks
 `/api/v1/health`, the one route authentication does not cover, so it can tell a
@@ -267,8 +296,11 @@ It is a **client only**. `ecr-server` shells out to `notmuch`, `mbsync` and
 `msmtp`, none of which exist on Android, so the app points at a server you run
 elsewhere — over Tailscale, typically. Pair it by scanning: run
 `ecr token new phone --qr --url http://<tailnet-addr>:8383` on the server and
-point the phone's camera at the code from its first screen, or later from
-**Settings → Server → Scan a code** to move it to another server.
+point the phone's camera at the code. There are three ways in, for the three
+states a phone can be in: the **cannot reach the server** prompt on first
+launch, the **this device is not authorised** prompt when it can reach a server
+it has not been paired with, and **Settings → Server → Scan a code** later, to
+move it to another server.
 
 The code carries the address and the token together, which is the whole point:
 a tailnet hostname and a 64-character hex token are the two worst things to
@@ -382,7 +414,8 @@ Home Manager module and what each artifact carries. In short:
 |---|---|
 | Server refuses to start | `ecr doctor` — it names the failure and a fix |
 | Client says it cannot reach the server | Nothing answered at that address. Is `ecr serve` running, and is the address the machine's own rather than `localhost` from another device? The prompt takes a new one |
-| Client says the device is not authorised | The server answered and refused it. Paste a token from `ecr token new`; if that keeps failing, check the address in the same prompt — another ecr would refuse it too |
+| Client says the device is not authorised | The server answered and refused it. Paste a token from `ecr token new`, or scan one where there is a camera; if that keeps failing, check the address in the same prompt — another ecr would refuse it too |
+| A token `ecr token new` just printed is refused | Fixed: the store is re-read when the file changes, so this no longer needs a restart. On a build before that, restart `ecr serve` — it had loaded the token file once, at startup |
 | A setting will not stick | The status bar says `settings: not saved — …`. A read-only server (`--read-only`) refuses the write |
 | A message reads "could not be read" | notmuch has it indexed and the file is gone or unreadable. `notmuch new` after fixing the maildir |
 | Empty inbox, no error | The query. `/api/v1/threads?q=*` should return everything |

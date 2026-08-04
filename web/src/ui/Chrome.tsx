@@ -295,6 +295,25 @@ export function AuthAlert(props: { store: AppStore; onClose: () => void }) {
     else input?.focus();
   }
 
+  /*
+    Not `authenticate` over a scanned string: a code may carry an address as
+    well, and `pairByScanning` is what probes that address and applies it before
+    the token, so a code for a server this device has not been pointed at yet
+    still works from here.
+  */
+  async function scan() {
+    setProblem("");
+    setChecking(true);
+    const reason = await props.store.pairByScanning();
+    setChecking(false);
+    setProblem(reason);
+    // A scan the reader backed out of answers "" too, and it has authorised
+    // nothing — closing on that would dismiss the prompt for a camera that was
+    // waved away, leaving the panes empty with the reason no longer on screen.
+    // The refusal still standing is what tells the two apart.
+    if (reason === "" && !props.store.needsToken()) props.onClose();
+  }
+
   return (
     <div
       class="absolute inset-0 z-40 flex items-center justify-center bg-black/40 p-4"
@@ -343,6 +362,34 @@ export function AuthAlert(props: { store: AppStore; onClose: () => void }) {
         >
           {checking() ? "checking…" : "Authenticate this device"}
         </button>
+
+        {/*
+          This is the only screen that asks for a token, and on a phone the
+          alternative is 64 hex characters on a soft keyboard — so the camera
+          belongs here at least as much as it does on the address prompt, which
+          is where it used to be offered alone. A phone that could reach its
+          server never saw that prompt, and so was never offered a scanner at
+          all.
+
+          The address is already right here — this server is the one that
+          refused the device — so a code carrying nothing but a token is enough,
+          and that is what `--qr` prints without `--url`. One that does carry an
+          address is still honoured, and replaces this one.
+        */}
+        <Show when={canScanQr()}>
+          <button
+            type="button"
+            class="touch-target mt-2 w-full rounded border border-rule px-3 py-2 disabled:opacity-50"
+            disabled={checking()}
+            onClick={() => void scan()}
+          >
+            Scan a pairing code
+          </button>
+          <p class="mt-2 text-xs text-ink-3">
+            Or run <code>ecr token new phone --qr</code> on the server and point
+            the camera at it.
+          </p>
+        </Show>
 
         {/*
           The address, and a way to change it. A device is refused by the server

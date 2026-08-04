@@ -120,6 +120,11 @@ async fn require_token(
     request: Request,
     next: Next,
 ) -> Result<Response, ApiError> {
+    // Ahead of the question, not after it. A server that started with no tokens
+    // serves everyone, and the first `ecr token new` is what ends that — read
+    // late, the server would go on serving everyone until it was restarted.
+    state.refresh_tokens().await;
+
     if !state.requires_auth().await {
         return Ok(next.run(request).await);
     }

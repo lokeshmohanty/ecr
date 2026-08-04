@@ -39,6 +39,79 @@ async fn a_protected_route_rejects_a_wrong_token() {
     assert_eq!(response.status(), 401);
 }
 
+// `ecr token new` is another process: it writes the file and exits, and the
+// server is not told. Read once at startup, the token that command just printed
+// is refused until someone restarts a server they have no reason to suspect —
+// and what the reader sees is the client saying the server rejected a token
+// they copied a moment ago.
+#[tokio::test]
+async fn a_token_issued_while_the_server_runs_is_accepted_without_a_restart() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let issued = server.issue_token("desktop");
+
+    assert_eq!(
+        server
+            .with_token("/api/v1/accounts", &issued)
+            .await
+            .status(),
+        200
+    );
+    // Re-read, not replaced: the device that was already paired stays paired.
+    assert_eq!(server.get("/api/v1/accounts").await.status(), 200);
+}
+
+// The same write in the other direction, and the one that matters more: a
+// server still honouring a revoked token until it is restarted is a device the
+// reader believes they have cut off.
+#[tokio::test]
+async fn a_token_revoked_while_the_server_runs_stops_working() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    // Another token first, so the store does not empty out — an empty store is
+    // an unauthenticated API, which would answer 200 for the wrong reason.
+    let issued = server.issue_token("desktop");
+    server.revoke_token("test");
+
+    assert_eq!(server.get("/api/v1/accounts").await.status(), 401);
+    assert_eq!(
+        server
+            .with_token("/api/v1/accounts", &issued)
+            .await
+            .status(),
+        200
+    );
+}
+
+// A server that started before any token existed serves everyone, and the first
+// `ecr token new` is what ends that. Asked after the store is re-read rather
+// than before, or the server goes on serving everyone until it is restarted —
+// with the reader having every reason to think they just locked it.
+#[tokio::test]
+async fn the_first_token_starts_requiring_one() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    server.revoke_token("test");
+    assert_eq!(server.anonymous("/api/v1/accounts").await.status(), 200);
+
+    let issued = server.issue_token("desktop");
+
+    assert_eq!(server.anonymous("/api/v1/accounts").await.status(), 401);
+    assert_eq!(
+        server
+            .with_token("/api/v1/accounts", &issued)
+            .await
+            .status(),
+        200
+    );
+}
+
 #[tokio::test]
 async fn accounts_lists_the_discovered_account_and_its_folders() {
     let Some(server) = Server::start().await else {
