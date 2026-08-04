@@ -287,6 +287,20 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   the token a device was properly paired with. Both are asked for in one
   `Promise.all` and applied in one write; two `setConnection` calls would each
   build on the same stale snapshot and the second would undo the first.
+- **That asymmetry is why `just desktop` needs its own data directory.** A Tauri
+  webview keeps localStorage under an app data directory derived from the bundle
+  identifier, so a dev launch and an installed ecr share one, and the connection
+  record is precisely what they must not share: the address is replaced and the
+  token is not, so a properly paired client run through `just desktop` was moved
+  to the dev server on 8399 still holding the token for the real one on 8383. It
+  answers *this device is not authorised* about a setup in which nothing is
+  wrong, and no amount of looking at the token stores explains it — both are
+  correct, they simply belong to different servers. The recipe sets
+  `XDG_DATA_HOME` to `.dev/share` (`dev_data`, overridable with `ECR_DEV_DATA`,
+  removed by `just clean`), which gives the launch an empty store, so it takes
+  both halves of the identity the shell hands it. Fixing this by making
+  `ECR_TOKEN` authoritative instead would reintroduce exactly what the rule
+  above exists to prevent.
 - **Below `md` the pane wrappers need `min-w-0`, not just `min-h-0`.** The
   three-column grid pins each track with `minmax(0, …)`; the single implicit
   column a phone gets has no such bound, so one wide message stretched the

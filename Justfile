@@ -18,6 +18,20 @@ home := env_var_or_default("HOME", "")
 config_home := env_var_or_default("XDG_CONFIG_HOME", home + "/.config")
 dev_tokens := env_var_or_default("ECR_DEV_TOKENS", config_home + "/ecr/dev-tokens.toml")
 
+# And a dev-only data directory for the desktop shell, for the same reason one
+# port is not enough. A Tauri webview keeps its localStorage under the app data
+# directory, which is derived from the bundle identifier — so a `just desktop`
+# launch and an installed ecr share one, and the connection record is *the*
+# thing they must not share. `ECR_SERVER_URL` is authoritative and `ECR_TOKEN`
+# is only a fallback (see the store: `current.token || shell token`, so a dev
+# launch cannot overwrite a token a device was properly paired with) — which
+# means a paired client run through `just desktop` was moved to the dev server
+# while keeping the token for the real one, and answered *this device is not
+# authorised* about a setup where nothing was wrong. Separate directories give
+# the dev launch an empty store, so it takes both halves of the identity the
+# shell hands it and leaves a real install alone.
+dev_data := env_var_or_default("ECR_DEV_DATA", justfile_directory() + "/.dev/share")
+
 # List the available recipes.
 default:
     @just --list --unsorted
@@ -105,7 +119,12 @@ desktop: build-web
     fi
     # The webview is not served by the server, so there is no `?token=` URL to
     # open it with: the shell reads ECR_TOKEN and answers `default_token`.
-    env ECR_SERVER_URL="$server_url" ECR_TOKEN="$token" cargo run -q -p ecr-desktop
+    #
+    # XDG_DATA_HOME is what keeps this launch's localStorage — and so its
+    # connection record — out of an installed ecr's. See dev_data at the top.
+    mkdir -p "{{dev_data}}"
+    env XDG_DATA_HOME="{{dev_data}}" ECR_SERVER_URL="$server_url" ECR_TOKEN="$token" \
+      cargo run -q -p ecr-desktop
 
 # Build, install and run the app on a connected Android device over USB.
 android *args:
@@ -511,10 +530,10 @@ release-version version:
 
 # ----------------------------------------------------------------- misc ----
 
-# Remove build output and the demo maildir.
+# Remove build output, the demo maildir and the desktop dev launch's data.
 clean:
     cargo clean
-    rm -rf web/dist /tmp/ecr-demo
+    rm -rf web/dist /tmp/ecr-demo "{{dev_data}}"
 
 # Show what the server sees, as JSON.
 health:

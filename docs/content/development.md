@@ -83,6 +83,18 @@ binary presenting the old one and the app would look unable to reach the server.
 A token stored on the device always wins over the shell's, so pairing a phone
 properly with `just token phone` is not undone by later running `just android`.
 
+That rule is also why `just desktop` runs the shell against **its own data
+directory**, `.dev/share`, through `XDG_DATA_HOME`. A Tauri webview keeps its
+localStorage under an app data directory derived from the bundle identifier, so
+without this a dev launch and an installed ecr share one — and the connection
+record is the thing they must not share. `ECR_SERVER_URL` is authoritative while
+`ECR_TOKEN` is only the fallback, so a client that had been paired properly got
+moved to the dev server on 8399 while keeping the token for the real one, and
+said **this device is not authorised** about a setup in which nothing was wrong.
+Separate directories give the dev launch an empty store, so it takes both halves
+of the identity the shell hands it, and an installed ecr is left alone. Set
+`ECR_DEV_DATA` to put it somewhere else; `just clean` removes it.
+
 The underlying commands are ordinary and can still be run directly:
 
 ```bash

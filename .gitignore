@@ -52,3 +52,8 @@ docs/static/giallo-*.css
 *.keystore
 *.p12
 keystore.properties
+
+# The desktop dev launch's own data directory. `just desktop` points
+# XDG_DATA_HOME here so the webview's localStorage — and so the server address
+# and token it is paired with — cannot collide with an installed ecr's.
+/.dev/
