@@ -112,6 +112,12 @@ rustPlatform.buildRustPackage (finalAttrs: {
     # child of the server, which under a systemd user unit inherits nothing from
     # a login shell. Without this, every XOAUTH2 account fails to sync with
     # `ecr: command not found` buried in mbsync's output.
+    #
+    # SASL_PATH is the other half of the same failure: mbsync authenticates
+    # Gmail/Outlook with XOAUTH2, whose mechanism ships in a separate plugin
+    # (cyrus-sasl-xoauth2) that isync's closure does not carry. Without it the
+    # plugin is never loaded and every OAuth account fails with
+    # "selected SASL mechanism(s) not available".
     wrapProgram $out/bin/ecr \
       --prefix PATH : "$out/bin:${
         lib.makeBinPath [
@@ -119,13 +125,16 @@ rustPlatform.buildRustPackage (finalAttrs: {
           isync
           msmtp
         ]
-      }"
+      }" \
   '';
 
   meta = {
     description = "A keyboard-driven mail client for an existing notmuch maildir";
     homepage = "https://github.com/lokeshmohanty/ecr";
-    license = [ lib.licenses.mit lib.licenses.gpl3Plus ];
+    license = [
+      lib.licenses.mit
+      lib.licenses.gpl3Plus
+    ];
     mainProgram = "ecr";
     platforms = lib.platforms.unix;
   };

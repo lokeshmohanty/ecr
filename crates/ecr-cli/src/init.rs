@@ -36,14 +36,18 @@ pub struct Plan {
 
 pub async fn run(force: bool) -> anyhow::Result<()> {
     let env = Env::from_process();
-    let settings = ServerSettings::load();
+    let mut settings = ServerSettings::load();
 
     require_a_terminal()?;
 
+    // Resolve notmuch config first – this is the existing behaviour.
     let resolved = env.resolve(ConfigKind::Notmuch, &settings);
     if let Some(existing) = &resolved.path {
         if !force {
             println!("  notmuch config  {} (adopted)", existing.display());
+            // Record the adopted path in server.toml before finishing.
+            settings.notmuch_config = Some(existing.clone());
+            settings.save()?;
             return finish(&env, &settings).await;
         }
         println!(
@@ -54,6 +58,22 @@ pub async fn run(force: bool) -> anyhow::Result<()> {
 
     let plan = plan(&env, resolved.path.as_deref(), force)?;
     apply(&plan)?;
+
+    // Record the notmuch path (whether newly created or adopted).
+    settings.notmuch_config = Some(plan.notmuch_config.clone());
+
+    // Resolve the other two configs (mbsync and msmtp) and record any existing
+    // paths. If they are not found we simply leave the fields `None` – the user
+    // can set them up later.  At this point ecr‑managed creation of those files is
+    // not yet supported, so we only record paths.
+    let mbsync_res = env.resolve(ConfigKind::Mbsync, &settings);
+    let msmtp_res = env.resolve(ConfigKind::Msmtp, &settings);
+    settings.mbsync_config = mbsync_res.path.clone();
+    settings.msmtp_config = msmtp_res.path.clone();
+
+    // Persist the updated server settings.
+    settings.save()?;
+
     finish(&env, &settings).await
 }
 
@@ -61,9 +81,12 @@ pub async fn run(force: bool) -> anyhow::Result<()> {
 /// the configuration is missing. Answers whether anything was written.
 pub async fn ensure() -> anyhow::Result<bool> {
     let env = Env::from_process();
-    let settings = ServerSettings::load();
+    let mut settings = ServerSettings::load();
 
-    if env.resolve(ConfigKind::Notmuch, &settings).path.is_some() {
+    // If a notmuch config already resolves, we only need to record the path.
+    if let Some(p) = env.resolve(ConfigKind::Notmuch, &settings).path {
+        settings.notmuch_config = Some(p);
+        settings.save()?;
         return Ok(false);
     }
 
@@ -73,6 +96,16 @@ pub async fn ensure() -> anyhow::Result<bool> {
     require_a_terminal()?;
     let plan = plan(&env, None, false)?;
     apply(&plan)?;
+
+    // Record the newly created notmuch config path.
+    settings.notmuch_config = Some(plan.notmuch_config.clone());
+    // Resolve mbsync and msmtp as well (they are likely missing at this point).
+    let mbsync_res = env.resolve(ConfigKind::Mbsync, &settings);
+    let msmtp_res = env.resolve(ConfigKind::Msmtp, &settings);
+    settings.mbsync_config = mbsync_res.path.clone();
+    settings.msmtp_config = msmtp_res.path.clone();
+    settings.save()?;
+
     Ok(true)
 }
 

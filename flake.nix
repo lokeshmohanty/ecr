@@ -199,6 +199,7 @@
 
             RUST_LOG = "debug";
             RUST_BACKTRACE = "1";
+            SASL_PATH = saslPath;
 
             # WebKitGTK under Nix needs its own compositing mode and loaders
             # resolved explicitly, otherwise the Tauri window renders blank.
@@ -238,6 +239,7 @@
 
             RUST_LOG = "debug";
             RUST_BACKTRACE = "1";
+            SASL_PATH = saslPath;
 
             ANDROID_HOME = androidRoot;
             ANDROID_SDK_ROOT = androidRoot;
@@ -311,7 +313,8 @@
                 <alias><family>serif</family><prefer><family>DejaVu Serif</family></prefer></alias>
                 <alias><family>monospace</family><prefer><family>DejaVu Sans Mono</family></prefer></alias>
               </fontconfig>
-            '';          };
+            '';
+          };
 
           checks = {
             inherit (self.packages.${system}) ecr ecr-web;
