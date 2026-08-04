@@ -9,6 +9,24 @@ release; both are frozen at v1.0.0.
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-08-04
+
+### Fixed
+
+- **A token `ecr token new` had just printed was refused.** The server read
+  `tokens.toml` once, at startup, and the command that writes it is a different
+  process — so a token issued while the server was running was checked against
+  the copy loaded at boot, and the client reported *the server refused that
+  token* about a token printed a moment earlier. The store is now re-read when
+  the file changes. `ecr token revoke` had the matching failure, and the worse
+  one: a device the reader believed they had cut off stayed connected until the
+  next restart.
+- **The prompt that asks for a token now offers the camera.** Scanning was
+  reachable only from the address prompt and from Settings, so a phone that
+  could reach its server but had not been paired with it had no way to scan —
+  leaving 64 hex characters to type on a soft keyboard. A code carrying only a
+  token is enough there, since the address is already right.
+
 ## [0.2.1] — 2026-08-04
 
 ### Added
@@ -261,7 +279,8 @@ Published to crates.io only; see 0.1.1. See the
 - `fixtures/notmuch-config`, which nothing referenced and which hardcoded an
   absolute home directory.
 
-[Unreleased]: https://github.com/lokeshmohanty/ecr/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/lokeshmohanty/ecr/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/lokeshmohanty/ecr/releases/tag/v0.2.2
 [0.2.1]: https://github.com/lokeshmohanty/ecr/releases/tag/v0.2.1
 [0.2.0]: https://github.com/lokeshmohanty/ecr/releases/tag/v0.2.0
 [0.1.2]: https://github.com/lokeshmohanty/ecr/releases/tag/v0.1.2
