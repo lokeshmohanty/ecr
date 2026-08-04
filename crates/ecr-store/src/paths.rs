@@ -115,11 +115,24 @@ impl Env {
         let candidates = self.candidates(kind, settings);
         let mut chosen: Option<Candidate> = None;
         let mut shadowed = Vec::new();
+        // Canonical paths already accounted for. Two candidates can name the
+        // same file — $NOTMUCH_CONFIG is often the XDG default, and a
+        // server.toml override can point at either — and a file that is
+        // already the chosen config is not a stale copy. Without this, the
+        // config in use is reported as its own shadow and the reader is told
+        // to delete it.
+        let mut seen: Vec<PathBuf> = Vec::new();
 
         for candidate in candidates {
             if !candidate.path.is_file() {
                 continue;
             }
+            let canon =
+                std::fs::canonicalize(&candidate.path).unwrap_or_else(|_| candidate.path.clone());
+            if seen.contains(&canon) {
+                continue;
+            }
+            seen.push(canon);
             match chosen {
                 None => chosen = Some(candidate),
                 Some(_) => shadowed.push(candidate.path),
@@ -342,6 +355,52 @@ mod tests {
         let paths = MailPaths::with(&Env::rooted_at(home), &ServerSettings::default()).unwrap();
 
         assert_eq!(paths.notmuch.shadowed, vec![home.join(".notmuch-config")]);
+    }
+
+    #[test]
+    fn an_env_var_pointing_at_the_xdg_default_is_not_its_own_stale_copy() {
+        let home = tempfile::tempdir().unwrap();
+        let home = home.path();
+        let xdg = home.join(".config/notmuch/default/config");
+        write(&xdg, "[database]\npath=/srv/Mail\n");
+
+        // $NOTMUCH_CONFIG set to the same path the XDG candidate would find.
+        let env = Env {
+            notmuch_config: Some(xdg.clone()),
+            ..Env::rooted_at(home)
+        };
+
+        let paths = MailPaths::with(&env, &ServerSettings::default()).unwrap();
+
+        assert_eq!(
+            paths.notmuch.source,
+            ConfigSource::EnvVar("NOTMUCH_CONFIG".into())
+        );
+        assert_eq!(paths.notmuch.path.as_deref(), Some(xdg.as_path()));
+        assert!(
+            paths.notmuch.shadowed.is_empty(),
+            "the XDG default reached through $NOTMUCH_CONFIG is the same file, not a stale copy: {:?}",
+            paths.notmuch.shadowed
+        );
+    }
+
+    #[test]
+    fn a_legacy_dotfile_symlinked_to_the_chosen_config_is_not_stale() {
+        let home = tempfile::tempdir().unwrap();
+        let home = home.path();
+        let xdg = home.join(".config/notmuch/default/config");
+        write(&xdg, "[database]\npath=/srv/Mail\n");
+        // ~/.notmuch-config is a symlink to the XDG config, not a separate file.
+        std::os::unix::fs::symlink(&xdg, home.join(".notmuch-config")).unwrap();
+
+        let paths = MailPaths::with(&Env::rooted_at(home), &ServerSettings::default()).unwrap();
+
+        assert_eq!(paths.notmuch.source, ConfigSource::Xdg);
+        assert!(
+            paths.notmuch.shadowed.is_empty(),
+            "a symlink to the chosen config is the same file, not a stale copy: {:?}",
+            paths.notmuch.shadowed
+        );
     }
 
     #[test]

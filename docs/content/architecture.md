@@ -31,7 +31,11 @@ ended up scanning a lowercase `~/.local/share/mail` that does not exist while
 the real mail sat in `~/.local/share/Mail`.
 
 Files that exist but were not chosen are reported as *shadowed*, so a stale
-`~/.notmuch-config` is visible rather than silently ignored.
+`~/.notmuch-config` is visible rather than silently ignored. A file reached
+through two names — `$NOTMUCH_CONFIG` pointing at the XDG default, say — is
+the same file, not a stale copy, and is not reported: the candidates are
+deduplicated by canonical path, so a warning never tells the reader to delete
+the config they are using.
 
 ## Freshness
 

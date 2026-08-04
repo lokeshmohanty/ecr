@@ -502,6 +502,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn an_env_var_pointing_at_the_xdg_default_is_not_shadowed() {
+        let home = healthy_home();
+        let xdg = home.path().join(".config/notmuch/default/config");
+        let env = Env {
+            notmuch_config: Some(xdg),
+            ..Env::rooted_at(home.path())
+        };
+
+        let doctor = run_with(&env, &ServerSettings::default()).await;
+
+        assert!(
+            doctor
+                .checks
+                .iter()
+                .all(|c| c.name != "notmuch config shadowed"),
+            "the XDG default reached through $NOTMUCH_CONFIG is the same file, not a stale copy: {:?}",
+            doctor.checks
+        );
+    }
+
+    #[tokio::test]
     async fn a_missing_notmuch_config_fails_early_and_clearly() {
         let home = tempfile::tempdir().unwrap();
         let doctor = run_with(&Env::rooted_at(home.path()), &ServerSettings::default()).await;
