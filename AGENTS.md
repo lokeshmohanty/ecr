@@ -592,6 +592,18 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   `env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC`. CI never saw it,
   having none of those variables set — this fails only on a real mail setup,
   which is the one place the suites are most likely to be run.
+- **`XDG_STATE_HOME` is that same gap one directory over, and it is where the
+  mail index lives.** A desktop session exports it, so `dirs::state_dir()`
+  answers the real `~/.local/state` however `HOME` is pointed, and every
+  fixture server opened the developer's own `index.sqlite3`. Nothing fails:
+  doctor warns *built against another database*, `ecr serve` rebuilds it — tens
+  of thousands of messages of work against a database of eleven — and the real
+  index is gone afterwards. What it costs the suites is a startup slow enough,
+  and variable enough, to make the fixed waits in the `verify-*` scripts
+  intermittently too short: a keystroke landing after the step that needed it,
+  reported as the feature not working rather than as a slow start. Every
+  launcher now sets `XDG_STATE_HOME` beside `XDG_CONFIG_HOME`,
+  `web/e2e/fixtures.ts` included.
 - Sync and send are tested against stub binaries injected via
   `ServerSettings::{mbsync_bin, msmtp_bin}`. Never let a test reach Gmail.
 - If a change touches the UI, run `just check` — it includes the browser,

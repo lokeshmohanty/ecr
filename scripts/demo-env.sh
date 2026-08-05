@@ -81,7 +81,7 @@ NOTMUCH_CONFIG="$DEMO/.config/notmuch/default/config" notmuch new --quiet
 
 # Whatever serves this directory must be run with NOTMUCH_CONFIG, NOTMUCH_PROFILE
 # and MBSYNCRC *stripped* — `env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC`
-# — and not merely with HOME and XDG_CONFIG_HOME pointed here.
+# — and with XDG_STATE_HOME pointed here as well as XDG_CONFIG_HOME.
 #
 # `ecr_store::paths` puts the env var ahead of the XDG path, correctly: someone
 # who exports NOTMUCH_CONFIG means it. But the dev shell exports it, so a suite
@@ -90,7 +90,17 @@ NOTMUCH_CONFIG="$DEMO/.config/notmuch/default/config" notmuch new --quiet
 # baselines against a live inbox — every state differing, none of it about the
 # UI — and `just verify-marks` writes tags, so the same gap could have tagged
 # real mail.
+#
+# XDG_STATE_HOME is the same trap one directory over, and HOME does not cover
+# it: a desktop session exports it, so `dirs::state_dir()` answers the real
+# ~/.local/state whatever HOME says, and that is where the mail index lives.
+# Every fixture server therefore opened the developer's index, reported it
+# "built against another database" and rebuilt it — tens of thousands of
+# messages of work at startup, against a database of eleven, and the real index
+# gone afterwards. Nothing fails: doctor warns, the suite passes, and the cost
+# lands as a startup slow enough to make the fixed waits in the verify scripts
+# occasionally too short.
 
 echo "demo mail root: $DEMO/Mail"
 echo "run the server with:"
-echo "  HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config cargo run -p ecr-cli -- serve --bind 127.0.0.1:8099"
+echo "  HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config XDG_STATE_HOME=$DEMO/.local/state cargo run -p ecr-cli -- serve --bind 127.0.0.1:8099"

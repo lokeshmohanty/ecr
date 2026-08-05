@@ -50,6 +50,11 @@ export const test = base.extend<{ page: Page }, { server: Server }>({
         ...process.env,
         HOME: dir,
         XDG_CONFIG_HOME: `${dir}/.config`,
+        // The mail index lives under the *state* directory, and that one is
+        // exported too on a normal desktop session — so a worker that set only
+        // HOME opened the developer's real index, found it built against
+        // another database and rebuilt it from the fixtures. See demo-env.sh.
+        XDG_STATE_HOME: `${dir}/.local/state`,
         RUST_LOG: "warn",
       };
       // Deleted, not just overridden: `paths.rs` ranks NOTMUCH_CONFIG above the
@@ -93,6 +98,7 @@ export const test = base.extend<{ page: Page }, { server: Server }>({
     // The server outlives each test, so its settings file has to be put back or
     // one test's theme becomes the next test's starting colour. Empty is the
     // first-run state: the client seeds its own commented default into it.
+    configured = null;
     await server.api("/api/v1/config", {
       method: "PUT",
       body: JSON.stringify({ raw: "" }),
@@ -133,6 +139,9 @@ export const test = base.extend<{ page: Page }, { server: Server }>({
 
 export { expect };
 
+/** What the current test asked the server to hold, so a later write can be named. */
+let configured: string | null = null;
+
 /** The list is alive once a row exists — every spec waits on this first. */
 export const ROW = "[class*='row-grid'][class*='cursor-pointer']";
 
@@ -146,11 +155,33 @@ export async function configure(server: Server, toml: string): Promise<void> {
     method: "PUT",
     body: JSON.stringify({ raw: toml }),
   });
+  configured = toml;
+  await expectStillConfigured(server);
+}
+
+/**
+ * A client that finds the settings file empty seeds it with the generated
+ * default, through a save it does not await — and the per-test reset leaves it
+ * empty for every test that does not configure one, so most tests provoke
+ * exactly that write. One landing after this test's own put would replace it,
+ * and the pane under test then reads a file nobody asked for: the option is
+ * simply not in effect, with nothing on screen or in the failure naming why.
+ * Checked where it was written and again where the client reads it.
+ */
+async function expectStillConfigured(server: Server): Promise<void> {
+  if (configured === null) return;
+  const file = await server.api<{ raw: string }>("/api/v1/config");
+  if (file.raw === configured) return;
+  throw new Error(
+    `the settings file is not what this test wrote — a later save landed on it.\n` +
+      `wrote:\n${configured}\nthe server holds:\n${file.raw}`,
+  );
 }
 
 export async function open(page: Page, server: Server): Promise<void> {
   await page.goto(server.url, { waitUntil: "networkidle" });
   await page.waitForSelector(ROW, { timeout: 20_000 });
+  await expectStillConfigured(server);
 }
 
 function extractToken(output: string): string {

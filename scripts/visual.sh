@@ -73,7 +73,7 @@ pnpm --dir web build > /dev/null 2>&1 || exit 1
 # above the XDG location, so without this the suite serves the real maildir and
 # every baseline differs for reasons that have nothing to do with the UI.
 env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
-  HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config RUST_LOG=warn \
+  HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config XDG_STATE_HOME=$DEMO/.local/state RUST_LOG=warn \
   ./target/debug/ecr serve --bind "127.0.0.1:$PORT" --no-watch \
   > /tmp/ecr-visual-server.log 2>&1 &
 SRV=$!

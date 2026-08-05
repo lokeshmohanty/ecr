@@ -20,6 +20,16 @@ release; both are frozen at v1.0.0.
 
 ### Fixed
 
+- **Running ecr's own test suites rebuilt the developer's real mail index.**
+  The fixture launchers point `HOME` and `XDG_CONFIG_HOME` at a throwaway
+  directory, but the mail index lives under the *state* directory and a desktop
+  session exports `XDG_STATE_HOME` — so `dirs::state_dir()` answered the real
+  `~/.local/state` whatever `HOME` said. Every `verify-*` recipe, `just visual`
+  and `just e2e` opened the real `index.sqlite3`, found it built against another
+  database and rebuilt it from eleven fixture messages. Nothing failed: doctor
+  warned, the suites passed, and the cost landed as a startup slow and variable
+  enough to make their fixed waits intermittently too short. Each launcher now
+  sets `XDG_STATE_HOME` beside `XDG_CONFIG_HOME`.
 - **Every OAuth account failed to sync under the Nix package, from a
   configuration that works by hand.** `mbsync` reported `selected SASL
   mechanism(s) not available` — listing every mechanism except XOAUTH2 — and

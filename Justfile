@@ -367,7 +367,7 @@ verify-v4:
     cargo build -q -p {{pkg}}
     pnpm --dir web build > /dev/null
     env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
-      HOME=/tmp/ecr-v4 XDG_CONFIG_HOME=/tmp/ecr-v4/.config RUST_LOG=warn \
+      HOME=/tmp/ecr-v4 XDG_CONFIG_HOME=/tmp/ecr-v4/.config XDG_STATE_HOME=/tmp/ecr-v4/.local/state RUST_LOG=warn \
       ./target/debug/{{bin}} serve --bind "127.0.0.1:$port" --no-watch &
     trap 'kill %1 2>/dev/null || true' EXIT
     for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null && break; sleep 0.5; done
@@ -383,7 +383,7 @@ verify-settings:
     cargo build -q -p {{pkg}}
     pnpm --dir web build > /dev/null
     env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
-      HOME=/tmp/ecr-settings XDG_CONFIG_HOME=/tmp/ecr-settings/.config RUST_LOG=warn \
+      HOME=/tmp/ecr-settings XDG_CONFIG_HOME=/tmp/ecr-settings/.config XDG_STATE_HOME=/tmp/ecr-settings/.local/state RUST_LOG=warn \
       ./target/debug/{{bin}} serve --bind "127.0.0.1:$port" --no-watch &
     trap 'kill %1 2>/dev/null || true' EXIT
     for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null && break; sleep 0.5; done
@@ -399,7 +399,7 @@ verify-compose:
     cargo build -q -p {{pkg}}
     pnpm --dir web build > /dev/null
     env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
-      HOME=/tmp/ecr-compose XDG_CONFIG_HOME=/tmp/ecr-compose/.config RUST_LOG=warn \
+      HOME=/tmp/ecr-compose XDG_CONFIG_HOME=/tmp/ecr-compose/.config XDG_STATE_HOME=/tmp/ecr-compose/.local/state RUST_LOG=warn \
       ./target/debug/{{bin}} serve --bind "127.0.0.1:$port" --no-watch &
     trap 'kill %1 2>/dev/null || true' EXIT
     for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null && break; sleep 0.5; done
@@ -415,7 +415,7 @@ verify-view:
     cargo build -q -p {{pkg}}
     pnpm --dir web build > /dev/null
     env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
-      HOME=/tmp/ecr-view XDG_CONFIG_HOME=/tmp/ecr-view/.config RUST_LOG=warn \
+      HOME=/tmp/ecr-view XDG_CONFIG_HOME=/tmp/ecr-view/.config XDG_STATE_HOME=/tmp/ecr-view/.local/state RUST_LOG=warn \
       ./target/debug/{{bin}} serve --bind "127.0.0.1:$port" --no-watch &
     trap 'kill %1 2>/dev/null || true' EXIT
     for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null && break; sleep 0.5; done
@@ -431,7 +431,7 @@ verify-marks:
     cargo build -q -p {{pkg}}
     pnpm --dir web build > /dev/null
     env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
-      HOME=/tmp/ecr-marks XDG_CONFIG_HOME=/tmp/ecr-marks/.config RUST_LOG=warn \
+      HOME=/tmp/ecr-marks XDG_CONFIG_HOME=/tmp/ecr-marks/.config XDG_STATE_HOME=/tmp/ecr-marks/.local/state RUST_LOG=warn \
       ./target/debug/{{bin}} serve --bind "127.0.0.1:$port" --no-watch &
     trap 'kill %1 2>/dev/null || true' EXIT
     for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null && break; sleep 0.5; done
@@ -492,7 +492,7 @@ verify-ux:
     cargo build -q -p {{pkg}}
     pnpm --dir web build > /dev/null
     env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
-      HOME=/tmp/ecr-visual XDG_CONFIG_HOME=/tmp/ecr-visual/.config RUST_LOG=warn \
+      HOME=/tmp/ecr-visual XDG_CONFIG_HOME=/tmp/ecr-visual/.config XDG_STATE_HOME=/tmp/ecr-visual/.local/state RUST_LOG=warn \
       ./target/debug/{{bin}} serve --bind "127.0.0.1:$port" --no-watch &
     trap 'kill %1 2>/dev/null || true' EXIT
     for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null && break; sleep 0.5; done

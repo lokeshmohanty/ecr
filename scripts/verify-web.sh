@@ -35,11 +35,11 @@ cargo build -q -p ecr-cli || exit 1
 # above the XDG location, so without this the suite runs against the real
 # maildir. See the note in demo-env.sh.
 TOKEN=$(env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
-  HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config \
+  HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config XDG_STATE_HOME=$DEMO/.local/state \
   ./target/debug/ecr --tokens "$DEMO/tokens.toml" token new verify 2>/dev/null)
 
 env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
-  HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config \
+  HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config XDG_STATE_HOME=$DEMO/.local/state \
   ./target/debug/ecr --tokens "$DEMO/tokens.toml" \
   serve --bind "127.0.0.1:$API_PORT" > "$DEMO/server.log" 2>&1 &
 SRV=$!

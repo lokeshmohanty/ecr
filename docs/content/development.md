@@ -192,6 +192,17 @@ that only overrode `HOME` served the real mailbox. `just visual` compared 31
 baselines against a live inbox that way, and `just verify-marks` writes tags. A
 new suite that serves the demo directory must copy that `env -u` prefix.
 
+It must also set `XDG_STATE_HOME` alongside `XDG_CONFIG_HOME`. That is the same
+gap one directory over: a desktop session exports it, so `dirs::state_dir()`
+answers the real `~/.local/state` however `HOME` is pointed, and the mail index
+lives there. A fixture server that inherited it opened the developer's own
+`index.sqlite3`, found it built against another database and rebuilt it — tens of
+thousands of messages of work against a database of eleven, with the real index
+gone afterwards. Nothing fails; doctor warns and the suite passes. What it costs
+is a startup slow and variable enough to make the fixed waits in the `verify-*`
+scripts intermittently too short, which reads as the feature under test not
+working.
+
 ## Adding an endpoint
 
 1. Add the wire type to `ecr-core` if it is new.
