@@ -7,7 +7,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 Before v1.0.0 the HTTP API and the settings file format may change in a minor
 release; both are frozen at v1.0.0.
 
-## [Unreleased]
+## [0.3.0] — 2026-08-05
 
 ### Added
 
@@ -341,7 +341,8 @@ Published to crates.io only; see 0.1.1. See the
 - `fixtures/notmuch-config`, which nothing referenced and which hardcoded an
   absolute home directory.
 
-[Unreleased]: https://github.com/lokeshmohanty/ecr/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/lokeshmohanty/ecr/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/lokeshmohanty/ecr/releases/tag/v0.3.0
 [0.2.2]: https://github.com/lokeshmohanty/ecr/releases/tag/v0.2.2
 [0.2.1]: https://github.com/lokeshmohanty/ecr/releases/tag/v0.2.1
 [0.2.0]: https://github.com/lokeshmohanty/ecr/releases/tag/v0.2.0
