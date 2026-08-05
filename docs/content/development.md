@@ -10,8 +10,17 @@ weight = 5
 direnv allow      # or: nix develop
 ```
 
-The shell provides the Rust toolchain, `notmuch`/`isync`/`msmtp`, Node and
-pnpm, `hurl`, `sqlite`, and the WebKitGTK closure Tauri needs.
+The shell provides the Rust toolchain, Node and pnpm, `hurl`, `sqlite`, and the
+WebKitGTK closure Tauri needs.
+
+It deliberately does **not** provide `notmuch`, `isync` or `msmtp`, the same way
+the package ships no copy of them: a shell that supplied its own would put a
+plain `mbsync` ahead of yours, and `just serve` against a real inbox would fail
+every OAuth account with `selected SASL mechanism(s) not available` — the
+mechanisms of the copy this shell handed you, not of the one your config was
+written for. The suites need all three, so install them on the machine you
+develop on; `just doctor` names whichever is missing, and the shell's greeting
+prints the version of each or says `not installed`.
 
 ## Commands
 

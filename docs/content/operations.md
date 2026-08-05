@@ -9,8 +9,8 @@ weight = 2
 `notmuch`, `mbsync` (isync) and `msmtp` must be on `PATH`, plus whatever your
 configs invoke. Gmail and Outlook need XOAUTH2, which `ecr oauth` provides
 itself — point `PassCmd` and msmtp's `passwordeval` at `ecr oauth token
-<profile>` and there is no third tool to install. The Nix dev shell provides
-the first three.
+<profile>` and there is no third tool to install. Nothing ecr ships provides
+the first three — not the package, not the Nix dev shell.
 
 **Your copies of those three are the ones ecr runs — there are no others.**
 ecr manages neither the binaries nor their configuration, and the Nix package

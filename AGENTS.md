@@ -25,7 +25,8 @@ The previous implementation was a single-process egui app. It is archived on the
 direnv allow          # or: nix develop
 ```
 
-Provides Rust, `notmuch`/`isync`/`msmtp`, Node/pnpm, `hurl`, `sqlite`, WebKitGTK.
+Provides Rust, Node/pnpm, `hurl`, `sqlite`, WebKitGTK. **Not**
+`notmuch`/`isync`/`msmtp` — those are the machine's own; see the trap below.
 
 ## Commands
 
@@ -361,7 +362,11 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   a login shell. `nativeCheckInputs` still carries all three: they are the
   build's own test dependencies and are gone by the time anything is installed.
   A system unit cannot see the served user's profile, so `services.ecr.path` is
-  where a NixOS install names them; a user unit already carries them.
+  where a NixOS install names them; a user unit already carries them. The dev
+  shell holds the same line and for the same reason — a shell that supplies its
+  own mbsync swaps the tool under test, which is the hardest place of all to
+  read that failure — so `just check` and the integration tests need the three
+  installed on the machine, and the shell's greeting says which are.
   The same rule governs configuration: notmuch, mbsync, imapnotify and msmtp
   are the reader's to manage, and `ecr init` writes a notmuch config only when
   there is none and only after confirming it. Nothing else in ecr writes any of

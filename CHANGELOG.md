@@ -31,6 +31,10 @@ release; both are frozen at v1.0.0.
   NixOS module, for naming the three where a system unit cannot see the served
   user's profile; the Home Manager module needs nothing. ecr carries no
   knowledge of SASL plugins, and manages none of the four tools' configuration.
+  The Nix dev shell drops them for the same reason: a shell that supplies its
+  own mbsync swaps the tool under test. Developing ecr now means having
+  `notmuch`, `isync` and `msmtp` installed; the shell's greeting names any that
+  are missing.
 - **`ecr init` and `ecr serve` no longer write `server.toml`.** Both had begun
   recording the resolved notmuch, mbsync and msmtp paths there — silently, on
   every start, over whatever the reader had written in that file, and pinning

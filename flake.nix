@@ -65,15 +65,16 @@
             "rust-analyzer"
           ];
 
-          # Runtime tools the server shells out to. These must be on PATH for
-          # `ecr-server doctor`, the ecr-store integration tests and the running
-          # server itself — their absence is why the previous implementation
-          # could never talk to any mail.
-          mailTools = with pkgs; [
-            notmuch
-            isync # provides `mbsync`
-            msmtp
-          ];
+          # notmuch, mbsync and msmtp are deliberately *not* here, the same way
+          # the package carries none of them: this shell would otherwise put a
+          # plain isync ahead of the developer's own, and `just serve` against
+          # a real inbox would fail every OAuth account with `selected SASL
+          # mechanism(s) not available` — the mechanism list of the copy this
+          # shell supplied rather than of the one their mbsync config was
+          # written for. A dev shell that quietly swaps the tools under test is
+          # the one place that failure is hardest to read. The suites need all
+          # three, so a machine developing ecr installs them; `just doctor`
+          # says which is missing.
 
           # The Android SDK is unfree and its licence has to be accepted, so it
           # gets its own nixpkgs rather than loosening the one every other build
@@ -166,28 +167,26 @@
 
           # Everything but the Rust toolchain, which differs between the two
           # shells: the Android one carries the phone's std as well.
-          devTools =
-            (with pkgs; [
-              pkg-config
+          devTools = with pkgs; [
+            pkg-config
 
-              # Web client
-              nodejs_22
-              pnpm
+            # Web client
+            nodejs_22
+            pnpm
 
-              # Tooling
-              sqlite # inspecting the ecr-store cache
-              just # task runner; see the Justfile
-              hurl # API-level tests against ecr-server
-              jq
-              zola # the documentation site under docs/
-              librsvg # rsvg-convert, for `just icons` and the store metadata
+            # Tooling
+            sqlite # inspecting the ecr-store cache
+            just # task runner; see the Justfile
+            hurl # API-level tests against ecr-server
+            jq
+            zola # the documentation site under docs/
+            librsvg # rsvg-convert, for `just icons` and the store metadata
 
-              # Licence compliance; see THIRD-PARTY.md and deny.toml
-              cargo-deny
-              cargo-license
-              git-filter-repo
-            ])
-            ++ mailTools;
+            # Licence compliance; see THIRD-PARTY.md and deny.toml
+            cargo-deny
+            cargo-license
+            git-filter-repo
+          ];
         in
         {
           devShells.default = pkgs.mkShell {
@@ -207,11 +206,19 @@
 
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath tauriRuntime;
 
+            # The three mail tools are the machine's own, so this reports what
+            # is actually there rather than what the shell brought — and says
+            # so when one is missing, which is the whole failure a developer
+            # gets otherwise.
             shellHook = ''
+              ecr_tool() {
+                command -v "$1" >/dev/null || { echo "not installed"; return; }
+                "$1" --version 2>/dev/null | head -1
+              }
               echo "ecr dev shell"
-              echo "  notmuch $(notmuch --version 2>/dev/null | head -1)"
-              echo "  mbsync  $(mbsync --version 2>/dev/null | head -1)"
-              echo "  msmtp   $(msmtp --version 2>/dev/null | head -1)"
+              echo "  notmuch $(ecr_tool notmuch)"
+              echo "  mbsync  $(ecr_tool mbsync)"
+              echo "  msmtp   $(ecr_tool msmtp)"
               echo "  node    $(node --version)"
               echo
               echo "  cargo run -p ecr-server -- doctor   # verify the mail setup"
@@ -220,9 +227,9 @@
 
           # Opt-in: `nix develop .#android`, or just run `just android`, which
           # enters this shell for you. The default shell plus the SDK, the NDK,
-          # a JDK, adb and the Tauri CLI. The server still runs on this machine,
-          # so the mail tools have to be here too — hence devTools, not a
-          # freestanding Android-only shell.
+          # a JDK, adb and the Tauri CLI. The server still runs on this machine
+          # while a phone talks to it, so it is the whole of devTools rather
+          # than a freestanding Android-only shell.
           devShells.android = pkgs.mkShell {
             name = "ecr-android";
 
