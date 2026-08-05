@@ -67,6 +67,8 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
   # The integration tests drive the real notmuch binary against a tempdir, and
   # the doctor tests assert a healthy setup, which means all three on PATH.
+  # Check inputs only: they are gone by the time anything is installed, and
+  # the wrapper below deliberately does not put them back.
   nativeCheckInputs = [
     notmuch
     isync
@@ -104,34 +106,26 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
     install -Dm644 packaging/ecr.service $out/share/doc/ecr/ecr.service
 
-    # ecr-store shells out to these, so a machine that has none of them still
-    # has to work — but they go on as a *suffix*, never a prefix. A
-    # self-managed setup's tools are the ones its configs were written for, and
-    # they are not interchangeable with a plain copy from nixpkgs: mbsync
-    # reaches XOAUTH2 through a wrapper that puts cyrus-sasl-xoauth2 on
-    # SASL_PATH, and prefixing ecr's own isync ahead of it ran a *different*
-    # binary than the one a shell runs. Every OAuth account then failed with
-    # `selected SASL mechanism(s) not available`, listing every mechanism but
-    # that one, out of a configuration that is perfectly good and that syncs by
-    # hand — which reads as ecr having broken mbsync rather than as ecr having
-    # replaced it. ecr therefore carries no knowledge of SASL plugins at all:
-    # whoever manages mbsync manages those.
+    # The only thing this puts on PATH is ecr itself. notmuch, mbsync and
+    # msmtp are the reader's, and the package carries no copy of them — not
+    # even behind the ones they installed, as a fallback for a machine that has
+    # none. A second copy is not the same binary: mbsync reaches XOAUTH2 only
+    # through a wrapper that puts cyrus-sasl-xoauth2 on SASL_PATH, and while
+    # ecr's plain isync was on PATH at all it was one PATH ordering away from
+    # being the one that ran — which it was, and every OAuth account failed
+    # with `selected SASL mechanism(s) not available` out of a configuration
+    # that syncs by hand. A tool that is absent fails as `ecr doctor` naming
+    # it, which is the failure someone can act on. ecr manages none of the
+    # three, knows nothing about SASL plugins, and an ecr-managed setup is a
+    # later, deliberate thing rather than a fallback nobody chose.
     #
-    # $out/bin stays a prefix, because that is ecr answering itself rather than
+    # $out/bin, on the other hand, is ecr answering itself rather than
     # shadowing anyone: an mbsync config says `PassCmd "ecr oauth token
     # <profile>"`, and mbsync is a child of the server, which under a systemd
     # user unit inherits nothing from a login shell. Without it every XOAUTH2
     # account fails to sync with `ecr: command not found` buried in mbsync's
     # output.
-    wrapProgram $out/bin/ecr \
-      --prefix PATH : "$out/bin" \
-      --suffix PATH : "${
-        lib.makeBinPath [
-          notmuch
-          isync
-          msmtp
-        ]
-      }"
+    wrapProgram $out/bin/ecr --prefix PATH : "$out/bin"
   '';
 
   meta = {

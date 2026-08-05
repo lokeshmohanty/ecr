@@ -69,14 +69,16 @@ in
         [ (pkgs.isync.override { withCyrusSaslXoauth2 = true; }) ]
       '';
       description = ''
-        Packages to put ahead of the `notmuch`, `mbsync` and `msmtp` the ecr
-        package carries. Those are a fallback for a machine that has none of
-        them, and two copies at the same version are not always the same
-        binary — XOAUTH2 reaches mbsync only through a wrapper that puts
-        `cyrus-sasl-xoauth2` on `SASL_PATH`. A *system* unit's `PATH` does not
-        reach the served user's profile, so a self-managed tool has to be named
-        here to be the one ecr runs; the alternative is pinning `mbsync_bin` in
-        that user's `server.toml`.
+        Where `notmuch`, `mbsync` and `msmtp` come from. The ecr package
+        carries no copy of them, and a *system* unit's `PATH` does not reach
+        the served user's profile, so on NixOS this is usually how the service
+        finds them at all; the alternative is pinning `notmuch_bin`,
+        `mbsync_bin` and `msmtp_bin` in that user's `server.toml`. Name the
+        same derivations that user's own configuration uses — a second copy is
+        not the same binary, and mbsync reaches XOAUTH2 only through a wrapper
+        that puts `cyrus-sasl-xoauth2` on `SASL_PATH`. `ecr doctor` names
+        whichever of the three it cannot find, and the server refuses to start
+        until it can.
       '';
     };
   };

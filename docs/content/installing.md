@@ -122,19 +122,22 @@ For a machine that should serve mail without anyone logged in:
 
 The same channel choice applies — the input's ref is what decides it.
 
-The package carries `notmuch`, `mbsync` and `msmtp` as a fallback, appended to
-`PATH` so anything the reader installed wins. A *system* unit's `PATH` does not
-reach that user's profile, though, so a self-managed tool has to be named:
+The package carries no `notmuch`, `mbsync` or `msmtp` of its own, and a
+*system* unit's `PATH` does not reach the served user's profile, so name them:
 
 ```nix
-services.ecr.path = [ (pkgs.isync.override { withCyrusSaslXoauth2 = true; }) ];
+services.ecr.path = with pkgs; [
+  notmuch
+  (isync.override { withCyrusSaslXoauth2 = true; })
+  msmtp
+];
 ```
 
-That one matters more than it looks: XOAUTH2 is a separate SASL plugin, and a
-plain `mbsync` fails every OAuth account with `selected SASL mechanism(s) not
-available` out of a configuration that syncs by hand. The Home Manager module
-needs nothing here — a user unit's `PATH` carries the user's own profiles
-already.
+Name the same derivations that user's own configuration uses. A second copy is
+not the same binary: XOAUTH2 is a separate SASL plugin, and a plain `mbsync`
+fails every OAuth account with `selected SASL mechanism(s) not available` out of
+a configuration that syncs by hand. The Home Manager module needs nothing here
+— a user unit's `PATH` carries that user's own profiles already.
 
 ## nix profile
 

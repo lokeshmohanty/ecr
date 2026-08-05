@@ -12,17 +12,16 @@ itself — point `PassCmd` and msmtp's `passwordeval` at `ecr oauth token
 <profile>` and there is no third tool to install. The Nix dev shell provides
 the first three.
 
-**Your copies of those three are the ones ecr runs.** ecr manages none of
-their configuration and does not replace the binaries either: the Nix package
-carries `notmuch`, `mbsync` and `msmtp` so a machine with none of them still
-works, but they go on the end of `PATH` rather than the front, so anything you
-installed yourself wins. That matters because they are not interchangeable
-copies — a Nix `mbsync` reaches XOAUTH2 only through `isync.override {
-withCyrusSaslXoauth2 = true; }`, which wraps the binary to put the plugin on
-`SASL_PATH`. Run ecr's plain copy instead and every OAuth account fails with
+**Your copies of those three are the ones ecr runs — there are no others.**
+ecr manages neither the binaries nor their configuration, and the Nix package
+ships no copy of them, not even behind yours as a fallback. That is deliberate:
+a second copy is not the same binary. `mbsync` reaches XOAUTH2 only through
+`isync.override { withCyrusSaslXoauth2 = true; }`, which wraps it to put the
+plugin on `SASL_PATH`, and a plain one fails every OAuth account with
 `selected SASL mechanism(s) not available` out of a configuration that syncs
-perfectly by hand. ecr knows nothing about SASL plugins; whoever manages
-mbsync manages those.
+perfectly by hand. A tool that is simply *missing* fails as `ecr doctor` naming
+it, which is a failure you can act on. ecr knows nothing about SASL plugins;
+whoever manages mbsync manages those.
 
 ## The command
 

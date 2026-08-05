@@ -17,10 +17,20 @@ release; both are frozen at v1.0.0.
   the same command run from a shell synced fine. The package put its own
   `notmuch`, `mbsync` and `msmtp` at the *front* of the wrapper's `PATH`, so
   ecr ran a plain isync rather than the reader's own, which reaches XOAUTH2
-  through a wrapper that puts `cyrus-sasl-xoauth2` on `SASL_PATH`. Those three
-  are now a `--suffix`: they are still there for a machine that has none of
-  them, and anything installed by the reader wins. ecr carries no knowledge of
-  SASL plugins.
+  through a wrapper that puts `cyrus-sasl-xoauth2` on `SASL_PATH`.
+
+### Changed
+
+- **The Nix package no longer carries `notmuch`, `mbsync` or `msmtp`.** Not
+  even behind the reader's own as a fallback — a second copy is not the same
+  binary, so a fallback is one `PATH` ordering away from being a substitution,
+  which is exactly what the SASL failure above was. The only thing the wrapper
+  puts on `PATH` now is ecr itself, for `PassCmd "ecr oauth token <profile>"`.
+  A missing tool is reported by `ecr doctor` and the server refuses to start,
+  which is a failure that can be acted on. `services.ecr.path` is new on the
+  NixOS module, for naming the three where a system unit cannot see the served
+  user's profile; the Home Manager module needs nothing. ecr carries no
+  knowledge of SASL plugins, and manages none of the four tools' configuration.
 - **`ecr init` and `ecr serve` no longer write `server.toml`.** Both had begun
   recording the resolved notmuch, mbsync and msmtp paths there — silently, on
   every start, over whatever the reader had written in that file, and pinning

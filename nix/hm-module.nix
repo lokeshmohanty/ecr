@@ -121,13 +121,13 @@ in
         Restart = "on-failure";
         RestartSec = 5;
 
-        # The package wraps `ecr` so that it can find itself — which is what
-        # makes `PassCmd "ecr oauth token <profile>"` resolve — and appends its
-        # own notmuch, mbsync and msmtp as a fallback. A self-managed mbsync
-        # therefore has to be on this unit's PATH to be the one ecr runs; on
-        # NixOS the user manager carries the profiles, so it already is.
-        # Anything else a user's own mbsync or msmtp config shells out to is
-        # not, and a user unit inherits nothing from the login shell.
+        # The package wraps `ecr` so that it can find itself, which is what
+        # makes `PassCmd "ecr oauth token <profile>"` resolve. It carries no
+        # notmuch, mbsync or msmtp, so this unit's PATH is where all three come
+        # from — on NixOS the user manager carries the user's profiles, so a
+        # self-managed setup is already the one ecr runs. Anything else a
+        # user's own mbsync or msmtp config shells out to is not, and a user
+        # unit inherits nothing from the login shell.
         Environment = lib.mapAttrsToList (k: v: "${k}=${v}") cfg.server.environment;
 
         NoNewPrivileges = true;
