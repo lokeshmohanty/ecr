@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 Before v1.0.0 the HTTP API and the settings file format may change in a minor
 release; both are frozen at v1.0.0.
 
+## [Unreleased]
+
 ## [0.3.0] — 2026-08-05
 
 ### Added
