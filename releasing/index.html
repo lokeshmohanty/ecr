@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en" prefix="og: https://ogp.me/ns#">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark light">
+    <script>
+    (function(){var s='auto';try{s=localStorage.getItem('reticle-theme')||localStorage.getItem('ThemeColorScheme')||'auto'}catch(e){}
+    var t=s==='auto'?(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'):s;
+    document.documentElement.setAttribute('data-theme',t);
+    document.documentElement.setAttribute('data-theme-setting',s);
+    document.documentElement.setAttribute('data-user-color-scheme',t)})();
+    </script>
+
+    
+    <title>Releasing | ecr</title>
+
+    
+    
+    <meta name="description" content="How a release is cut, what CI produces, and what has to be true first.">
+    
+
+    
+    
+
+    
+    
+
+    
+    <meta name="robots" content="index, follow">
+    <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+
+    
+    
+    <link rel="canonical" href="https://www.lokeshmohanty.in/ecr/releasing/">
+    <link rel="alternate" hreflang="en" href="https://www.lokeshmohanty.in/ecr/releasing/">
+    <link rel="alternate" hreflang="x-default" href="https://www.lokeshmohanty.in/ecr/releasing/">
+    
+
+    
+    <meta property="og:type" content="article">
+    
+    <meta property="og:url" content="https://www.lokeshmohanty.in/ecr/releasing/">
+    
+    
+    <meta property="og:title" content="Releasing">
+    
+    
+    <meta property="og:description" content="How a release is cut, what CI produces, and what has to be true first.">
+    
+    
+    <meta property="og:site_name" content="ecr">
+    <meta property="og:locale" content="en">
+
+    
+    
+    
+    
+    
+    
+
+    
+    <meta name="twitter:card" content="summary_large_image">
+    
+    <meta name="twitter:url" content="https://www.lokeshmohanty.in/ecr/releasing/">
+    
+    
+    <meta name="twitter:title" content="Releasing">
+    
+    
+    <meta name="twitter:description" content="How a release is cut, what CI produces, and what has to be true first.">
+    
+    
+    
+
+    
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "WebSite",
+                "@id": "https://www.lokeshmohanty.in/ecr#website",
+                "url": "https://www.lokeshmohanty.in/ecr",
+                "name": "ecr",
+                "description": "Email Client in Rust — a keyboard-driven mail client for an existing notmuch maildir",
+                "publisher": {
+                    "@id": "https://zentinelproxy.io/#organization"
+                },
+                "inLanguage": "en",
+                "potentialAction": {
+                    "@type": "SearchAction",
+                    "target": {
+                        "@type": "EntryPoint",
+                        "urlTemplate": "https://www.lokeshmohanty.in/ecr?q={search_term_string}"
+                    },
+                    "query-input": "required name=search_term_string"
+                }
+            },
+            {
+                "@type": "Organization",
+                "@id": "https://zentinelproxy.io/#organization",
+                "name": "lokeshmohanty",
+                "url": "https://zentinelproxy.io",
+                "logo": {
+                    "@type": "ImageObject",
+                    "url": "https://zentinelproxy.io/img/og-image.png",
+                    "width": 1200,
+                    "height": 630
+                }
+            },
+            {
+                "@type": "WebPage",
+                "@id": "https://www.lokeshmohanty.in/ecr/releasing/#webpage",
+                "url": "https://www.lokeshmohanty.in/ecr/releasing/",
+                "name": "Releasing",
+                "isPartOf": {
+                    "@id": "https://www.lokeshmohanty.in/ecr#website"
+                },
+                "description": "How a release is cut, what CI produces, and what has to be true first.",
+                "inLanguage": "en"
+                
+                
+            }
+            
+            ,{
+                "@type": "Article",
+                "@id": "https://www.lokeshmohanty.in/ecr/releasing/#article",
+                "isPartOf": {
+                    "@id": "https://www.lokeshmohanty.in/ecr/releasing/#webpage"
+                },
+                "headline": "Releasing",
+                
+                "description": "How a release is cut, what CI produces, and what has to be true first.",
+                
+                
+                
+                "author": {
+                    "@id": "https://zentinelproxy.io/#organization"
+                },
+                "publisher": {
+                    "@id": "https://zentinelproxy.io/#organization"
+                },
+                
+                
+                "wordCount": 2049,
+                
+                "inLanguage": "en"
+            }
+            
+        ]
+    }
+    </script>
+
+    
+    
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "ecr",
+                "item": "https://www.lokeshmohanty.in/ecr"
+            }
+            
+            
+            
+            ,{
+                "@type": "ListItem",
+                "position": 2,
+                "name": "ecr",
+                "item": "https://www.lokeshmohanty.in/ecr/"
+            }
+            
+            
+            ,{
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Releasing",
+                "item": "https://www.lokeshmohanty.in/ecr/releasing/"
+            }
+        ]
+    }
+    </script>
+    
+
+    
+    <link rel="stylesheet" href="https://www.lokeshmohanty.in/ecr/style.css">
+
+    
+    
+    <link rel="stylesheet" href="https://www.lokeshmohanty.in/ecr/syntax-light.css" media="(prefers-color-scheme: light)">
+    <link rel="stylesheet" href="https://www.lokeshmohanty.in/ecr/syntax-dark.css" media="(prefers-color-scheme: dark)">
+    
+
+    
+    <link rel="preload" href="https://www.lokeshmohanty.in/ecr/fonts/SpaceGrotesk-Variable.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="https://www.lokeshmohanty.in/ecr/fonts/Nunito-Variable.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="https://www.lokeshmohanty.in/ecr/fonts/CascadiaCode-Variable.woff2" as="font" type="font/woff2" crossorigin>
+
+    
+    
+    <link rel="icon" href="https://www.lokeshmohanty.in/ecr/favicon.png">
+    
+    
+
+    
+    
+
+    
+    
+    
+    
+    <script>
+        (function() {
+            try {
+                var stored = localStorage.getItem('reticle-theme') || localStorage.getItem('ThemeColorScheme') || 'auto';
+                var theme = stored === 'auto'
+                    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                    : stored;
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.setAttribute('data-theme-setting', stored);
+                document.documentElement.setAttribute('data-user-color-scheme', theme);
+            } catch(e) {}
+        })();
+    </script>
+    
+
+    
+</head>
+<body class="page-releasing">
+    
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    
+    
+
+    
+    
+        
+    
+
+    
+    <div class="layout layout--docs layout--fixed-header" data-mode="docs">
+        
+
+
+<aside id="sidebar" class="sidebar" role="complementary" aria-labelledby="sidebar-title">
+    
+    <div class="sidebar__resize-handle" aria-hidden="true" title="Drag to resize sidebar width"></div>
+
+    <div class="sidebar__header">
+        <span id="sidebar-title" class="sidebar__title">Table of contents</span>
+        <button class="sidebar__close" type="button" aria-label="Close sidebar" title="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M18 6 6 18"/>
+                <path d="m6 6 12 12"/>
+            </svg>
+        </button>
+    </div>
+
+    <nav class="sidebar__content" aria-label="Documentation navigation">
+        <div class="toc">
+            
+            
+
+            
+            <div class="toc__section">
+                <ol class="toc__list toc__list--numbered" start="0">
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/installing/" class="toc__link ">
+                            <span class="toc__number">0.</span>
+                            Installing
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/operations/" class="toc__link ">
+                            <span class="toc__number">1.</span>
+                            Operations
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/architecture/" class="toc__link ">
+                            <span class="toc__number">2.</span>
+                            Architecture
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/api/" class="toc__link ">
+                            <span class="toc__number">3.</span>
+                            HTTP API
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/development/" class="toc__link ">
+                            <span class="toc__number">4.</span>
+                            Development
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/releasing/" class="toc__link active">
+                            <span class="toc__number">5.</span>
+                            Releasing
+                        </a>
+                    </li>
+                    
+                    
+                </ol>
+            </div>
+
+            
+            
+            
+        </div>
+    </nav>
+
+    <div class="sidebar__footer">
+        
+        <div class="sidebar__actions-mobile">
+            
+            
+
+            
+            
+            <div class="sidebar__action">
+                <span class="sidebar__action-label">Theme</span>
+                
+<button class="theme-toggle" type="button" aria-label="Toggle color theme: cycles through light, dark, and auto modes" aria-live="polite" title="Toggle theme">
+    <span class="theme-toggle__icons">
+        
+        <span class="theme-toggle__sun" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2"/>
+                <path d="M12 20v2"/>
+                <path d="m4.93 4.93 1.41 1.41"/>
+                <path d="m17.66 17.66 1.41 1.41"/>
+                <path d="M2 12h2"/>
+                <path d="M20 12h2"/>
+                <path d="m6.34 17.66-1.41 1.41"/>
+                <path d="m19.07 4.93-1.41 1.41"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__moon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__auto" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 2a7 7 0 1 0 7 7"/>
+            </svg>
+        </span>
+    </span>
+    <span class="sr-only theme-toggle__status">Current theme: auto</span>
+</button>
+
+            </div>
+            
+
+            
+            
+            <a href="https:&#x2F;&#x2F;github.com&#x2F;lokeshmohanty&#x2F;ecr" class="sidebar__github" target="_blank" rel="noopener noreferrer" aria-label="View project on GitHub (opens in new tab)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
+                    <path d="M9 18c-4.51 2-5-2-7-2"/>
+                </svg>
+                <span>View on GitHub</span>
+            </a>
+            
+        </div>
+
+        
+        <a href="https://www.lokeshmohanty.in/ecr/print?auto=true" class="print-button" target="_blank" rel="noopener" aria-label="Print all documentation pages (opens print dialog)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 6 2 18 2 18 9"/>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                <rect width="12" height="8" x="6" y="14"/>
+            </svg>
+            <span>Print all pages</span>
+        </a>
+    </div>
+</aside>
+
+
+
+
+        <div class="layout__main">
+            
+            
+
+
+
+
+<header class="header" role="banner">
+    <div class="header__left">
+        
+        
+        <button class="sidebar-toggle" type="button" aria-label="Toggle sidebar navigation" aria-expanded="true" aria-controls="sidebar" title="Toggle sidebar">
+            <svg class="sidebar-toggle__icon sidebar-toggle__icon--open" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                <path d="M9 3v18"/>
+                <path d="m16 15-3-3 3-3"/>
+            </svg>
+            <svg class="sidebar-toggle__icon sidebar-toggle__icon--closed" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                <path d="M9 3v18"/>
+                <path d="m14 9 3 3-3 3"/>
+            </svg>
+        </button>
+        
+
+        
+        
+        <button class="toc-toggle toc-toggle--docs" type="button" aria-label="Open table of contents" aria-expanded="false" aria-controls="sidebar" title="Table of contents">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                <path d="M9 3v18"/>
+                <path d="m16 15-3-3 3-3"/>
+            </svg>
+        </button>
+        
+
+        
+        
+
+        
+        
+
+        
+        <a href="https://www.lokeshmohanty.in/ecr" class="header__logo" aria-label="ecr - Go to homepage">
+            
+            
+            
+                
+            
+            <img src="https://www.lokeshmohanty.in/ecr/assets/logo.png" alt="" aria-hidden="true">
+            
+            <span>ecr</span>
+        </a>
+    </div>
+
+    
+    <nav class="header__nav" role="navigation" aria-label="Main navigation">
+        
+    </nav>
+
+    
+    <div class="header__actions" role="group" aria-label="Site actions">
+        
+        
+        <button class="search-toggle" type="button" aria-label="Open search dialog" aria-keyshortcuts="/" aria-haspopup="dialog" title="Search (press /)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.3-4.3"/>
+            </svg>
+        </button>
+        
+
+        
+        <div class="header__actions-desktop">
+            
+            
+
+            
+            
+            
+<button class="theme-toggle" type="button" aria-label="Toggle color theme: cycles through light, dark, and auto modes" aria-live="polite" title="Toggle theme">
+    <span class="theme-toggle__icons">
+        
+        <span class="theme-toggle__sun" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2"/>
+                <path d="M12 20v2"/>
+                <path d="m4.93 4.93 1.41 1.41"/>
+                <path d="m17.66 17.66 1.41 1.41"/>
+                <path d="M2 12h2"/>
+                <path d="M20 12h2"/>
+                <path d="m6.34 17.66-1.41 1.41"/>
+                <path d="m19.07 4.93-1.41 1.41"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__moon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__auto" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 2a7 7 0 1 0 7 7"/>
+            </svg>
+        </span>
+    </span>
+    <span class="sr-only theme-toggle__status">Current theme: auto</span>
+</button>
+
+            
+
+            
+            
+            <a href="https:&#x2F;&#x2F;github.com&#x2F;lokeshmohanty&#x2F;ecr&#x2F;edit&#x2F;main&#x2F;docs&#x2F;content/releasing.md" class="btn btn--icon btn--ghost" aria-label="Edit this page on GitHub (opens in new tab)" target="_blank" rel="noopener noreferrer" title="Edit this page">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                    <path d="m15 5 4 4"/>
+                </svg>
+            </a>
+            
+
+            
+            
+            <a href="https:&#x2F;&#x2F;github.com&#x2F;lokeshmohanty&#x2F;ecr" class="btn btn--icon btn--ghost" aria-label="View project on GitHub (opens in new tab)" target="_blank" rel="noopener noreferrer" title="GitHub">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
+                    <path d="M9 18c-4.51 2-5-2-7-2"/>
+                </svg>
+            </a>
+            
+        </div>
+    </div>
+</header>
+
+
+            
+
+            
+            
+            <div class="scroll-progress" aria-hidden="true">
+                <div class="scroll-progress__bar"></div>
+                <span class="scroll-progress__percent">0%</span>
+            </div>
+            
+
+            
+
+
+
+
+
+    
+
+
+
+<nav class="nav-buttons" aria-label="Page navigation">
+    
+    
+    <a href="https://www.lokeshmohanty.in/ecr/development/" class="nav-button nav-button--prev" aria-label="Previous: Development">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m15 18-6-6 6-6"/>
+        </svg>
+        <span class="nav-button__label">
+            Development
+            <span class="nav-button__shortcut">←</span>
+        </span>
+    </a>
+    
+
+    
+    
+    <div class="nav-button nav-button--next disabled" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m9 18 6-6-6-6"/>
+        </svg>
+    </div>
+    
+</nav>
+
+
+
+
+            <div class="layout__content-area">
+                <main id="main-content" class="main-content" role="main" aria-label="Main content">
+                    
+
+
+<article class="article" itemscope itemtype="https://schema.org/Article" aria-labelledby="article-title">
+    
+    <header class="article__header article__header--docs">
+        <h1 id="article-title" itemprop="headline">Releasing</h1>
+        
+        <p class="article__description" itemprop="description">How a release is cut, what CI produces, and what has to be true first.</p>
+        
+    </header>
+
+    <div class="article__content" itemprop="articleBody">
+        <h2 id="versioning"><a class="zola-anchor" href="#versioning" aria-label="Anchor link for: versioning">🔗</a>Versioning</h2>
+<p>Semantic versioning. One version number for the whole workspace, set in
+<code>[workspace.package]</code> in the root <code>Cargo.toml</code> and mirrored in
+<code>shell/tauri.conf.json</code> and <code>web/package.json</code>.</p>
+<p>Before v1.0.0 the HTTP API and the settings file format may change in a minor
+release. Both freeze at v1.0.0. The roadmap in the <a rel="external" href="https://github.com/lokeshmohanty/ecr/blob/main/README.md#roadmap">README</a>
+carries the markers for what each release must contain.</p>
+<h2 id="cutting-a-release"><a class="zola-anchor" href="#cutting-a-release" aria-label="Anchor link for: cutting-a-release">🔗</a>Cutting a release</h2>
+<p>Everything is driven by an annotated tag matching <code>v*</code>. There is no manual
+artifact building.</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">just</span><span class="z-string"> release</span><span class="z-punctuation z-definition z-comment">            #</span><span class="z-comment"> asks major/minor/patch and does all of it</span></span>
+<span class="giallo-l"><span class="z-entity z-name">just</span><span class="z-string"> release</span><span class="z-string"> patch</span><span class="z-punctuation z-definition z-comment">      #</span><span class="z-comment"> the same, with the question answered</span></span>
+<span class="giallo-l"><span class="z-entity z-name">just</span><span class="z-string"> release</span><span class="z-string"> patch</span><span class="z-string"> dry</span><span class="z-punctuation z-definition z-comment">  #</span><span class="z-comment"> the plan and the notes, changing nothing</span></span></code></pre>
+<p>It refuses to start unless the tree is clean, on <code>main</code>, level with
+<code>origin/main</code>, and the tag is free both locally and on the remote. Then it
+shows the <code>## [Unreleased]</code> section — that text <em>is</em> the release body, so it is
+read before anything runs, and an empty one is a hard stop. A <code>patch</code> carrying
+an <code>Added</code>, <code>Changed</code> or <code>Removed</code> section asks again: the number is the only
+warning a consumer gets before <code>nix flake update</code> moves them onto it.</p>
+<p>After a confirmation it runs the gate, writes the release, and asks once more
+before the push, because the push is the publication. Say no and it tells you
+both how to finish and how to abandon; nothing has left the machine yet.</p>
+<p><code>ECR_RELEASE_SKIP_CHECK=1</code> skips <code>just check</code> and <code>just deny</code>. It says so
+loudly, and it is a bad idea for the reason below: the tag is the gate.</p>
+<p>What the recipe does, if you would rather do it by hand:</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">just</span><span class="z-string"> check</span><span> &amp;&amp;</span><span class="z-entity z-name"> just</span><span class="z-string"> deny</span><span class="z-punctuation z-definition z-comment">                 #</span><span class="z-comment"> the gate — must be green</span></span>
+<span class="giallo-l"><span class="z-variable z-other">$</span><span class="z-variable z-other">EDITOR</span><span> CHANGELOG.md</span><span class="z-punctuation z-definition z-comment">                    #</span><span class="z-comment"> move Unreleased into a dated section,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">                                        #</span><span class="z-comment"> and point the link refs at the new tag</span></span>
+<span class="giallo-l"><span class="z-entity z-name">just</span><span class="z-string"> release-version</span><span class="z-constant"> 0.2.0</span><span class="z-punctuation z-definition z-comment">              #</span><span class="z-comment"> bumps Cargo.toml, tauri.conf.json, package.json</span></span>
+<span class="giallo-l"><span class="z-entity z-name">git</span><span class="z-string"> commit</span><span class="z-constant"> -</span><span class="z-constant">am</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">Release 0.2.0</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">git</span><span class="z-string"> tag</span><span class="z-constant"> -</span><span class="z-constant">a</span><span class="z-string"> v0.2.0</span><span class="z-constant"> -</span><span class="z-constant">m</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">Release 0.2.0</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">$</span><span class="z-variable z-other">EDITOR</span><span> CHANGELOG.md</span><span class="z-punctuation z-definition z-comment">                    #</span><span class="z-comment"> reopen an empty ## [Unreleased], after the tag</span></span>
+<span class="giallo-l"><span class="z-entity z-name">git</span><span class="z-string"> commit</span><span class="z-constant"> -</span><span class="z-constant">am</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">Open the changelog for the next release</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">git</span><span class="z-string"> push</span><span class="z-string"> origin</span><span class="z-string"> main</span><span class="z-string"> v0.2.0</span></span></code></pre>
+<p>The tag starts <code>.github/workflows/release.yml</code>, which:</p>
+<ol>
+<li>Re-runs fmt, lint and both test suites. A tag does not skip verification.</li>
+<li>Builds each artifact on its native runner.</li>
+<li>Computes <code>SHA256SUMS</code> across all of them.</li>
+<li><strong>Publishes</strong> a GitHub release with the <code>CHANGELOG.md</code> section for that
+version as the body.</li>
+<li>Publishes the crates to crates.io, in dependency order.</li>
+</ol>
+<p>Nothing is left to press. Pushing the tag is the decision to release; a draft
+is invisible to anyone without write access, so one left unpublished is a
+release that silently never happened — which is what became of v0.2.0.</p>
+<p>The gate is therefore the tag, not the publish. Everything before step 4 has to
+be green for it to run at all, so <code>just check</code> on a clean tree is what stands
+between a mistake and the public — verify before tagging, not after. Smoke-test
+the artifacts once they are up; a bad one is withdrawn with a patch release,
+which is what everyone who already downloaded it needs regardless.</p>
+<h2 id="artifacts"><a class="zola-anchor" href="#artifacts" aria-label="Anchor link for: artifacts">🔗</a>Artifacts</h2>
+<table><thead><tr><th>Artifact</th><th>Built on</th><th>Contents</th></tr></thead><tbody>
+<tr><td><code>ecr-x86_64-unknown-linux-gnu.tar.gz</code></td><td><code>ubuntu-22.04</code></td><td>the <code>ecr</code> binary, the built web client, a man page, bash/zsh/fish completions and a systemd user unit</td></tr>
+<tr><td><code>ecr-aarch64-unknown-linux-gnu.tar.gz</code></td><td><code>ubuntu-22.04-arm</code></td><td>as above, for arm64</td></tr>
+<tr><td><code>ecr_&lt;version&gt;_amd64.deb</code></td><td><code>ubuntu-22.04</code></td><td>desktop client, via <code>tauri build</code></td></tr>
+<tr><td><code>ecr_&lt;version&gt;_amd64.AppImage</code></td><td><code>ubuntu-22.04</code></td><td>desktop client, self-contained</td></tr>
+<tr><td><code>ecr-&lt;version&gt;.apk</code></td><td><code>ubuntu-latest</code></td><td>Android client, for sideloading</td></tr>
+<tr><td><code>ecr-&lt;version&gt;.aab</code></td><td><code>ubuntu-latest</code></td><td>the same build in the only format Play accepts</td></tr>
+<tr><td><code>SHA256SUMS</code></td><td><code>ubuntu-latest</code></td><td>checksums for everything above</td></tr>
+</tbody></table>
+<p>The tarballs, <code>.deb</code> and AppImage are built on <code>ubuntu-22.04</code> deliberately:
+glibc is forward-compatible, not backward, so building on the oldest supported
+runner is what makes the artifacts work on newer distributions.</p>
+<h3 id="nix"><a class="zola-anchor" href="#nix" aria-label="Anchor link for: nix">🔗</a>Nix</h3>
+<p>The flake exposes <code>packages.{ecr,ecr-web,ecr-desktop}</code>, <code>nixosModules.default</code>
+and <code>homeManagerModules.default</code>. No artifact is uploaded for these — a flake is
+consumed from git directly.</p>
+<p>Two channels are published, and the tag is what moves the stable one:</p>
+<table><thead><tr><th>Channel</th><th>Ref</th><th>Moved by</th></tr></thead><tbody>
+<tr><td>release</td><td><code>github:lokeshmohanty/ecr/release</code></td><td>the <code>release-branch</code> job, after every artifact for the tag has built</td></tr>
+<tr><td>main</td><td><code>github:lokeshmohanty/ecr</code></td><td>every push to <code>main</code></td></tr>
+</tbody></table>
+<p>The <code>release-branch</code> job fast-forwards <code>release</code> to the tagged commit. It is a
+fast-forward rather than a force push on purpose: releases only move forward, so
+a push that would rewrite history means the tag is wrong, and failing loudly is
+the right answer. It runs after <code>tarball</code>, <code>desktop</code> and <code>android</code>: a tag whose build fails must
+never become what everyone's <code>nix flake update</code> pulls.</p>
+<p>It runs beside the <code>publish</code> job rather than after it. The flake is consumed
+from git, not from an artifact, and the tag is already immutable.</p>
+<p><code>nix flake check</code> and <code>nix build .#ecr .#ecr-web .#ecr-desktop</code> run in CI on
+every push, and CI pushes the results to <code>lokeshmohanty.cachix.org</code>, which
+<code>flake.nix</code> advertises as a substituter. That cache is what makes the main
+channel usable: without it every <code>nix flake update</code> is a full rebuild of the
+server and the client. It needs a <code>CACHIX_AUTH_TOKEN</code> secret; without it the
+push step is skipped and CI still passes, which is also what happens for pull
+requests from forks.</p>
+<p>See <a href="https://www.lokeshmohanty.in/ecr/installing/">installing.md</a> for the consumer's side of this.</p>
+<h3 id="crates-io"><a class="zola-anchor" href="#crates-io" aria-label="Anchor link for: crates-io">🔗</a>crates.io</h3>
+<p>Published in dependency order, because each crate's path dependencies carry
+explicit versions that must already exist on the registry:</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>ecr-core → ecr-store → ecr-server → ecr-cli</span></span></code></pre>
+<p><code>shell</code> sets <code>publish = false</code>; a Tauri app is not useful as a crate.</p>
+<p>This needs a <code>CARGO_REGISTRY_TOKEN</code> secret. Without it the job is skipped and the
+rest of the release still completes.</p>
+<h2 id="android"><a class="zola-anchor" href="#android" aria-label="Anchor link for: android">🔗</a>Android</h2>
+<p>The APK and AAB are built by <code>tauri android build</code> on <code>ubuntu-latest</code>, with the
+Android SDK and NDK installed by the workflow rather than carried in the flake —
+it is a large closure and nothing else needs it.</p>
+<p><strong>The overlay is not optional.</strong> <code>shell/gen/</code> is generated, gitignored and
+regenerated by <code>cargo tauri android init --ci</code> on every run, so nothing edited
+inside it survives. Everything this app needs that Tauri's template does not
+provide lives in <code>shell/android/overlay/</code> and is copied over the generated tree
+by <code>scripts/android-overlay.sh</code>, which runs after every <code>init</code> in both
+workflows and in <code>just android</code>. It carries:</p>
+<ul>
+<li>
+<p>the <strong>network security config</strong>. This is the one that matters. The gradle
+template sets <code>usesCleartextTraffic</code> false for release builds and true only
+for debug, and <code>just android</code> builds debug — so an APK that reaches
+<code>http://host:8383</code> throughout development cannot reach it at all once CI
+publishes a release build. ecr talks to a server the user runs at an address
+they type in, which can hold no public-CA certificate, so cleartext is
+permitted deliberately.</p>
+</li>
+<li>
+<p>the <strong>launcher icon</strong>, as an adaptive icon with a monochrome layer for Android
+13 themed icons. Without it the app ships wearing the Tauri logo.</p>
+</li>
+<li>
+<p><strong>backup and data-extraction rules</strong>. The bearer token lives in the webview's
+localStorage and <code>allowBackup</code> defaults to true.</p>
+</li>
+<li>
+<p>the removal of the template's <strong>AndroidTV</strong> leanback entries.</p>
+</li>
+<li>
+<p>the <strong><code>mailto:</code> intent filter</strong> and <code>POST_NOTIFICATIONS</code>, both of which are
+features the app implements rather than permissions it hoards.</p>
+</li>
+</ul>
+<p>The script asks who wrote the manifest in <code>gen/</code> before comparing anything: a
+marker string in the overlay's own copy. Byte-comparing against the overlay is
+not enough, because editing the overlay leaves <code>gen/</code> holding the <em>previous</em>
+version of it, which matches neither the overlay nor upstream and would warn on
+every build for no reason. When the marker is absent the file came from Tauri,
+and it is diffed against <code>shell/android/upstream/AndroidManifest.xml</code> to catch
+the template moving underneath an overlay that owns it outright. CI builds Android on every
+push, so that warning surfaces there rather than at release time. When it fires:
+review the diff, fold anything new into the overlay, and re-record the upstream
+copy.</p>
+<p><strong>Signing.</strong> If the <code>ANDROID_KEYSTORE</code>, <code>ANDROID_KEYSTORE_PASSWORD</code>,
+<code>ANDROID_KEY_ALIAS</code> and <code>ANDROID_KEY_PASSWORD</code> secrets are set, the APK is signed
+with them. If they are not, the workflow builds an unsigned APK and says so in
+the release notes. An unsigned APK installs fine by sideloading; it cannot go to
+Play Store, and its signature will not match a later signed build, so users would
+have to uninstall before upgrading. Set the secrets before the first APK anyone
+actually installs — v0.1.1 shipped before they were, and is unsigned.</p>
+<p>The secrets alone are not what signs it. Tauri's generated
+<code>app/build.gradle.kts</code> has no <code>signingConfigs</code> block and never reads
+<code>keystore.properties</code>, so setting them used to write a file nothing consumed:
+the workflow announced "APK will be signed." and produced
+<code>app-universal-release-unsigned.apk</code> regardless. The signing config lives in
+<code>shell/android/overlay/app/signing.gradle</code>, and <code>scripts/android-overlay.sh</code>
+appends the <code>apply(from = …)</code> line that pulls it in — appended rather than
+overlaid because the generated build file is a template full of substitutions.
+Two gates keep that honest: CI builds a <em>release</em> APK signed with a throwaway
+key on every push and fails if it comes out <code>-unsigned</code>, and the release job
+refuses to ship an unsigned APK when the keystore secret is set.</p>
+<p>Both are renamed before they are uploaded. Gradle names its output after the
+<em>module</em>, so the APK and the AAB both arrive as <code>app-universal-release.*</code> —
+which is what every other Android project's build is called too, and says
+nothing about what the file is once it has left the release page. v0.2.2
+shipped exactly that, beside four artifacts that do name themselves. The rename
+happens after the <code>-unsigned</code> check, which is the assertion that name carries,
+and it insists on finding exactly one of each: the build is universal rather
+than split per ABI, so adding <code>--split-per-abi</code> later fails loudly here instead
+of quietly collapsing three APKs into one name.</p>
+<p>Generate a keystore once and keep it somewhere you will not lose it — losing it
+means every existing install must be removed by hand before it can be upgraded:</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">keytool</span><span class="z-constant"> -</span><span class="z-constant">genkey</span><span class="z-constant"> -</span><span class="z-constant">v</span><span class="z-constant"> -</span><span class="z-constant">keystore</span><span class="z-string"> ecr.jks</span><span class="z-constant"> -</span><span class="z-constant">keyalg</span><span class="z-string"> RSA</span><span class="z-constant"> -</span><span class="z-constant">keysize</span><span class="z-constant"> 2048</span><span class="z-constant"> \</span></span>
+<span class="giallo-l"><span class="z-constant">  -</span><span class="z-constant">validity</span><span class="z-constant"> 10000</span><span class="z-constant"> -</span><span class="z-constant">alias</span><span class="z-string"> ecr</span></span>
+<span class="giallo-l"><span class="z-entity z-name">base64</span><span class="z-constant"> -</span><span class="z-constant">w0</span><span class="z-string"> ecr.jks</span><span class="z-punctuation z-definition z-comment">    #</span><span class="z-comment"> the value for the ANDROID_KEYSTORE secret</span></span></code></pre>
+<p>Then set all four, so the alias and passwords match the ones just chosen:</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">gh</span><span class="z-string"> secret</span><span class="z-string"> set</span><span class="z-string"> ANDROID_KEYSTORE</span><span class="z-keyword"> &lt;</span><span class="z-punctuation z-definition z-string"> &lt;(</span><span class="z-entity z-name">base64</span><span class="z-constant"> -</span><span class="z-constant">w0</span><span class="z-string"> ecr.jks</span><span class="z-punctuation z-definition z-string">)</span></span>
+<span class="giallo-l"><span class="z-entity z-name">gh</span><span class="z-string"> secret</span><span class="z-string"> set</span><span class="z-string"> ANDROID_KEYSTORE_PASSWORD</span></span>
+<span class="giallo-l"><span class="z-entity z-name">gh</span><span class="z-string"> secret</span><span class="z-string"> set</span><span class="z-string"> ANDROID_KEY_ALIAS</span><span class="z-punctuation z-definition z-comment">          #</span><span class="z-comment"> `ecr`, from `-alias` above</span></span>
+<span class="giallo-l"><span class="z-entity z-name">gh</span><span class="z-string"> secret</span><span class="z-string"> set</span><span class="z-string"> ANDROID_KEY_PASSWORD</span></span></code></pre>
+<p><strong>Where ecr's key actually is.</strong> It was generated on 2026-08-03 — 4096-bit RSA,
+alias <code>ecr</code>, valid to 2053 — and lives at <code>~/.local/share/ecr-signing/ecr.jks</code>,
+outside the repository. The authoritative backup is in <code>pass</code>:</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">pass</span><span class="z-string"> show</span><span class="z-string"> android/ecr/keystore-base64</span><span class="z-keyword"> |</span><span class="z-entity z-name"> tr</span><span class="z-constant"> -</span><span class="z-constant">d</span><span class="z-punctuation z-definition z-string"> &#39;</span><span class="z-string">\n</span><span class="z-punctuation z-definition z-string">&#39;</span><span class="z-keyword"> |</span><span class="z-entity z-name"> base64</span><span class="z-constant"> -</span><span class="z-constant">d</span><span class="z-keyword"> &gt;</span><span class="z-string"> ecr.jks</span></span>
+<span class="giallo-l"><span class="z-entity z-name">pass</span><span class="z-string"> show</span><span class="z-string"> android/ecr/store-password</span></span></code></pre>
+<p><code>android/ecr/key-password</code> and <code>android/ecr/key-alias</code> are there too. The store
+and key passwords are deliberately identical: the keystore is PKCS12, which
+supports only one password for both, and keytool <em>silently discards</em> a
+different <code>-keypass</code> with a warning that is easy to miss — recording two
+different values would mean gradle could not open the key.</p>
+<p>A machine is not a backup. If <code>pass</code> and this machine are the same disk,
+copy the store somewhere else as well.</p>
+<h3 id="f-droid"><a class="zola-anchor" href="#f-droid" aria-label="Anchor link for: f-droid">🔗</a>F-Droid</h3>
+<p>F-Droid builds and signs the app itself, from source, on its own infrastructure;
+the APK it distributes is not the one CI produces here and carries a different
+signature. Sideloaders cannot switch between the two without uninstalling.</p>
+<p>The split is worth knowing:</p>
+<ul>
+<li><strong>This repository</strong> carries the store page. <code>metadata/en-US/</code> holds the title,
+the descriptions and the images, and F-Droid reads it straight from the tag.
+Regenerate the images with <code>just store-metadata</code> — the icon comes from
+<code>figures/logo.svg</code> and the screenshots from the visual baselines, so the page
+cannot advertise a UI that no longer exists.</li>
+<li><strong><code>fdroiddata</code></strong> carries the build recipe, which lives in F-Droid's own
+repository and is submitted as a merge request.
+<code>packaging/fdroid/dev.lokeshmohanty.ecr.yml</code> is the draft of that file, kept
+here so it stays next to the build it describes. It is not read from here.</li>
+</ul>
+<p>Two things in the recipe are easy to get wrong: the web client has to be built
+in <code>prebuild</code>, because <code>tauri::generate_context!</code> compiles it into the binary,
+and <code>scripts/android-overlay.sh</code> has to run after <code>cargo tauri android init</code> or
+the resulting APK cannot reach an http server and wears the Tauri logo. Run
+<code>fdroid build dev.lokeshmohanty.ecr</code> locally before submitting; a recipe that
+has never been run is a recipe that does not work.</p>
+<p><code>PRIVACY.md</code> is the policy the listing points at.</p>
+<h2 id="checklist"><a class="zola-anchor" href="#checklist" aria-label="Anchor link for: checklist">🔗</a>Checklist</h2>
+<p><code>just release</code> covers the mechanical half of this — the gate, the version in
+all three manifests, the changelog section and its link refs. What is left is
+what only a person can answer:</p>
+<ul>
+<li><input disabled="" type="checkbox"/>
+<code>just check-all</code> run against real mail at least once since the last release</li>
+<li><input disabled="" type="checkbox"/>
+The <code>## [Unreleased]</code> notes name user-visible changes rather than commits</li>
+<li><input disabled="" type="checkbox"/>
+Roadmap markers in <code>README.md</code> reflect what actually shipped</li>
+<li><input disabled="" type="checkbox"/>
+The migration path is documented if the settings file or API changed</li>
+<li><input disabled="" type="checkbox"/>
+The number matches the change: a patch fixes, a minor adds or alters</li>
+</ul>
+<p>After the workflow finishes — the release is already public by then:</p>
+<ul>
+<li><input disabled="" type="checkbox"/>
+Download one artifact per platform and run it</li>
+<li><input disabled="" type="checkbox"/>
+<code>sha256sum -c SHA256SUMS</code> passes</li>
+<li><input disabled="" type="checkbox"/>
+Open a <code>## [Unreleased]</code> section in <code>CHANGELOG.md</code></li>
+</ul>
+
+    </div>
+
+    
+    
+    
+</article>
+
+
+
+<nav class="page-nav" aria-label="Page navigation">
+    
+
+    
+</nav>
+
+
+
+                </main>
+
+                
+                
+                
+
+
+
+
+<aside id="page-toc-panel" class="page-toc-panel" aria-hidden="true" aria-label="On this page">
+    <div class="page-toc-panel__content">
+        <div class="page-toc-panel__header">
+            <span class="page-toc-panel__title">On this page</span>
+            <button class="page-toc-panel__close" type="button" aria-label="Close table of contents">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 6 6 18"/>
+                    <path d="m6 6 12 12"/>
+                </svg>
+            </button>
+        </div>
+        <nav class="page-toc-panel__nav" aria-label="Page sections">
+            <ul class="page-toc-panel__list">
+                
+                <li class="page-toc-panel__item">
+                    <a href="#versioning" class="page-toc-panel__link">
+                        Versioning
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#cutting-a-release" class="page-toc-panel__link">
+                        Cutting a release
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#artifacts" class="page-toc-panel__link">
+                        Artifacts
+                    </a>
+                    
+                    <ul class="page-toc-panel__list page-toc-panel__list--nested">
+                        
+                        <li class="page-toc-panel__item">
+                            <a href="#nix" class="page-toc-panel__link">
+                                Nix
+                            </a>
+                        </li>
+                        
+                        <li class="page-toc-panel__item">
+                            <a href="#crates-io" class="page-toc-panel__link">
+                                crates.io
+                            </a>
+                        </li>
+                        
+                    </ul>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#android" class="page-toc-panel__link">
+                        Android
+                    </a>
+                    
+                    <ul class="page-toc-panel__list page-toc-panel__list--nested">
+                        
+                        <li class="page-toc-panel__item">
+                            <a href="#f-droid" class="page-toc-panel__link">
+                                F-Droid
+                            </a>
+                        </li>
+                        
+                    </ul>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#checklist" class="page-toc-panel__link">
+                        Checklist
+                    </a>
+                    
+                </li>
+                
+            </ul>
+        </nav>
+    </div>
+</aside>
+
+
+                
+            </div>
+
+            
+            
+            
+        </div>
+    </div>
+
+    
+    <div class="sidebar-overlay" aria-hidden="true"></div>
+
+    
+    
+    
+<div class="search-overlay" role="dialog" aria-modal="true" aria-labelledby="search-title" aria-describedby="search-description">
+    <div class="search">
+        <h2 id="search-title" class="sr-only">Search documentation</h2>
+        <p id="search-description" class="sr-only">Type to search. Use arrow keys to navigate results, Enter to select, Escape to close.</p>
+
+        <div class="search__input-wrapper">
+            <span class="search__icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.3-4.3"/>
+                </svg>
+            </span>
+            <input
+                type="search"
+                class="search__input"
+                placeholder="Search documentation..."
+                autocomplete="off"
+                autofocus
+                aria-label="Search query"
+                aria-controls="search-results"
+                aria-autocomplete="list"
+            >
+            <span class="search__shortcut" aria-hidden="true">/</span>
+            <button class="search__close" type="button" aria-label="Close search dialog" title="Close (Esc)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 6 6 18"/>
+                    <path d="m6 6 12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <div id="search-results" class="search__results" role="listbox" aria-label="Search results">
+            
+        </div>
+
+        <footer class="search__footer">
+            <nav class="search__hints" aria-label="Keyboard shortcuts">
+                <span class="search__hint">
+                    <kbd aria-label="Up and down arrows">↑</kbd><kbd aria-hidden="true">↓</kbd> <span>Navigate</span>
+                </span>
+                <span class="search__hint">
+                    <kbd aria-label="Enter">↵</kbd> <span>Select</span>
+                </span>
+                <span class="search__hint">
+                    <kbd aria-label="Escape">esc</kbd> <span>Close</span>
+                </span>
+            </nav>
+            <span class="search__powered-by">Powered by <a href="https://github.com/weixsong/elasticlunr.js" target="_blank" rel="noopener noreferrer" aria-label="elasticlunr.js on GitHub (opens in new tab)">elasticlunr</a></span>
+        </footer>
+    </div>
+</div>
+
+    
+
+    
+    
+
+    
+    
+
+    
+    
+    
+    <button class="page-toc-toggle" type="button" aria-label="Toggle table of contents" aria-expanded="false" aria-controls="page-toc-panel" title="On this page">
+        <svg class="page-toc-toggle__icon page-toc-toggle__icon--list" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M16 5H3"/>
+            <path d="M16 12H3"/>
+            <path d="M16 19H3"/>
+            <path d="M21 5h.01"/>
+            <path d="M21 12h.01"/>
+            <path d="M21 19h.01"/>
+        </svg>
+        <svg class="page-toc-toggle__icon page-toc-toggle__icon--close" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 6 6 18"/>
+            <path d="m6 6 12 12"/>
+        </svg>
+    </button>
+    
+
+    
+    
+    <button class="fab scroll-to-top" aria-label="Scroll to top" title="Scroll to top">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m18 15-6-6-6 6"/>
+        </svg>
+    </button>
+    
+
+    
+    
+    
+    <script src="https://www.lokeshmohanty.in/ecr/js/theme.js" defer></script>
+    <script src="https://www.lokeshmohanty.in/ecr/js/navigation.js" defer></script>
+    <script src="https://www.lokeshmohanty.in/ecr/js/code.js" defer></script>
+
+    
+    <script src="https://www.lokeshmohanty.in/ecr/elasticlunr.min.js"></script>
+    <script src="https://www.lokeshmohanty.in/ecr/search_index.en.js"></script>
+    <script src="https://www.lokeshmohanty.in/ecr/js/search.js" defer></script>
+    
+    
+
+    
+</body>
+</html>

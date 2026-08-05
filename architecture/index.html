@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="en" prefix="og: https://ogp.me/ns#">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark light">
+    <script>
+    (function(){var s='auto';try{s=localStorage.getItem('reticle-theme')||localStorage.getItem('ThemeColorScheme')||'auto'}catch(e){}
+    var t=s==='auto'?(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'):s;
+    document.documentElement.setAttribute('data-theme',t);
+    document.documentElement.setAttribute('data-theme-setting',s);
+    document.documentElement.setAttribute('data-user-color-scheme',t)})();
+    </script>
+
+    
+    <title>Architecture | ecr</title>
+
+    
+    
+    <meta name="description" content="The crates, the data flow, and why the pieces are shaped this way.">
+    
+
+    
+    
+
+    
+    
+
+    
+    <meta name="robots" content="index, follow">
+    <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+
+    
+    
+    <link rel="canonical" href="https://www.lokeshmohanty.in/ecr/architecture/">
+    <link rel="alternate" hreflang="en" href="https://www.lokeshmohanty.in/ecr/architecture/">
+    <link rel="alternate" hreflang="x-default" href="https://www.lokeshmohanty.in/ecr/architecture/">
+    
+
+    
+    <meta property="og:type" content="article">
+    
+    <meta property="og:url" content="https://www.lokeshmohanty.in/ecr/architecture/">
+    
+    
+    <meta property="og:title" content="Architecture">
+    
+    
+    <meta property="og:description" content="The crates, the data flow, and why the pieces are shaped this way.">
+    
+    
+    <meta property="og:site_name" content="ecr">
+    <meta property="og:locale" content="en">
+
+    
+    
+    
+    
+    
+    
+
+    
+    <meta name="twitter:card" content="summary_large_image">
+    
+    <meta name="twitter:url" content="https://www.lokeshmohanty.in/ecr/architecture/">
+    
+    
+    <meta name="twitter:title" content="Architecture">
+    
+    
+    <meta name="twitter:description" content="The crates, the data flow, and why the pieces are shaped this way.">
+    
+    
+    
+
+    
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "WebSite",
+                "@id": "https://www.lokeshmohanty.in/ecr#website",
+                "url": "https://www.lokeshmohanty.in/ecr",
+                "name": "ecr",
+                "description": "Email Client in Rust — a keyboard-driven mail client for an existing notmuch maildir",
+                "publisher": {
+                    "@id": "https://zentinelproxy.io/#organization"
+                },
+                "inLanguage": "en",
+                "potentialAction": {
+                    "@type": "SearchAction",
+                    "target": {
+                        "@type": "EntryPoint",
+                        "urlTemplate": "https://www.lokeshmohanty.in/ecr?q={search_term_string}"
+                    },
+                    "query-input": "required name=search_term_string"
+                }
+            },
+            {
+                "@type": "Organization",
+                "@id": "https://zentinelproxy.io/#organization",
+                "name": "lokeshmohanty",
+                "url": "https://zentinelproxy.io",
+                "logo": {
+                    "@type": "ImageObject",
+                    "url": "https://zentinelproxy.io/img/og-image.png",
+                    "width": 1200,
+                    "height": 630
+                }
+            },
+            {
+                "@type": "WebPage",
+                "@id": "https://www.lokeshmohanty.in/ecr/architecture/#webpage",
+                "url": "https://www.lokeshmohanty.in/ecr/architecture/",
+                "name": "Architecture",
+                "isPartOf": {
+                    "@id": "https://www.lokeshmohanty.in/ecr#website"
+                },
+                "description": "The crates, the data flow, and why the pieces are shaped this way.",
+                "inLanguage": "en"
+                
+                
+            }
+            
+            ,{
+                "@type": "Article",
+                "@id": "https://www.lokeshmohanty.in/ecr/architecture/#article",
+                "isPartOf": {
+                    "@id": "https://www.lokeshmohanty.in/ecr/architecture/#webpage"
+                },
+                "headline": "Architecture",
+                
+                "description": "The crates, the data flow, and why the pieces are shaped this way.",
+                
+                
+                
+                "author": {
+                    "@id": "https://zentinelproxy.io/#organization"
+                },
+                "publisher": {
+                    "@id": "https://zentinelproxy.io/#organization"
+                },
+                
+                
+                "wordCount": 3828,
+                
+                "inLanguage": "en"
+            }
+            
+        ]
+    }
+    </script>
+
+    
+    
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "ecr",
+                "item": "https://www.lokeshmohanty.in/ecr"
+            }
+            
+            
+            
+            ,{
+                "@type": "ListItem",
+                "position": 2,
+                "name": "ecr",
+                "item": "https://www.lokeshmohanty.in/ecr/"
+            }
+            
+            
+            ,{
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Architecture",
+                "item": "https://www.lokeshmohanty.in/ecr/architecture/"
+            }
+        ]
+    }
+    </script>
+    
+
+    
+    <link rel="stylesheet" href="https://www.lokeshmohanty.in/ecr/style.css">
+
+    
+    
+    <link rel="stylesheet" href="https://www.lokeshmohanty.in/ecr/syntax-light.css" media="(prefers-color-scheme: light)">
+    <link rel="stylesheet" href="https://www.lokeshmohanty.in/ecr/syntax-dark.css" media="(prefers-color-scheme: dark)">
+    
+
+    
+    <link rel="preload" href="https://www.lokeshmohanty.in/ecr/fonts/SpaceGrotesk-Variable.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="https://www.lokeshmohanty.in/ecr/fonts/Nunito-Variable.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="https://www.lokeshmohanty.in/ecr/fonts/CascadiaCode-Variable.woff2" as="font" type="font/woff2" crossorigin>
+
+    
+    
+    <link rel="icon" href="https://www.lokeshmohanty.in/ecr/favicon.png">
+    
+    
+
+    
+    
+
+    
+    
+    
+    
+    <script>
+        (function() {
+            try {
+                var stored = localStorage.getItem('reticle-theme') || localStorage.getItem('ThemeColorScheme') || 'auto';
+                var theme = stored === 'auto'
+                    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                    : stored;
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.setAttribute('data-theme-setting', stored);
+                document.documentElement.setAttribute('data-user-color-scheme', theme);
+            } catch(e) {}
+        })();
+    </script>
+    
+
+    
+</head>
+<body class="page-architecture">
+    
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    
+    
+
+    
+    
+        
+    
+
+    
+    <div class="layout layout--docs layout--fixed-header" data-mode="docs">
+        
+
+
+<aside id="sidebar" class="sidebar" role="complementary" aria-labelledby="sidebar-title">
+    
+    <div class="sidebar__resize-handle" aria-hidden="true" title="Drag to resize sidebar width"></div>
+
+    <div class="sidebar__header">
+        <span id="sidebar-title" class="sidebar__title">Table of contents</span>
+        <button class="sidebar__close" type="button" aria-label="Close sidebar" title="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M18 6 6 18"/>
+                <path d="m6 6 12 12"/>
+            </svg>
+        </button>
+    </div>
+
+    <nav class="sidebar__content" aria-label="Documentation navigation">
+        <div class="toc">
+            
+            
+
+            
+            <div class="toc__section">
+                <ol class="toc__list toc__list--numbered" start="0">
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/installing/" class="toc__link ">
+                            <span class="toc__number">0.</span>
+                            Installing
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/operations/" class="toc__link ">
+                            <span class="toc__number">1.</span>
+                            Operations
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/architecture/" class="toc__link active">
+                            <span class="toc__number">2.</span>
+                            Architecture
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/api/" class="toc__link ">
+                            <span class="toc__number">3.</span>
+                            HTTP API
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/development/" class="toc__link ">
+                            <span class="toc__number">4.</span>
+                            Development
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/releasing/" class="toc__link ">
+                            <span class="toc__number">5.</span>
+                            Releasing
+                        </a>
+                    </li>
+                    
+                    
+                </ol>
+            </div>
+
+            
+            
+            
+        </div>
+    </nav>
+
+    <div class="sidebar__footer">
+        
+        <div class="sidebar__actions-mobile">
+            
+            
+
+            
+            
+            <div class="sidebar__action">
+                <span class="sidebar__action-label">Theme</span>
+                
+<button class="theme-toggle" type="button" aria-label="Toggle color theme: cycles through light, dark, and auto modes" aria-live="polite" title="Toggle theme">
+    <span class="theme-toggle__icons">
+        
+        <span class="theme-toggle__sun" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2"/>
+                <path d="M12 20v2"/>
+                <path d="m4.93 4.93 1.41 1.41"/>
+                <path d="m17.66 17.66 1.41 1.41"/>
+                <path d="M2 12h2"/>
+                <path d="M20 12h2"/>
+                <path d="m6.34 17.66-1.41 1.41"/>
+                <path d="m19.07 4.93-1.41 1.41"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__moon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__auto" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 2a7 7 0 1 0 7 7"/>
+            </svg>
+        </span>
+    </span>
+    <span class="sr-only theme-toggle__status">Current theme: auto</span>
+</button>
+
+            </div>
+            
+
+            
+            
+            <a href="https:&#x2F;&#x2F;github.com&#x2F;lokeshmohanty&#x2F;ecr" class="sidebar__github" target="_blank" rel="noopener noreferrer" aria-label="View project on GitHub (opens in new tab)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
+                    <path d="M9 18c-4.51 2-5-2-7-2"/>
+                </svg>
+                <span>View on GitHub</span>
+            </a>
+            
+        </div>
+
+        
+        <a href="https://www.lokeshmohanty.in/ecr/print?auto=true" class="print-button" target="_blank" rel="noopener" aria-label="Print all documentation pages (opens print dialog)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 6 2 18 2 18 9"/>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                <rect width="12" height="8" x="6" y="14"/>
+            </svg>
+            <span>Print all pages</span>
+        </a>
+    </div>
+</aside>
+
+
+
+
+        <div class="layout__main">
+            
+            
+
+
+
+
+<header class="header" role="banner">
+    <div class="header__left">
+        
+        
+        <button class="sidebar-toggle" type="button" aria-label="Toggle sidebar navigation" aria-expanded="true" aria-controls="sidebar" title="Toggle sidebar">
+            <svg class="sidebar-toggle__icon sidebar-toggle__icon--open" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                <path d="M9 3v18"/>
+                <path d="m16 15-3-3 3-3"/>
+            </svg>
+            <svg class="sidebar-toggle__icon sidebar-toggle__icon--closed" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                <path d="M9 3v18"/>
+                <path d="m14 9 3 3-3 3"/>
+            </svg>
+        </button>
+        
+
+        
+        
+        <button class="toc-toggle toc-toggle--docs" type="button" aria-label="Open table of contents" aria-expanded="false" aria-controls="sidebar" title="Table of contents">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                <path d="M9 3v18"/>
+                <path d="m16 15-3-3 3-3"/>
+            </svg>
+        </button>
+        
+
+        
+        
+
+        
+        
+
+        
+        <a href="https://www.lokeshmohanty.in/ecr" class="header__logo" aria-label="ecr - Go to homepage">
+            
+            
+            
+                
+            
+            <img src="https://www.lokeshmohanty.in/ecr/assets/logo.png" alt="" aria-hidden="true">
+            
+            <span>ecr</span>
+        </a>
+    </div>
+
+    
+    <nav class="header__nav" role="navigation" aria-label="Main navigation">
+        
+    </nav>
+
+    
+    <div class="header__actions" role="group" aria-label="Site actions">
+        
+        
+        <button class="search-toggle" type="button" aria-label="Open search dialog" aria-keyshortcuts="/" aria-haspopup="dialog" title="Search (press /)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.3-4.3"/>
+            </svg>
+        </button>
+        
+
+        
+        <div class="header__actions-desktop">
+            
+            
+
+            
+            
+            
+<button class="theme-toggle" type="button" aria-label="Toggle color theme: cycles through light, dark, and auto modes" aria-live="polite" title="Toggle theme">
+    <span class="theme-toggle__icons">
+        
+        <span class="theme-toggle__sun" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2"/>
+                <path d="M12 20v2"/>
+                <path d="m4.93 4.93 1.41 1.41"/>
+                <path d="m17.66 17.66 1.41 1.41"/>
+                <path d="M2 12h2"/>
+                <path d="M20 12h2"/>
+                <path d="m6.34 17.66-1.41 1.41"/>
+                <path d="m19.07 4.93-1.41 1.41"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__moon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__auto" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 2a7 7 0 1 0 7 7"/>
+            </svg>
+        </span>
+    </span>
+    <span class="sr-only theme-toggle__status">Current theme: auto</span>
+</button>
+
+            
+
+            
+            
+            <a href="https:&#x2F;&#x2F;github.com&#x2F;lokeshmohanty&#x2F;ecr&#x2F;edit&#x2F;main&#x2F;docs&#x2F;content/architecture.md" class="btn btn--icon btn--ghost" aria-label="Edit this page on GitHub (opens in new tab)" target="_blank" rel="noopener noreferrer" title="Edit this page">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                    <path d="m15 5 4 4"/>
+                </svg>
+            </a>
+            
+
+            
+            
+            <a href="https:&#x2F;&#x2F;github.com&#x2F;lokeshmohanty&#x2F;ecr" class="btn btn--icon btn--ghost" aria-label="View project on GitHub (opens in new tab)" target="_blank" rel="noopener noreferrer" title="GitHub">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
+                    <path d="M9 18c-4.51 2-5-2-7-2"/>
+                </svg>
+            </a>
+            
+        </div>
+    </div>
+</header>
+
+
+            
+
+            
+            
+            <div class="scroll-progress" aria-hidden="true">
+                <div class="scroll-progress__bar"></div>
+                <span class="scroll-progress__percent">0%</span>
+            </div>
+            
+
+            
+
+
+
+
+
+    
+
+
+    
+
+
+<nav class="nav-buttons" aria-label="Page navigation">
+    
+    
+    <a href="https://www.lokeshmohanty.in/ecr/operations/" class="nav-button nav-button--prev" aria-label="Previous: Operations">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m15 18-6-6 6-6"/>
+        </svg>
+        <span class="nav-button__label">
+            Operations
+            <span class="nav-button__shortcut">←</span>
+        </span>
+    </a>
+    
+
+    
+    
+    <a href="https://www.lokeshmohanty.in/ecr/api/" class="nav-button nav-button--next" aria-label="Next: HTTP API">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m9 18 6-6-6-6"/>
+        </svg>
+        <span class="nav-button__label">
+            HTTP API
+            <span class="nav-button__shortcut">→</span>
+        </span>
+    </a>
+    
+</nav>
+
+
+
+
+            <div class="layout__content-area">
+                <main id="main-content" class="main-content" role="main" aria-label="Main content">
+                    
+
+
+<article class="article" itemscope itemtype="https://schema.org/Article" aria-labelledby="article-title">
+    
+    <header class="article__header article__header--docs">
+        <h1 id="article-title" itemprop="headline">Architecture</h1>
+        
+        <p class="article__description" itemprop="description">The crates, the data flow, and why the pieces are shaped this way.</p>
+        
+    </header>
+
+    <div class="article__content" itemprop="articleBody">
+        <h2 id="crates"><a class="zola-anchor" href="#crates" aria-label="Anchor link for: crates">🔗</a>Crates</h2>
+<table><thead><tr><th>Crate</th><th>Responsibility</th></tr></thead><tbody>
+<tr><td><code>ecr-core</code></td><td>Wire types only — no I/O. <code>Account</code>, <code>ThreadSummary</code>, <code>Message</code>, <code>PartMeta</code>, <code>TagOp</code>, <code>Query</code>, <code>Revision</code>, <code>Draft</code>, <code>Doctor</code>.</td></tr>
+<tr><td><code>ecr-store</code></td><td>Everything that touches the mail: config discovery, the <code>MailStore</code> trait, the notmuch backend, the SQLite mail index, MIME parsing, sync and send.</td></tr>
+<tr><td><code>ecr-server</code></td><td>axum: REST, SSE, bearer auth, the maildir watcher. A library — it builds no binary.</td></tr>
+<tr><td><code>ecr-cli</code></td><td>The <code>ecr</code> binary. Owns the command surface and everything user-facing; deliberately free of GUI dependencies.</td></tr>
+<tr><td><code>shell</code></td><td>Tauri v2 desktop and Android wrapper around <code>web/dist</code>, built as <code>ecr-desktop</code>.</td></tr>
+<tr><td><code>web</code></td><td>SolidJS client. The only UI code; every target renders it.</td></tr>
+</tbody></table>
+<h2 id="configuration-discovery"><a class="zola-anchor" href="#configuration-discovery" aria-label="Anchor link for: configuration-discovery">🔗</a>Configuration discovery</h2>
+<p>The single largest cause of my previous implementation's failure was hardcoded
+paths. Nothing is hardcoded now. Each tool's config is resolved in order:</p>
+<ol>
+<li>an explicit path in <code>~/.config/ecr/server.toml</code></li>
+<li>the tool's own environment variable (<code>NOTMUCH_CONFIG</code>, <code>MBSYNCRC</code>)</li>
+<li>the XDG location (<code>$XDG_CONFIG_HOME/notmuch/&lt;profile&gt;/config</code>, <code>.../isyncrc</code>, <code>.../msmtp/config</code>)</li>
+<li>the legacy dotfile (<code>~/.notmuch-config</code>, <code>~/.mbsyncrc</code>, <code>~/.msmtprc</code>)</li>
+</ol>
+<p>The maildir root is read from the resolved notmuch config's <code>database.path</code>. It
+is never guessed from <code>dirs::data_dir()</code> — that is exactly how the old client
+ended up scanning a lowercase <code>~/.local/share/mail</code> that does not exist while
+the real mail sat in <code>~/.local/share/Mail</code>.</p>
+<p>Files that exist but were not chosen are reported as <em>shadowed</em>, so a stale
+<code>~/.notmuch-config</code> is visible rather than silently ignored. A file reached
+through two names — <code>$NOTMUCH_CONFIG</code> pointing at the XDG default, say — is
+the same file, not a stale copy, and is not reported: the candidates are
+deduplicated by canonical path, so a warning never tells the reader to delete
+the config they are using.</p>
+<h2 id="freshness"><a class="zola-anchor" href="#freshness" aria-label="Anchor link for: freshness">🔗</a>Freshness</h2>
+<p><code>notmuch count --lastmod</code> returns <code>&lt;count&gt; &lt;uuid&gt; &lt;lastmod&gt;</code>. That <code>(uuid, lastmod)</code> pair is the <code>Revision</code>, and it is used three ways:</p>
+<ul>
+<li>as the <code>ETag</code> on thread listings, so <code>If-None-Match</code> yields <code>304</code></li>
+<li>as the invalidation token in SSE <code>mail:changed</code> / <code>tags:changed</code></li>
+<li>as the cache key on the client, where the sidebar counts, the open
+thread and the gathered tags/lists are keyed by <code>revision</code>, and the
+list pane is keyed by a separate <code>listRevision</code> that only new mail and
+user actions bump — tag changes do not</li>
+</ul>
+<p>A <code>notify</code> watcher on the maildir debounces deliveries, runs <code>notmuch new</code> — so
+the <code>post-new</code> hook keeps doing its tag routing — and publishes the new
+revision. Mail arriving from a cron <code>mbsync</code> therefore appears in every
+connected client with no polling and no refresh button, and every view's list
+refreshes on its own. Tag changes are not this: marking a message read, whether
+by the reader or by another client, bumps <code>revision</code> only, so the sidebar
+counts and the open thread refresh but the list pane is not re-fetched and
+reshuffled — a list being read is not reordered because a message's tags
+changed. A message physically removed from the maildir fires <code>mail:changed</code>,
+which does refresh the list. The sidebar counts and the open thread refresh
+everywhere regardless, so the inbox badge still rises the moment mail lands.</p>
+<p>Reading a message is a tag change, but it does not look like one on disk:
+notmuch synchronises maildir flags, so dropping <code>unread</code> renames the file and
+the watcher sees that rename as a delivery. The server therefore remembers
+what its own tag writes leave the database at (<code>AppState::note_own_write</code>) and
+the watcher stays quiet when <code>index_new()</code> returns exactly that revision —
+<code>notmuch new</code> moving nowhere is the proof nothing was delivered. Another
+client's write, or a message removed from the maildir, still moves it and is
+still announced. The list keeps rows through whatever does arrive — see <em>held
+rows</em> below — so what disappears from a list is what the reader asked to have
+written, never a side-effect of looking at it.</p>
+<h2 id="the-mail-index"><a class="zola-anchor" href="#the-mail-index" aria-label="Anchor link for: the-mail-index">🔗</a>The mail index</h2>
+<p>Every read used to be a notmuch process — around 200ms for a page of a 23k
+inbox, which is a wall between a keystroke and a result. <code>ecr-store</code> keeps a
+SQLite mirror at <code>~/.local/state/ecr/index.sqlite3</code> and answers searches and
+counts from it.</p>
+<p>It is a <strong>cache and never a source of truth</strong>. notmuch remains the only writer
+of mail state; the file can be deleted at any moment and is rebuilt on the next
+refresh. It carries message metadata — id, thread, timestamp, subject, sender,
+tags — and no words at all, which is why a 46k-message maildir costs about 9MB.</p>
+<p><strong>Only queries it can prove it answers identically are taken.</strong>
+<code>index/plan.rs</code> translates <code>tag:</code>/<code>is:</code>, <code>id:</code>, <code>thread:</code>, <code>*</code> and boolean
+combinations of those — which is every mailbox in the sidebar and every count
+beside it. Everything else is declined and the request goes to notmuch, as is
+any failure at all: a corrupt file, a poisoned lock, a SQL error. A translation
+that is merely <em>close</em> would be worse than none, because the index answers
+silently and a query it gets subtly wrong is a wrong list with nothing on
+screen to say so.</p>
+<p><strong>Text search is notmuch's, deliberately.</strong> An FTS5 index over the headers is
+easy to build and answers <code>subject:invoice</code> in half the time — with a different
+set of messages, because notmuch generates terms through Xapian with its own
+stemmer and word splitting and FTS5 reproduces none of it. Measured against a
+real maildir the totals differed on half the header queries tried. Being twice
+as fast about the wrong mail is not what the index is for.</p>
+<p>Agreement is not assumed anywhere. <code>crates/ecr-store/tests/index.rs</code> runs every
+claimed query both ways against one database and compares field by field, and
+the same comparison against a real 46k maildir is what settled the fields a
+fixture cannot: that a thread's subject is its <em>newest matched</em> message's with
+one <code>Re: </code> removed, and that the author list has to go through notmuch's own
+lossy <code>a, b| c</code> rendering so that both paths split <code>Anthropic, PBC</code> the same
+wrong way.</p>
+<p>Freshness rides on the same <code>Revision</code> as everything else. <code>lastmod:a..b</code> names
+exactly the messages a refresh has to re-read, so catching up is bounded by
+what changed rather than by the size of the database. Each chunk lands with the
+watermark it covers, so an interrupted refresh resumes. Deletions are the one
+thing <code>lastmod:</code> cannot name — a removed message leaves nothing behind — so a
+message count that disagrees with notmuch's forces a rebuild.</p>
+<p>A read trusts the index for two seconds before asking notmuch whether the
+database has moved. Every writer ecr knows about says so directly: its own tag
+writes and syncs invalidate immediately, and the watcher refreshes the index
+<em>before</em> publishing <code>mail:changed</code>, because the clients that event wakes ask
+for the new page at once and an index that has not caught up would answer the
+old one. The two-second window is what bounds how long a <em>stranger's</em> <code>notmuch tag</code> can go unnoticed, at one cheap process per window rather than one per
+request.</p>
+<p>A first build reads the whole database — about 80 seconds for 46k messages — so
+it runs beside the server rather than before it. <code>ecr serve</code> starts listening
+immediately and reads fall through to notmuch until it is ready, which is what
+they did before the index existed. A read never rebuilds for the same reason: a
+rebuild costs far more than the notmuch call it would save.</p>
+<p><code>index = false</code> in <code>server.toml</code> turns it off, and <code>ecr doctor</code> reports its
+size and how far behind it is. Neither is a failure: without it every read is
+slower and every answer is the same.</p>
+<h2 id="message-content"><a class="zola-anchor" href="#message-content" aria-label="Anchor link for: message-content">🔗</a>Message content</h2>
+<p>Bodies do <strong>not</strong> come from <code>notmuch show --format=json</code>. That path did no
+charset or transfer-encoding decoding and could not represent inline images.
+Instead the store resolves the message file with <code>notmuch search --output=files</code> and parses it with <code>mail-parser</code>: full RFC 5322 + MIME,
+charset decoding, <code>multipart/alternative</code> nested in <code>multipart/related</code>,
+attachments and <code>cid:</code> inline parts.</p>
+<p>HTML is sanitized server-side with <code>ammonia</code>: scripts and event handlers are
+removed, <code>cid:</code> references are rewritten to <code>/api/v1/messages/{id}/parts/{n}</code>,
+and remote images are stripped and counted unless explicitly allowed. <code>w3m</code> is
+no longer a dependency.</p>
+<p>The client renders the result in an <code>&lt;iframe sandbox srcdoc&gt;</code>, so the sanitizer
+has a second layer beneath it. <code>allow-scripts</code> is the flag that matters and is
+never granted, which is what makes the frame inert; <code>allow-same-origin</code> <em>is</em>
+granted, because without it the parent cannot measure the document and every
+message renders at a fixed height, truncated — and it is what lets the reading
+cursor paint inside the frame without any script running there. Because a
+sandboxed frame cannot send an <code>Authorization</code> header and a root-relative URL
+would resolve against the web origin, the client absolutizes part URLs and
+appends the token before handing the HTML to the frame.</p>
+<h2 id="writes"><a class="zola-anchor" href="#writes" aria-label="Anchor link for: writes">🔗</a>Writes</h2>
+<p>All notmuch writes serialize behind a mutex — Xapian is single-writer.</p>
+<p>Tag operations are validated and percent-encoded in <code>ecr-store</code> before they are
+written, because <strong><code>notmuch tag --batch</code> exits 0 on malformed input</strong>. It
+silently ignores bad lines. A tag containing a newline would otherwise forge an
+extra batch line; a test pins notmuch's actual behaviour so the reason this
+validation exists stays visible.</p>
+<p>The whole mark queue executes as one <code>notmuch tag --batch</code> invocation, not one
+subprocess per message. The queue is keyed by the message a thread row stands
+for, which notmuch reports in the search field <code>query[0]</code> — a query naming
+<em>every</em> matched message (<code>id:a@x id:b@x</code>), not a single id. Reading that string
+as an id produced a line matching nothing, and the exit-0 behaviour above meant
+tagging any multi-message thread failed in silence.</p>
+<p>A draft carries its attachments base64 in the same request that sends it, so
+there is no staging directory and no second failure mode; <code>ecr-core</code> refuses a
+total over 25MB, and the send route alone raises axum's body limit to fit it.</p>
+<h2 id="auth"><a class="zola-anchor" href="#auth" aria-label="Anchor link for: auth">🔗</a>Auth</h2>
+<p>Device tokens are 256-bit random values, stored only as SHA-256 digests and
+compared in constant time. Argon2 is deliberately not used: these are
+high-entropy tokens rather than passwords, so a slow KDF would add per-request
+cost without adding security.</p>
+<p>The store is held in memory but re-read when the file moves, because the thing
+that writes it is another process: <code>ecr token new</code> writes <code>tokens.toml</code> and
+exits, and the running server is never told. Read once at startup, it refused
+the token that command had just printed — reported by the client as the server
+rejecting a valid token, fixable only by restarting a server nobody suspected.
+<code>AppState::refresh_tokens</code> compares the file's mtime and size, so a request pays
+one <code>stat</code> and reads only on a change, and it runs <em>ahead</em> of the "does this
+server require a token at all" question: an empty store means an unauthenticated
+API, so issuing the first token has to start requiring one at once rather than
+at the next restart. A failed read keeps what is already loaded — the file is
+truncated before it is rewritten, and reading a partial one as an empty store
+would disable authentication exactly while a token is being issued.</p>
+<p>CORS defaults to allowing any origin. The API authenticates with a bearer token
+and never uses cookies, so the <code>Origin</code> header is not a security boundary — a
+hardcoded allowlist would break real deployments (a tailnet hostname, a phone,
+a different port) while stopping nothing, since a non-browser client ignores
+CORS entirely. <code>--allowed-origin</code> restricts it where that is wanted.</p>
+<p>A refusal is raised from the one place every request passes through — <code>Api</code>'s
+<code>request</code>, which calls the store's <code>onUnauthorized</code> on a 401 — rather than from
+whoever asked. Most callers swallow their errors to keep a pane quiet, so any
+other arrangement leaves a refused device staring at an empty client that
+explains nothing. The store keeps the refusal (<code>needsToken</code>) apart from whether
+the prompt is showing (<code>askingToken</code>): dismissing the prompt authorises nothing,
+and folding the two together made the thread list claim it could not reach a
+server that had answered. Pairing checks the token against <code>/api/v1/revision</code>
+before storing it — <code>/api/v1/health</code> is public, so it answers the same for a
+token that is worthless — and every resource keys on the token as well as the
+base URL, which is what makes a device paired mid-session refetch rather than
+stay empty behind the prompt that just fixed it. See
+<a href="https://www.lokeshmohanty.in/ecr/operations/">pairing a browser</a>.</p>
+<h2 id="client"><a class="zola-anchor" href="#client" aria-label="Anchor link for: client">🔗</a>Client</h2>
+<ul>
+<li>
+<p><strong>Layout.</strong> Rows are a CSS grid with a fixed date track and a <code>min-width: 0</code>
+author cell that ellipsizes. Nothing computes a width, which is why the
+author/date collision from the egui client cannot recur.</p>
+</li>
+<li>
+<p><strong>Windowing.</strong> <code>windowRange()</code> is pure arithmetic over <code>(count, scrollTop, viewportHeight, rowHeight)</code>. It is hand-rolled rather than taken from a
+library because the library bound its scroll element at mount, and the
+container only exists after data arrives — so it rendered nothing.</p>
+</li>
+<li>
+<p><strong>Keymap.</strong> A pure module with an explicit mode state machine. One rule
+prevents the stuck-mode class of bugs: while a text field holds focus, only
+Escape and Ctrl chords are ours. Transient overlays claim Escape before the
+keymap sees it: help closes, a visual range is abandoned, and with no range
+on screen Escape clears what <code>Space</code> picked and what is staged. The keymap
+itself reports idle-normal Escape as ignored, so those clearances live in
+<code>App.tsx</code> ahead of <code>keymap.handle</code>.</p>
+</li>
+<li>
+<p><strong>Vim.</strong> <code>keymap/motions.ts</code> holds the motions and text objects as functions
+of <code>(text, caret)</code> and nothing else; <code>keymap/vim.ts</code> is the state machine over
+them — visual mode, operators, registers, <code>.</code>, in-buffer search, <code>C-c</code>
+chords. Keeping motions separate is what lets a <em>read-only</em> surface reuse the
+whole grammar: <code>ui/doc-cursor.ts</code> flattens rendered DOM to a string and runs
+the same functions, so reading a message and editing a draft share one
+vocabulary. A keystroke that would change the buffer is refused there rather
+than applied.</p>
+</li>
+<li>
+<p><strong>The block cursor.</strong> A textarea has no caret shape and shows one selection,
+so normal and visual mode are painted by a mirror layer beneath a transparent
+textarea (<code>ui/overlay.ts</code> splits the buffer into runs). Insert mode hands
+rendering back to the textarea, where the native caret is the line cursor and
+composition works. Watch the cascade here: the bare <code>textarea</code> rule in
+<code>styles.css</code> is unlayered and outranks Tailwind utilities.</p>
+</li>
+<li>
+<p><strong>Reading with a cursor.</strong> The message frame is sandboxed without
+<code>allow-scripts</code> and stays that way. The parent walks <code>contentDocument</code>,
+which <code>allow-same-origin</code> permits and the resize measurement already relies
+on, and paints the cursor with the frame document's own selection. Resolve
+that document lazily: Solid builds nodes from a <code>&lt;template&gt;</code>, whose contents
+belong to an inert document with no selection until they are inserted.</p>
+</li>
+<li>
+<p><strong>Data.</strong> Resources keyed by <code>revision</code> (sidebar counts, open thread,
+gathered tags/lists) and <code>listRevision</code> (the list pane). New mail — an
+SSE <code>mail:changed</code> or <code>sync:finished</code> — and user actions go through
+<code>bumpRevision</code>, which bumps both, so every view refreshes. Tag changes
+(<code>tags:changed</code>, or marking a message read after it has been on screen) go
+through <code>bumpForTagChange</code>, which bumps <code>revision</code> only: the sidebar counts
+and the open thread refresh, but the list pane is not re-fetched and
+reshuffled — a list being read is not reordered because a message's tags
+changed. A message physically removed from the maildir fires <code>mail:changed</code>,
+which does refresh the list.</p>
+</li>
+<li>
+<p><strong>Held rows.</strong> A refetch is not allowed to take a row out from under the
+reader. When a message is auto-marked read, the store keeps its row — index
+and all, with <code>unread</code> stripped unless another message in the thread still
+carries it — and <code>mergeHeld</code> puts it back into any page that no longer
+carries it. The rows are held against the query they were read in, so
+changing view drops them; <code>sync()</code> and <code>executeMarks()</code> release them
+outright. The rule the user sees: a row leaves the list when they refresh,
+change view, or write staged tags with <code>x</code>, and at no other time.</p>
+</li>
+<li>
+<p><strong>Settings.</strong> One commented TOML file at <code>~/.config/ecr/settings.toml</code>, held
+by the server so browser, desktop and phone read the same one. The client
+generates it from the tables in <code>state/settings.ts</code>, so every option reaches
+the file with its explanation and default, and the everyday sections sit above
+an <code>ADVANCED</code> divider. The file is edited, never regenerated: <code>withValue</code>
+replaces a single value in place so a switch on the settings page leaves the
+user's own comments and ordering intact. The server writes it only if it
+parses, so no client can leave behind a file no client can read.</p>
+</li>
+<li>
+<p><strong>Where a failure is reported decides what it means.</strong> The client has two
+channels and they are not interchangeable. <code>lastError</code> is the reason the
+thread list is empty: it is painted in one place, under <em>cannot reach the
+server</em>, beside the base URL and a retry, and the threads resource wipes it
+the moment the server answers. <code>settingsProblem</code> is the status bar — a
+standing complaint about a file, which survives every refresh because it is
+still true until someone edits that file. A bad line in <code>settings.toml</code> and a
+broken <code>theme</code> link both belong to the second, and a theme is complained
+about only when the server actually answered: a request that never arrived
+says nothing about the palette, and the empty list already reports the
+outage. Writing a theme failure into <code>lastError</code> made an outage read as a
+broken palette — the theme message displaced the real HTTP error whenever
+both requests failed, naming a file that was perfectly fine. Because the two
+complaints share one slot, a theme that loads retracts only the message the
+theme itself wrote.</p>
+</li>
+<li>
+<p><strong>The phone.</strong> A narrow screen shows one pane at a time, and which one it
+shows is <code>store.pane()</code> — the same three names the desktop moves between with
+<code>h</code>/<code>l</code>, so there is no second notion of where you are to drift. A <code>☰</code> in the
+top bar reaches the sidebar, because a phone has no <code>h</code>; without it views,
+tags, lists and account switching could only be had by typing a notmuch query
+by hand. Picking a view there hands over to the list, since on a phone the
+sidebar <em>is</em> the screen and a choice that changed nothing visible reads as a
+dead control.</p>
+</li>
+<li>
+<p><strong>Three panes are the widest of three answers, not the only one.</strong>
+<code>store.layout()</code> says which — <code>ui/narrow.ts</code>'s <code>layoutFor</code> is the whole rule,
+a pure function of the window's width and this device's <code>sidebar_min_width</code>.
+Below that width the sidebar leaves the grid and is laid <em>over</em> the list as a
+drawer, so the list and the thread keep the space they had rather than being
+squeezed into three columns none of which is comfortable. The <code>☰</code> appears at
+every width the sidebar is not, which is why it is drawn from <code>layout()</code>
+rather than from the <code>md:hidden</code> it used to be: the line is a setting, and a
+breakpoint compiled into a class cannot follow one.</p>
+<p>Which pane the drawer is showing for is still <code>pane()</code>, not a second signal —
+the sidebar is up exactly while it has focus, so <code>h</code>, the <code>☰</code> and the scrim
+are three ways to say the same thing and none of them can disagree. Taking it
+out of the flow is what leaves the thread where it was: changing mailbox
+never costs the message being read.</p>
+<p>The phone's own line stays fixed at <code>md</code>. That breakpoint also decides the
+action bar, the plain-text composer, the swipe gestures and the safe-area
+insets — those answer <em>is this a touch phone</em>, not <em>how many columns fit</em> —
+so a setting that moved one without the others would leave a stacked client
+with a desktop's composer in it.</p>
+</li>
+<li>
+<p><strong>Touch is a first-class way in, not a degraded keyboard.</strong> The keymap engine
+is untouched — a Bluetooth keyboard drives a phone exactly as it drives a
+desktop — but below <code>md</code> the client offers its own vocabulary: the status
+line becomes an action bar of the current pane's actions, a row answers swipe
+(left archives, right flags) and long-press (selection mode, the equivalent
+of <code>Space</code>), and compose is a button. <code>ui/row-gesture.ts</code> holds the gesture
+arithmetic as pure functions of <code>(dx, dy)</code>, for the same reason the vim
+motions are pure: a threshold decided inside a handler can only be checked by
+hand on a real phone. Vertical wins ties, because a list is scrolled far more
+often than a row is swiped. A long press that turns into a swipe yields to
+the swipe — touch events arrive in batches, so the hold timer can fire before
+the movement that disproves it.</p>
+</li>
+<li>
+<p><strong>The composer is a plain textarea below <code>md</code></strong> (<code>ui/PlainEditor.tsx</code>). The
+vim editor is the point of the client on a desktop and stays there; on a
+phone there is no way out of normal mode, and routing keystrokes through the
+state machine costs autocorrect, swipe typing and the selection handles.
+Anything that names a key is hidden below <code>md</code>: a hint you cannot act on is
+worse than no hint.</p>
+</li>
+<li>
+<p><strong>Touch reached the store by a different path than keys did.</strong>
+Every pane-changing action existed only on the keymap: a tap on a sidebar row
+selected the view but stayed on the sidebar, and a tap on a thread opened it
+into a pane the phone was not showing. Both now do what their key does, and
+both stop the click, because the container beneath each one claims focus for
+its own pane and would otherwise undo the move. None of this is visible on a
+desktop, where all three panes are on screen and the clobber changes nothing.</p>
+</li>
+<li>
+<p><strong>The pane wrappers carry <code>min-w-0</code>.</strong> The desktop grid bounds each track
+with <code>minmax(0, …)</code>; the single implicit column below <code>md</code> has no such bound,
+so one wide message stretched it past the viewport and every line of the body
+ran off the right edge — with the top bar, sized independently, still looking
+correct.</p>
+</li>
+<li>
+<p><strong>Android's back gesture</strong> is handed to the webview's history — <code>WryActivity</code>
+calls <code>goBack()</code> while <code>canGoBack()</code> and closes the app when it cannot — and a
+single-page client has none, so back quit from inside a thread. The panes are
+a stack (the list, with the sidebar or a thread over it), so one pushed entry
+describes it: leaving the list pushes, returning to it pops, <code>popstate</code> goes
+back to the list.</p>
+</li>
+<li>
+<p><strong>Safe areas.</strong> <code>MainActivity</code> calls <code>enableEdgeToEdge()</code>, and from targetSdk
+36 there is no opting out, so the status and gesture bars are drawn <em>over</em> the
+app. Only the chrome that touches an edge pays an inset. The insets reach the
+CSS through <code>--safe-*</code> variables that default to <code>env(safe-area-inset-*)</code>
+rather than through <code>env()</code> at each use: a headless browser cannot be given a
+cutout, so the screenshot suite sets those variables instead and the one
+layout that exists for the phone is the one thing a test could otherwise
+never render.</p>
+</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+</article>
+
+
+
+<nav class="page-nav" aria-label="Page navigation">
+    
+
+    
+</nav>
+
+
+
+                </main>
+
+                
+                
+                
+
+
+
+
+<aside id="page-toc-panel" class="page-toc-panel" aria-hidden="true" aria-label="On this page">
+    <div class="page-toc-panel__content">
+        <div class="page-toc-panel__header">
+            <span class="page-toc-panel__title">On this page</span>
+            <button class="page-toc-panel__close" type="button" aria-label="Close table of contents">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 6 6 18"/>
+                    <path d="m6 6 12 12"/>
+                </svg>
+            </button>
+        </div>
+        <nav class="page-toc-panel__nav" aria-label="Page sections">
+            <ul class="page-toc-panel__list">
+                
+                <li class="page-toc-panel__item">
+                    <a href="#crates" class="page-toc-panel__link">
+                        Crates
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#configuration-discovery" class="page-toc-panel__link">
+                        Configuration discovery
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#freshness" class="page-toc-panel__link">
+                        Freshness
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#the-mail-index" class="page-toc-panel__link">
+                        The mail index
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#message-content" class="page-toc-panel__link">
+                        Message content
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#writes" class="page-toc-panel__link">
+                        Writes
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#auth" class="page-toc-panel__link">
+                        Auth
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#client" class="page-toc-panel__link">
+                        Client
+                    </a>
+                    
+                </li>
+                
+            </ul>
+        </nav>
+    </div>
+</aside>
+
+
+                
+            </div>
+
+            
+            
+            
+        </div>
+    </div>
+
+    
+    <div class="sidebar-overlay" aria-hidden="true"></div>
+
+    
+    
+    
+<div class="search-overlay" role="dialog" aria-modal="true" aria-labelledby="search-title" aria-describedby="search-description">
+    <div class="search">
+        <h2 id="search-title" class="sr-only">Search documentation</h2>
+        <p id="search-description" class="sr-only">Type to search. Use arrow keys to navigate results, Enter to select, Escape to close.</p>
+
+        <div class="search__input-wrapper">
+            <span class="search__icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.3-4.3"/>
+                </svg>
+            </span>
+            <input
+                type="search"
+                class="search__input"
+                placeholder="Search documentation..."
+                autocomplete="off"
+                autofocus
+                aria-label="Search query"
+                aria-controls="search-results"
+                aria-autocomplete="list"
+            >
+            <span class="search__shortcut" aria-hidden="true">/</span>
+            <button class="search__close" type="button" aria-label="Close search dialog" title="Close (Esc)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 6 6 18"/>
+                    <path d="m6 6 12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <div id="search-results" class="search__results" role="listbox" aria-label="Search results">
+            
+        </div>
+
+        <footer class="search__footer">
+            <nav class="search__hints" aria-label="Keyboard shortcuts">
+                <span class="search__hint">
+                    <kbd aria-label="Up and down arrows">↑</kbd><kbd aria-hidden="true">↓</kbd> <span>Navigate</span>
+                </span>
+                <span class="search__hint">
+                    <kbd aria-label="Enter">↵</kbd> <span>Select</span>
+                </span>
+                <span class="search__hint">
+                    <kbd aria-label="Escape">esc</kbd> <span>Close</span>
+                </span>
+            </nav>
+            <span class="search__powered-by">Powered by <a href="https://github.com/weixsong/elasticlunr.js" target="_blank" rel="noopener noreferrer" aria-label="elasticlunr.js on GitHub (opens in new tab)">elasticlunr</a></span>
+        </footer>
+    </div>
+</div>
+
+    
+
+    
+    
+
+    
+    
+
+    
+    
+    
+    <button class="page-toc-toggle" type="button" aria-label="Toggle table of contents" aria-expanded="false" aria-controls="page-toc-panel" title="On this page">
+        <svg class="page-toc-toggle__icon page-toc-toggle__icon--list" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M16 5H3"/>
+            <path d="M16 12H3"/>
+            <path d="M16 19H3"/>
+            <path d="M21 5h.01"/>
+            <path d="M21 12h.01"/>
+            <path d="M21 19h.01"/>
+        </svg>
+        <svg class="page-toc-toggle__icon page-toc-toggle__icon--close" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 6 6 18"/>
+            <path d="m6 6 12 12"/>
+        </svg>
+    </button>
+    
+
+    
+    
+    <button class="fab scroll-to-top" aria-label="Scroll to top" title="Scroll to top">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m18 15-6-6-6 6"/>
+        </svg>
+    </button>
+    
+
+    
+    
+    
+    <script src="https://www.lokeshmohanty.in/ecr/js/theme.js" defer></script>
+    <script src="https://www.lokeshmohanty.in/ecr/js/navigation.js" defer></script>
+    <script src="https://www.lokeshmohanty.in/ecr/js/code.js" defer></script>
+
+    
+    <script src="https://www.lokeshmohanty.in/ecr/elasticlunr.min.js"></script>
+    <script src="https://www.lokeshmohanty.in/ecr/search_index.en.js"></script>
+    <script src="https://www.lokeshmohanty.in/ecr/js/search.js" defer></script>
+    
+    
+
+    
+</body>
+</html>

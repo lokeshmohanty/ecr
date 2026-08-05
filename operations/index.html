@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="en" prefix="og: https://ogp.me/ns#">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark light">
+    <script>
+    (function(){var s='auto';try{s=localStorage.getItem('reticle-theme')||localStorage.getItem('ThemeColorScheme')||'auto'}catch(e){}
+    var t=s==='auto'?(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'):s;
+    document.documentElement.setAttribute('data-theme',t);
+    document.documentElement.setAttribute('data-theme-setting',s);
+    document.documentElement.setAttribute('data-user-color-scheme',t)})();
+    </script>
+
+    
+    <title>Operations | ecr</title>
+
+    
+    
+    <meta name="description" content="Running the server, device tokens, doctor, Android, and troubleshooting.">
+    
+
+    
+    
+
+    
+    
+
+    
+    <meta name="robots" content="index, follow">
+    <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+
+    
+    
+    <link rel="canonical" href="https://www.lokeshmohanty.in/ecr/operations/">
+    <link rel="alternate" hreflang="en" href="https://www.lokeshmohanty.in/ecr/operations/">
+    <link rel="alternate" hreflang="x-default" href="https://www.lokeshmohanty.in/ecr/operations/">
+    
+
+    
+    <meta property="og:type" content="article">
+    
+    <meta property="og:url" content="https://www.lokeshmohanty.in/ecr/operations/">
+    
+    
+    <meta property="og:title" content="Operations">
+    
+    
+    <meta property="og:description" content="Running the server, device tokens, doctor, Android, and troubleshooting.">
+    
+    
+    <meta property="og:site_name" content="ecr">
+    <meta property="og:locale" content="en">
+
+    
+    
+    
+    
+    
+    
+
+    
+    <meta name="twitter:card" content="summary_large_image">
+    
+    <meta name="twitter:url" content="https://www.lokeshmohanty.in/ecr/operations/">
+    
+    
+    <meta name="twitter:title" content="Operations">
+    
+    
+    <meta name="twitter:description" content="Running the server, device tokens, doctor, Android, and troubleshooting.">
+    
+    
+    
+
+    
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "WebSite",
+                "@id": "https://www.lokeshmohanty.in/ecr#website",
+                "url": "https://www.lokeshmohanty.in/ecr",
+                "name": "ecr",
+                "description": "Email Client in Rust — a keyboard-driven mail client for an existing notmuch maildir",
+                "publisher": {
+                    "@id": "https://zentinelproxy.io/#organization"
+                },
+                "inLanguage": "en",
+                "potentialAction": {
+                    "@type": "SearchAction",
+                    "target": {
+                        "@type": "EntryPoint",
+                        "urlTemplate": "https://www.lokeshmohanty.in/ecr?q={search_term_string}"
+                    },
+                    "query-input": "required name=search_term_string"
+                }
+            },
+            {
+                "@type": "Organization",
+                "@id": "https://zentinelproxy.io/#organization",
+                "name": "lokeshmohanty",
+                "url": "https://zentinelproxy.io",
+                "logo": {
+                    "@type": "ImageObject",
+                    "url": "https://zentinelproxy.io/img/og-image.png",
+                    "width": 1200,
+                    "height": 630
+                }
+            },
+            {
+                "@type": "WebPage",
+                "@id": "https://www.lokeshmohanty.in/ecr/operations/#webpage",
+                "url": "https://www.lokeshmohanty.in/ecr/operations/",
+                "name": "Operations",
+                "isPartOf": {
+                    "@id": "https://www.lokeshmohanty.in/ecr#website"
+                },
+                "description": "Running the server, device tokens, doctor, Android, and troubleshooting.",
+                "inLanguage": "en"
+                
+                
+            }
+            
+            ,{
+                "@type": "Article",
+                "@id": "https://www.lokeshmohanty.in/ecr/operations/#article",
+                "isPartOf": {
+                    "@id": "https://www.lokeshmohanty.in/ecr/operations/#webpage"
+                },
+                "headline": "Operations",
+                
+                "description": "Running the server, device tokens, doctor, Android, and troubleshooting.",
+                
+                
+                
+                "author": {
+                    "@id": "https://zentinelproxy.io/#organization"
+                },
+                "publisher": {
+                    "@id": "https://zentinelproxy.io/#organization"
+                },
+                
+                
+                "wordCount": 3697,
+                
+                "inLanguage": "en"
+            }
+            
+        ]
+    }
+    </script>
+
+    
+    
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "ecr",
+                "item": "https://www.lokeshmohanty.in/ecr"
+            }
+            
+            
+            
+            ,{
+                "@type": "ListItem",
+                "position": 2,
+                "name": "ecr",
+                "item": "https://www.lokeshmohanty.in/ecr/"
+            }
+            
+            
+            ,{
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Operations",
+                "item": "https://www.lokeshmohanty.in/ecr/operations/"
+            }
+        ]
+    }
+    </script>
+    
+
+    
+    <link rel="stylesheet" href="https://www.lokeshmohanty.in/ecr/style.css">
+
+    
+    
+    <link rel="stylesheet" href="https://www.lokeshmohanty.in/ecr/syntax-light.css" media="(prefers-color-scheme: light)">
+    <link rel="stylesheet" href="https://www.lokeshmohanty.in/ecr/syntax-dark.css" media="(prefers-color-scheme: dark)">
+    
+
+    
+    <link rel="preload" href="https://www.lokeshmohanty.in/ecr/fonts/SpaceGrotesk-Variable.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="https://www.lokeshmohanty.in/ecr/fonts/Nunito-Variable.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="https://www.lokeshmohanty.in/ecr/fonts/CascadiaCode-Variable.woff2" as="font" type="font/woff2" crossorigin>
+
+    
+    
+    <link rel="icon" href="https://www.lokeshmohanty.in/ecr/favicon.png">
+    
+    
+
+    
+    
+
+    
+    
+    
+    
+    <script>
+        (function() {
+            try {
+                var stored = localStorage.getItem('reticle-theme') || localStorage.getItem('ThemeColorScheme') || 'auto';
+                var theme = stored === 'auto'
+                    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                    : stored;
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.setAttribute('data-theme-setting', stored);
+                document.documentElement.setAttribute('data-user-color-scheme', theme);
+            } catch(e) {}
+        })();
+    </script>
+    
+
+    
+</head>
+<body class="page-operations">
+    
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    
+    
+
+    
+    
+        
+    
+
+    
+    <div class="layout layout--docs layout--fixed-header" data-mode="docs">
+        
+
+
+<aside id="sidebar" class="sidebar" role="complementary" aria-labelledby="sidebar-title">
+    
+    <div class="sidebar__resize-handle" aria-hidden="true" title="Drag to resize sidebar width"></div>
+
+    <div class="sidebar__header">
+        <span id="sidebar-title" class="sidebar__title">Table of contents</span>
+        <button class="sidebar__close" type="button" aria-label="Close sidebar" title="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M18 6 6 18"/>
+                <path d="m6 6 12 12"/>
+            </svg>
+        </button>
+    </div>
+
+    <nav class="sidebar__content" aria-label="Documentation navigation">
+        <div class="toc">
+            
+            
+
+            
+            <div class="toc__section">
+                <ol class="toc__list toc__list--numbered" start="0">
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/installing/" class="toc__link ">
+                            <span class="toc__number">0.</span>
+                            Installing
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/operations/" class="toc__link active">
+                            <span class="toc__number">1.</span>
+                            Operations
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/architecture/" class="toc__link ">
+                            <span class="toc__number">2.</span>
+                            Architecture
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/api/" class="toc__link ">
+                            <span class="toc__number">3.</span>
+                            HTTP API
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/development/" class="toc__link ">
+                            <span class="toc__number">4.</span>
+                            Development
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/releasing/" class="toc__link ">
+                            <span class="toc__number">5.</span>
+                            Releasing
+                        </a>
+                    </li>
+                    
+                    
+                </ol>
+            </div>
+
+            
+            
+            
+        </div>
+    </nav>
+
+    <div class="sidebar__footer">
+        
+        <div class="sidebar__actions-mobile">
+            
+            
+
+            
+            
+            <div class="sidebar__action">
+                <span class="sidebar__action-label">Theme</span>
+                
+<button class="theme-toggle" type="button" aria-label="Toggle color theme: cycles through light, dark, and auto modes" aria-live="polite" title="Toggle theme">
+    <span class="theme-toggle__icons">
+        
+        <span class="theme-toggle__sun" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2"/>
+                <path d="M12 20v2"/>
+                <path d="m4.93 4.93 1.41 1.41"/>
+                <path d="m17.66 17.66 1.41 1.41"/>
+                <path d="M2 12h2"/>
+                <path d="M20 12h2"/>
+                <path d="m6.34 17.66-1.41 1.41"/>
+                <path d="m19.07 4.93-1.41 1.41"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__moon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__auto" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 2a7 7 0 1 0 7 7"/>
+            </svg>
+        </span>
+    </span>
+    <span class="sr-only theme-toggle__status">Current theme: auto</span>
+</button>
+
+            </div>
+            
+
+            
+            
+            <a href="https:&#x2F;&#x2F;github.com&#x2F;lokeshmohanty&#x2F;ecr" class="sidebar__github" target="_blank" rel="noopener noreferrer" aria-label="View project on GitHub (opens in new tab)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
+                    <path d="M9 18c-4.51 2-5-2-7-2"/>
+                </svg>
+                <span>View on GitHub</span>
+            </a>
+            
+        </div>
+
+        
+        <a href="https://www.lokeshmohanty.in/ecr/print?auto=true" class="print-button" target="_blank" rel="noopener" aria-label="Print all documentation pages (opens print dialog)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 6 2 18 2 18 9"/>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                <rect width="12" height="8" x="6" y="14"/>
+            </svg>
+            <span>Print all pages</span>
+        </a>
+    </div>
+</aside>
+
+
+
+
+        <div class="layout__main">
+            
+            
+
+
+
+
+<header class="header" role="banner">
+    <div class="header__left">
+        
+        
+        <button class="sidebar-toggle" type="button" aria-label="Toggle sidebar navigation" aria-expanded="true" aria-controls="sidebar" title="Toggle sidebar">
+            <svg class="sidebar-toggle__icon sidebar-toggle__icon--open" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                <path d="M9 3v18"/>
+                <path d="m16 15-3-3 3-3"/>
+            </svg>
+            <svg class="sidebar-toggle__icon sidebar-toggle__icon--closed" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                <path d="M9 3v18"/>
+                <path d="m14 9 3 3-3 3"/>
+            </svg>
+        </button>
+        
+
+        
+        
+        <button class="toc-toggle toc-toggle--docs" type="button" aria-label="Open table of contents" aria-expanded="false" aria-controls="sidebar" title="Table of contents">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                <path d="M9 3v18"/>
+                <path d="m16 15-3-3 3-3"/>
+            </svg>
+        </button>
+        
+
+        
+        
+
+        
+        
+
+        
+        <a href="https://www.lokeshmohanty.in/ecr" class="header__logo" aria-label="ecr - Go to homepage">
+            
+            
+            
+                
+            
+            <img src="https://www.lokeshmohanty.in/ecr/assets/logo.png" alt="" aria-hidden="true">
+            
+            <span>ecr</span>
+        </a>
+    </div>
+
+    
+    <nav class="header__nav" role="navigation" aria-label="Main navigation">
+        
+    </nav>
+
+    
+    <div class="header__actions" role="group" aria-label="Site actions">
+        
+        
+        <button class="search-toggle" type="button" aria-label="Open search dialog" aria-keyshortcuts="/" aria-haspopup="dialog" title="Search (press /)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.3-4.3"/>
+            </svg>
+        </button>
+        
+
+        
+        <div class="header__actions-desktop">
+            
+            
+
+            
+            
+            
+<button class="theme-toggle" type="button" aria-label="Toggle color theme: cycles through light, dark, and auto modes" aria-live="polite" title="Toggle theme">
+    <span class="theme-toggle__icons">
+        
+        <span class="theme-toggle__sun" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2"/>
+                <path d="M12 20v2"/>
+                <path d="m4.93 4.93 1.41 1.41"/>
+                <path d="m17.66 17.66 1.41 1.41"/>
+                <path d="M2 12h2"/>
+                <path d="M20 12h2"/>
+                <path d="m6.34 17.66-1.41 1.41"/>
+                <path d="m19.07 4.93-1.41 1.41"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__moon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__auto" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 2a7 7 0 1 0 7 7"/>
+            </svg>
+        </span>
+    </span>
+    <span class="sr-only theme-toggle__status">Current theme: auto</span>
+</button>
+
+            
+
+            
+            
+            <a href="https:&#x2F;&#x2F;github.com&#x2F;lokeshmohanty&#x2F;ecr&#x2F;edit&#x2F;main&#x2F;docs&#x2F;content/operations.md" class="btn btn--icon btn--ghost" aria-label="Edit this page on GitHub (opens in new tab)" target="_blank" rel="noopener noreferrer" title="Edit this page">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                    <path d="m15 5 4 4"/>
+                </svg>
+            </a>
+            
+
+            
+            
+            <a href="https:&#x2F;&#x2F;github.com&#x2F;lokeshmohanty&#x2F;ecr" class="btn btn--icon btn--ghost" aria-label="View project on GitHub (opens in new tab)" target="_blank" rel="noopener noreferrer" title="GitHub">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
+                    <path d="M9 18c-4.51 2-5-2-7-2"/>
+                </svg>
+            </a>
+            
+        </div>
+    </div>
+</header>
+
+
+            
+
+            
+            
+            <div class="scroll-progress" aria-hidden="true">
+                <div class="scroll-progress__bar"></div>
+                <span class="scroll-progress__percent">0%</span>
+            </div>
+            
+
+            
+
+
+
+
+
+    
+
+
+    
+
+
+<nav class="nav-buttons" aria-label="Page navigation">
+    
+    
+    <a href="https://www.lokeshmohanty.in/ecr/installing/" class="nav-button nav-button--prev" aria-label="Previous: Installing">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m15 18-6-6 6-6"/>
+        </svg>
+        <span class="nav-button__label">
+            Installing
+            <span class="nav-button__shortcut">←</span>
+        </span>
+    </a>
+    
+
+    
+    
+    <a href="https://www.lokeshmohanty.in/ecr/architecture/" class="nav-button nav-button--next" aria-label="Next: Architecture">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m9 18 6-6-6-6"/>
+        </svg>
+        <span class="nav-button__label">
+            Architecture
+            <span class="nav-button__shortcut">→</span>
+        </span>
+    </a>
+    
+</nav>
+
+
+
+
+            <div class="layout__content-area">
+                <main id="main-content" class="main-content" role="main" aria-label="Main content">
+                    
+
+
+<article class="article" itemscope itemtype="https://schema.org/Article" aria-labelledby="article-title">
+    
+    <header class="article__header article__header--docs">
+        <h1 id="article-title" itemprop="headline">Operations</h1>
+        
+        <p class="article__description" itemprop="description">Running the server, device tokens, doctor, Android, and troubleshooting.</p>
+        
+    </header>
+
+    <div class="article__content" itemprop="articleBody">
+        <h2 id="prerequisites"><a class="zola-anchor" href="#prerequisites" aria-label="Anchor link for: prerequisites">🔗</a>Prerequisites</h2>
+<p><code>notmuch</code>, <code>mbsync</code> (isync) and <code>msmtp</code> must be on <code>PATH</code>, plus whatever your
+configs invoke. Gmail and Outlook need XOAUTH2, which <code>ecr oauth</code> provides
+itself — point <code>PassCmd</code> and msmtp's <code>passwordeval</code> at <code>ecr oauth token &lt;profile&gt;</code> and there is no third tool to install. Nothing ecr ships provides
+the first three — not the package, not the Nix dev shell.</p>
+<p><strong>Your copies of those three are the ones ecr runs — there are no others.</strong>
+ecr manages neither the binaries nor their configuration, and the Nix package
+ships no copy of them, not even behind yours as a fallback. That is deliberate:
+a second copy is not the same binary. <code>mbsync</code> reaches XOAUTH2 only through
+<code>isync.override { withCyrusSaslXoauth2 = true; }</code>, which wraps it to put the
+plugin on <code>SASL_PATH</code>, and a plain one fails every OAuth account with
+<code>selected SASL mechanism(s) not available</code> out of a configuration that syncs
+perfectly by hand. A tool that is simply <em>missing</em> fails as <code>ecr doctor</code> naming
+it, which is a failure you can act on. ecr knows nothing about SASL plugins;
+whoever manages mbsync manages those.</p>
+<h2 id="the-command"><a class="zola-anchor" href="#the-command" aria-label="Anchor link for: the-command">🔗</a>The command</h2>
+<p>Everything is one binary, <code>ecr</code>, built from <code>crates/ecr-cli</code>. <code>just</code> recipes
+run it out of the workspace; <code>cargo run -p ecr-cli -- &lt;args&gt;</code> is the long form.</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>ecr doctor              check the mail setup</span></span>
+<span class="giallo-l"><span>ecr serve               run the server</span></span>
+<span class="giallo-l"><span>ecr token new|list|revoke</span></span>
+<span class="giallo-l"><span>ecr help [topic]        worked examples: start, phone, accounts, trouble</span></span></code></pre>
+<p>Two more exist for whoever is packaging ecr rather than reading mail, and are
+hidden from <code>--help</code> for that reason: <code>ecr man</code> prints the manual page in roff
+and <code>ecr completions &lt;shell&gt;</code> prints a completion script. Every packaging path
+generates both by running the binary it just built, so they cannot describe a
+command tree other than the one being shipped. Installing them by hand:</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">ecr</span><span class="z-string"> man</span><span class="z-keyword"> &gt;</span><span class="z-string"> ~/.local/share/man/man1/ecr.1</span></span>
+<span class="giallo-l"><span class="z-entity z-name">ecr</span><span class="z-string"> completions</span><span class="z-string"> fish</span><span class="z-keyword"> &gt;</span><span class="z-string"> ~/.config/fish/completions/ecr.fish</span></span></code></pre>
+<p><code>ecr web</code>, <code>ecr qr</code>, <code>ecr logs</code> and the background
+lifecycle (<code>stop</code>, <code>status</code>, <code>restart</code>) are declared but not yet implemented;
+each says so and names what to use meanwhile. The desktop client is a separate
+binary, <code>ecr-desktop</code>, built from <code>shell/</code>.</p>
+<h2 id="start-here"><a class="zola-anchor" href="#start-here" aria-label="Anchor link for: start-here">🔗</a>Start here</h2>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">ecr</span><span class="z-string"> init</span></span></code></pre>
+<p>It adopts whatever already exists rather than replacing it: if a notmuch config
+resolves through the <a href="https://www.lokeshmohanty.in/ecr/operations/#configuration">four-step order</a>, that is the setup and
+<code>init</code> only reports on it. Otherwise it looks for a maildir — <code>~/Mail</code>,
+<code>~/Maildir</code>, <code>~/.mail</code>, <code>~/.maildir</code> — and offers the one it finds, falling back
+to <code>~/.local/share/mail</code>. The path is a question, not a decision; answer it with
+anywhere you like.</p>
+<p><strong>Nothing is written without being confirmed first</strong>, and the notmuch config is
+printed in full before the prompt to write it. Because every step asks, <code>init</code>
+needs a terminal: with no stdin it refuses rather than hanging where nobody can
+see it.</p>
+<p>It sets <code>index.header.List=List-Id</code> while doing so. That is free on an empty
+database and costs a full <code>notmuch reindex '*'</code> afterwards, and without it the
+sidebar's mailing lists cannot be searched at all.</p>
+<p><code>--force</code> replaces a config ecr generated, moving the old one aside first.</p>
+<p><code>ecr serve</code> runs this by itself when no configuration resolves, so a fresh
+machine is offered the setup instead of an error naming the paths it looked in.
+It does not make that machine servable on its own — an empty maildir has no
+accounts, which is a failure below — but it removes having to write a notmuch
+config by hand before anything can be diagnosed. <code>ecr serve --no-init</code> refuses
+instead, which is what a systemd unit or a container wants.</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">ecr</span><span class="z-string"> doctor</span></span></code></pre>
+<p>It reports which config each tool resolved to and via which step, the maildir
+root, the notmuch database, the <code>post-new</code> hook, every discovered account with
+its folder count, and each account's OAuth token state. The server refuses to
+start unless this is healthy.</p>
+<p><code>--json</code> emits the same report for scripting.</p>
+<h2 id="tokens"><a class="zola-anchor" href="#tokens" aria-label="Anchor link for: tokens">🔗</a>Tokens</h2>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">ecr</span><span class="z-string"> token</span><span class="z-string"> new</span><span class="z-string"> phone</span><span class="z-constant"> -</span><span class="z-constant">-qr</span><span class="z-constant"> -</span><span class="z-constant">-url</span><span class="z-string"> http://</span><span class="z-keyword">&lt;</span><span class="z-string">this</span><span class="z-string"> machin</span><span>e</span><span class="z-keyword">&gt;</span><span class="z-string">:8383</span><span class="z-punctuation z-definition z-comment">   #</span><span class="z-comment"> token once, plus a QR</span></span>
+<span class="giallo-l"><span class="z-entity z-name">ecr</span><span class="z-string"> token</span><span class="z-string"> list</span></span>
+<span class="giallo-l"><span class="z-entity z-name">ecr</span><span class="z-string"> token</span><span class="z-string"> revoke</span><span class="z-string"> phone</span></span></code></pre>
+<p>Tokens are stored as SHA-256 digests in <code>~/.config/ecr/tokens.toml</code> (mode 0600).
+The plaintext is shown exactly once. With no tokens the API is unauthenticated.</p>
+<p>The file is re-read when it changes, so <code>ecr token new</code> and <code>ecr token revoke</code>
+take effect on a server that is already running. They did not before: the store
+was read once at startup, and <code>ecr token new</code> is a <em>different process</em> — it
+writes the file and exits, and the server went on checking against the copy it
+had loaded. The client reported <strong>the server refused that token</strong> about a token
+printed a moment earlier, and nothing on either side connected the two; the fix
+was to restart a server nobody had any reason to suspect. Revoking had the
+matching failure, which is the worse one: a device the reader believed they had
+cut off stayed connected until the next restart.</p>
+<p>What is checked is the file's mtime and size, so an ordinary request pays one
+<code>stat</code> and the file is read only when it has actually moved. A read that fails
+is kept rather than adopted — the file is truncated before it is rewritten, and
+taking a partial read for an empty store would switch authentication off at the
+exact moment someone is issuing a token. The store is re-read <em>before</em> the
+server asks whether it needs a token at all, so issuing the first one starts
+requiring one immediately rather than leaving the API open until a restart.</p>
+<p>Issuing the first one turns authentication on for <em>everything</em>, including the
+web client the server itself serves: a browser opened at the server's address
+has the right URL and no token, so every request is refused. The client says so
+rather than appearing broken — <strong>this device is not authorised</strong>, over the
+panes, with a field to paste what <code>ecr token new</code> printed. The token is checked
+against the server before it is kept, so a mistyped one is reported in the
+prompt instead of being saved to leave every pane empty; once accepted it is
+stored on that device and the mail loads without a reload. Dismiss the prompt to
+go and fetch a token — the thread list keeps an <strong>enter a token</strong> button for the
+way back.</p>
+<p>Where there is a camera the prompt also offers <strong>Scan a pairing code</strong>. This is
+the only screen that asks for a token, and on a phone the alternative is 64 hex
+characters on a soft keyboard; the scanner used to be offered on the address
+prompt alone, so a phone that could reach its server never saw it. The address
+is already right here — this server is the one that refused the device — so a
+code carrying nothing but a token is enough, which is what <code>--qr</code> prints without
+<code>--url</code>. One that does carry an address is still honoured, and replaces this
+one: the address is applied and probed first, then the token, since asking the
+old server whether the new one's token is good either refuses something valid or
+leaves the device pointed where the reader has just stopped meaning.</p>
+<p>A refusal is not the same as silence, and the client keeps them apart. It asks
+<code>/api/v1/health</code>, the one route authentication does not cover, so it can tell a
+server that answered and will not talk to this device from an address where
+nothing is listening at all. The first gets the token prompt above; the second
+gets <strong>cannot reach the server</strong>, with the address in a field. That prompt is
+reachable everywhere — the browser takes its address from the page it was served
+by and the desktop and Android shells are handed one, so before it existed a
+client pointed at the wrong host had no way to be pointed at the right one. The
+address is probed before it is kept, and the token is carried across, since an
+address is usually changed to reach the <em>same</em> server by another name —
+<code>localhost</code> from the machine it runs on, an address on the network from a phone.</p>
+<p>It raises itself only when this client has never reached the address it was
+given, and only once per address. A server that was reached and then lost is a
+laptop that slept or a phone in a tunnel; the thread list says so and offers
+<strong>change address</strong>, without a dialog over mail that is still on screen.</p>
+<h2 id="what-the-server-says-about-itself"><a class="zola-anchor" href="#what-the-server-says-about-itself" aria-label="Anchor link for: what-the-server-says-about-itself">🔗</a>What the server says about itself</h2>
+<p><code>/api/v1/health</code> is the same report <code>ecr doctor</code> prints, so the client can show
+it. The server refuses to start on a failing check, which means what reaches a
+running client are the warnings it started anyway with — an expired OAuth token,
+a <code>post-new</code> hook that is not wired up, a notmuch without <code>index.header.List</code>.
+Each is otherwise experienced as mail that quietly does not arrive or a sidebar
+section that is quietly empty, so the status bar carries a <strong>! n checks</strong> badge
+that opens the report, each check beside the doctor's own hint for it. They are
+fixed on the machine holding the mail, not in the client.</p>
+<h2 id="oauth"><a class="zola-anchor" href="#oauth" aria-label="Anchor link for: oauth">🔗</a>OAuth</h2>
+<p>Gmail and Outlook will not accept a password. <code>ecr oauth</code> holds a <em>profile</em> per
+account — which provider, which address, which client — and hands out the
+XOAUTH2 that mbsync and msmtp ask for.</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">ecr</span><span class="z-string"> oauth</span><span class="z-string"> setup</span><span class="z-string"> main</span><span class="z-constant"> -</span><span class="z-constant">-provider</span><span class="z-string"> gmail</span><span class="z-constant"> -</span><span class="z-constant">-email</span><span class="z-string"> you@gmail.com</span></span>
+<span class="giallo-l"><span class="z-entity z-name">ecr</span><span class="z-string"> oauth</span><span class="z-string"> setup</span><span class="z-string"> work</span><span class="z-constant"> -</span><span class="z-constant">-provider</span><span class="z-string"> microsoft</span><span class="z-constant"> -</span><span class="z-constant">-email</span><span class="z-string"> you@example.com</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-entity z-name">ecr</span><span class="z-string"> oauth</span><span class="z-string"> status</span><span class="z-string"> main</span><span class="z-punctuation z-definition z-comment">       #</span><span class="z-comment"> provider, address, expiry, whether it can refresh</span></span>
+<span class="giallo-l"><span class="z-entity z-name">ecr</span><span class="z-string"> oauth</span><span class="z-string"> authorize</span><span class="z-string"> main</span><span class="z-punctuation z-definition z-comment">    #</span><span class="z-comment"> run the flow again</span></span></code></pre>
+<p><code>setup</code> writes the profile and walks straight into the flow. <code>--flow</code> picks how:
+<code>auto</code> — the default — takes the device flow where the provider offers one,
+which is what Microsoft gets, and the browser flow otherwise.</p>
+<p>Then point your configs at it. The token is refreshed on demand, so these are
+the only two lines the setup needs:</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>PassCmd &quot;ecr oauth token main&quot;      # mbsyncrc</span></span>
+<span class="giallo-l"><span>passwordeval ecr oauth token main   # msmtp</span></span></code></pre>
+<p>Profiles live in <code>~/.config/ecr/oauth/&lt;profile&gt;.json</code>; the tokens themselves are
+kept apart in <code>~/.local/state/ecr/oauth/&lt;profile&gt;.json</code>, mode 0600. A profile
+left over from the <code>oauthman</code> helper ecr used to shell out to is adopted out of
+<code>~/.config/oauthman</code> the first time it is read, so an existing setup keeps its
+refresh tokens rather than authorizing every account again. It is copied, not
+moved.</p>
+<p>No client is registered for ecr: like every other desktop mail client, it
+borrows Thunderbird's, which <code>ecr oauth client-id --provider gmail</code> will print.
+Bring your own with <code>--client-id</code> and <code>--client-secret</code>.</p>
+<h2 id="running"><a class="zola-anchor" href="#running" aria-label="Anchor link for: running">🔗</a>Running</h2>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">ecr</span><span class="z-string"> serve</span><span class="z-constant"> -</span><span class="z-constant">-bind</span><span class="z-string"> 127.0.0.1:8383</span></span></code></pre><table><thead><tr><th>Flag</th><th>Effect</th></tr></thead><tbody>
+<tr><td><code>--bind</code></td><td>Address to listen on. Use the tailnet address to reach it from a phone</td></tr>
+<tr><td><code>--read-only</code></td><td>Refuse every write: no tagging, syncing or sending. Good for a first run against real mail</td></tr>
+<tr><td><code>--no-watch</code></td><td>Do not watch the maildir; new mail then needs an explicit sync</td></tr>
+<tr><td><code>--web-dir</code></td><td>Where the built client lives. Found automatically; <code>ECR_WEB_DIR</code> also works</td></tr>
+<tr><td><code>--allowed-origin</code></td><td>Restrict browser origins. Repeatable. Default allows any — see <a href="https://www.lokeshmohanty.in/ecr/architecture/#auth">architecture.md</a></td></tr>
+<tr><td><code>--tokens</code></td><td>Alternate token store path</td></tr>
+</tbody></table>
+<h2 id="the-client-is-served-by-the-server"><a class="zola-anchor" href="#the-client-is-served-by-the-server" aria-label="Anchor link for: the-client-is-served-by-the-server">🔗</a>The client is served by the server</h2>
+<p><code>ecr serve</code> serves the built web client at <code>/</code> alongside the API. Opening
+<code>http://127.0.0.1:8383</code> gives you the whole app: same origin, so CORS never
+applies and the client defaults its API base to wherever it was loaded from.</p>
+<p>It looks for <code>web/dist</code> relative to the working directory and then beside the
+binary. If it cannot find one it serves a page that says so. Build it with
+<code>just build-web</code>.</p>
+<p>The desktop shell embeds its own copy of the same client. A client that has
+never been given an address starts at <code>http://localhost:8383</code>, which is where a
+desktop install's own server is; after that the address is the client's, kept on
+the device and changed from the app. <code>ECR_SERVER_URL</code> overrides it for a single
+launch and is meant for development. If the server is not running the app says
+so in its own UI, with a retry.</p>
+<p>The Android app starts at that same address, which is never right on a phone, so
+it says it cannot reach a server and offers the camera: pair it with the code
+from <code>ecr token new --qr</code>. That address is then kept, and the app opens on your
+mail from then on.</p>
+<h2 id="configuration"><a class="zola-anchor" href="#configuration" aria-label="Anchor link for: configuration">🔗</a>Configuration</h2>
+<p><code>~/.config/ecr/server.toml</code>, all optional:</p>
+<pre class="giallo z-code"><code data-lang="toml"><span class="giallo-l"><span class="z-variable z-other">notmuch_config</span><span> =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">/home/you/.config/notmuch/default/config</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">mbsync_config</span><span>  =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">/home/you/.config/isyncrc</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">msmtp_config</span><span>   =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">/home/you/.config/msmtp/config</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">maildir_root</span><span>   =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">/home/you/.local/share/Mail</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> Absolute paths are worth pinning in a systemd unit, where PATH is minimal.</span></span>
+<span class="giallo-l"><span class="z-variable z-other">notmuch_bin</span><span> =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">/run/current-system/sw/bin/notmuch</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">mbsync_bin</span><span>  =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">/run/current-system/sw/bin/mbsync</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">msmtp_bin</span><span>   =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">/run/current-system/sw/bin/msmtp</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> Send every read back to notmuch instead of the SQLite mail index. Slower, and</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> answers the same — the switch exists so a suspected disagreement can be</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> settled without rebuilding or reinstalling anything.</span></span>
+<span class="giallo-l"><span class="z-variable z-other">index</span><span> =</span><span class="z-constant"> false</span></span></code></pre><h3 id="the-mail-index"><a class="zola-anchor" href="#the-mail-index" aria-label="Anchor link for: the-mail-index">🔗</a>The mail index</h3>
+<p><code>ecr serve</code> builds a SQLite mirror of what notmuch knows at
+<code>~/.local/state/ecr/index.sqlite3</code> and answers searches and counts from it.
+It is a cache: <strong>deleting the file is safe</strong> and costs one rebuild on the next
+start. Nothing else has to be told, and no mail state lives there.</p>
+<p><code>ecr doctor</code> reports its size and how far behind it is. A first build on a
+large inbox takes a few seconds and happens before the server starts
+listening; after that it catches up only on what changed.</p>
+<h2 id="reaching-it-from-a-phone"><a class="zola-anchor" href="#reaching-it-from-a-phone" aria-label="Anchor link for: reaching-it-from-a-phone">🔗</a>Reaching it from a phone</h2>
+<p>The server binds to a single address. Bind it to the tailnet address, install
+Tailscale on the phone, and point the client at <code>http://&lt;tailnet-name&gt;:8383</code>
+with a device token. Do not expose it to the public internet without putting
+TLS and a reverse proxy in front — this is a mail store.</p>
+<h2 id="android"><a class="zola-anchor" href="#android" aria-label="Anchor link for: android">🔗</a>Android</h2>
+<p>An APK is built by CI on every tagged release and attached to it. Sideload it;
+there is no Play Store listing. An AAB is attached to the same release, which is
+the only format Play accepts if there ever is one.</p>
+<p>It offers itself as a mail client: a <code>mailto:</code> link tapped in another app opens
+a draft here, prefilled. That is a <code>SENDTO</code>/<code>VIEW</code> intent filter in the overlay
+manifest, and the same handling covers the desktop, where it is
+<code>MimeType=x-scheme-handler/mailto;</code> in the desktop entry.</p>
+<p>New mail is announced through the system's notifications while the app is open,
+controlled by the device setting <strong>Notify new mail</strong>. There is no background
+service and the server never reaches out to a client, so nothing is announced
+while ecr is closed — on a phone that means notifications are worth much less
+than they are on a desktop you leave running.</p>
+<p>The app talks to your server over plain HTTP unless you have gone to the
+trouble of giving it a certificate. I made that choice deliberately; it is
+configured in
+<code>shell/android/overlay/.../network_security_config.xml</code>: the server address is
+whatever you type in, a LAN or tailnet address can hold no public-CA
+certificate, and requiring HTTPS would mean requiring a private PKI before the
+app could fetch one message. The bearer token is what protects the API; keep it
+on a tailnet, which is encrypted a layer below.</p>
+<p>It is a <strong>client only</strong>. <code>ecr-server</code> shells out to <code>notmuch</code>, <code>mbsync</code> and
+<code>msmtp</code>, none of which exist on Android, so the app points at a server you run
+elsewhere — over Tailscale, typically. Pair it by scanning: run
+<code>ecr token new phone --qr --url http://&lt;tailnet-addr&gt;:8383</code> on the server and
+point the phone's camera at the code. There are three ways in, for the three
+states a phone can be in: the <strong>cannot reach the server</strong> prompt on first
+launch, the <strong>this device is not authorised</strong> prompt when it can reach a server
+it has not been paired with, and <strong>Settings → Server → Scan a code</strong> later, to
+move it to another server.</p>
+<p>The code carries the address and the token together, which is the whole point:
+a tailnet hostname and a 64-character hex token are the two worst things to
+type on a phone. <code>--url</code> is separate from <code>--bind</code> because the address a phone
+must reach is rarely the socket the server listens on — <code>0.0.0.0</code> is every
+address and <code>127.0.0.1</code> is only that machine, so neither goes in a code. Given
+neither <code>--url</code> nor a usable <code>ECR_BIND</code>, the code carries the token alone and
+says so, which is what every code printed before this did.</p>
+<p>If the release APK is unsigned — which it is until the signing secrets are set,
+and the release notes say which — Android will refuse to upgrade it in place from
+a later signed build. Uninstall first in that case. See
+<a href="https://www.lokeshmohanty.in/ecr/releasing/#android">releasing.md</a>.</p>
+<h3 id="checking-for-a-newer-version"><a class="zola-anchor" href="#checking-for-a-newer-version" aria-label="Anchor link for: checking-for-a-newer-version">🔗</a>Checking for a newer version</h3>
+<p>A sideloaded APK has no idea it has been superseded, so the <strong>Updates</strong> section
+of the device settings asks: it fetches the newest GitHub release, compares the
+tag with this build's version and offers the download.</p>
+<p>It is a button, never a timer. Nothing about this happens in the background —
+the unauthenticated GitHub API allows 60 requests an hour per address, which is
+plenty for someone pressing a button and not enough for polling, and a mail
+client quietly reaching a code host is a surprise to whoever is reading the
+network.</p>
+<p>The section exists <strong>only</strong> on Android, and its absence elsewhere is the point.
+<code>apk_version</code> in the shell answers <code>None</code> on every other target, so a deb, an
+AppImage, the Nix package and the browser client show nothing: those are updated
+by whatever installed them, and offering to replace a package the system manages
+is not this app's business.</p>
+<p>The download opens in the browser rather than installing in place. Fetching the
+APK here and handing it to the installer would mean <code>REQUEST_INSTALL_PACKAGES</code>
+and a FileProvider in the manifest; the browser reaches that same system
+installer with no new permission at all. An <code>-unsigned.apk</code> asset is never
+offered — v0.1.1 shipped one, and it cannot install over a signed build, so
+pointing anyone at it would break a working app rather than update it.</p>
+<h3 id="running-it-on-a-device-you-have-plugged-in"><a class="zola-anchor" href="#running-it-on-a-device-you-have-plugged-in" aria-label="Anchor link for: running-it-on-a-device-you-have-plugged-in">🔗</a>Running it on a device you have plugged in</h3>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">just</span><span class="z-string"> android</span></span></code></pre>
+<p>That builds the web client, starts a server if one is not already listening,
+builds a debug APK for the ABI the phone actually reports, installs it with
+<code>adb install -r</code>, launches it and streams its logs until you interrupt it.
+<code>cargo tauri android init</code> runs the first time, if <code>shell/gen/android</code> is not
+there yet.</p>
+<p>The phone reaches the server over the cable: <code>adb reverse</code> forwards
+<code>localhost:8383</code> on the device to this machine, which is the shell's built-in
+default address, so nothing is baked into the APK and no device token is
+needed. <code>ECR_BIND</code> can move the host port; the device side stays 8383.</p>
+<p><strong>It is <code>cargo tauri android build</code>, not <code>android dev</code>.</strong> A <code>dev</code> build on
+mobile proxies <em>every</em> asset request through reqwest to <code>get_app_url()</code>, and
+with no <code>devUrl</code> that resolves to the webview's own <code>http://tauri.localhost</code> —
+the app asks itself for the page over HTTP and paints <code>error sending request for url</code>. <code>--no-dev-server</code> does not turn that off; only a build without the
+<code>dev</code> cfg does, and it then reads <code>web/dist</code> out of the binary the way the
+desktop shell does. So the UI is embedded in the APK: a web change means
+running the recipe again, but the phone needs nothing but the cable.</p>
+<p>The target is chosen from <code>ro.product.cpu.abi</code> rather than assumed —
+<code>arm64-v8a</code> and <code>x86_64</code> are the two the flake carries a Rust std for, and any
+other ABI stops the recipe with that fact instead of failing inside Gradle.</p>
+<p>The device needs USB debugging on, and the authorisation prompt accepted — the
+recipe stops with what to do if <code>adb devices</code> reports nothing usable.</p>
+<h3 id="the-toolchain"><a class="zola-anchor" href="#the-toolchain" aria-label="Anchor link for: the-toolchain">🔗</a>The toolchain</h3>
+<p>The Android SDK and NDK are deliberately not in the default dev shell: it is a
+multi-gigabyte closure and nothing else needs it. They live in a second shell,
+which <code>just android</code> enters for you.</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">nix</span><span class="z-string"> develop</span><span class="z-string"> .#android</span><span class="z-punctuation z-definition z-comment">    #</span><span class="z-comment"> SDK, NDK, JDK 17, adb, cargo-tauri, the android rust target</span></span>
+<span class="giallo-l"><span class="z-entity z-name">cargo</span><span class="z-string"> tauri</span><span class="z-string"> android</span><span class="z-string"> build</span><span class="z-constant"> -</span><span class="z-constant">-apk</span></span></code></pre>
+<p>The SDK is unfree and its licence has to be accepted, so that shell imports its
+own nixpkgs rather than loosening the one every other build goes through. A Nix
+SDK is read-only, so whatever the Tauri template asks for has to be pinned in
+<code>flake.nix</code> in advance — platforms 34-36, the matching build tools, and the
+<code>aapt2FromMavenOverride</code> that stops Gradle running a binary that cannot execute
+on NixOS.</p>
+<p><code>bundle.android.minSdkVersion</code> is set to 28 in <code>shell/tauri.conf.json</code>.</p>
+<h2 id="installing-a-release"><a class="zola-anchor" href="#installing-a-release" aria-label="Anchor link for: installing-a-release">🔗</a>Installing a release</h2>
+<p><a href="https://www.lokeshmohanty.in/ecr/installing/">installing.md</a> is the full account — the two channels, the
+Home Manager module and what each artifact carries. In short:</p>
+<table><thead><tr><th>Method</th><th>Command</th></tr></thead><tbody>
+<tr><td>Nix, tracking main</td><td><code>nix profile install github:lokeshmohanty/ecr</code></td></tr>
+<tr><td>Nix, newest release</td><td><code>nix profile install github:lokeshmohanty/ecr/release</code></td></tr>
+<tr><td>Home Manager</td><td><code>programs.ecr.enable = true;</code> — installs and can run the user service</td></tr>
+<tr><td>NixOS module</td><td><code>services.ecr.enable = true;</code> — a system service, for a machine nobody logs into</td></tr>
+<tr><td>Debian/Ubuntu</td><td><code>sudo apt install ./ecr_amd64.deb</code> — the <em>desktop client</em>, not the server</td></tr>
+<tr><td>Generic Linux</td><td>untar the release tarball; <code>bin/ecr</code> finds <code>share/ecr/web</code> beside it, and <code>share/systemd/user/ecr.service</code> starts it</td></tr>
+<tr><td>From source</td><td><code>cargo install ecr-cli</code> — builds the binary only, not the web client</td></tr>
+</tbody></table>
+<h2 id="troubleshooting"><a class="zola-anchor" href="#troubleshooting" aria-label="Anchor link for: troubleshooting">🔗</a>Troubleshooting</h2>
+<table><thead><tr><th>Symptom</th><th>Check</th></tr></thead><tbody>
+<tr><td>Server refuses to start</td><td><code>ecr doctor</code> — it names the failure and a fix</td></tr>
+<tr><td>Client says it cannot reach the server</td><td>Nothing answered at that address. Is <code>ecr serve</code> running, and is the address the machine's own rather than <code>localhost</code> from another device? The prompt takes a new one</td></tr>
+<tr><td>Client says the device is not authorised</td><td>The server answered and refused it. Paste a token from <code>ecr token new</code>, or scan one where there is a camera; if that keeps failing, check the address in the same prompt — another ecr would refuse it too</td></tr>
+<tr><td>A token <code>ecr token new</code> just printed is refused</td><td>Fixed: the store is re-read when the file changes, so this no longer needs a restart. On a build before that, restart <code>ecr serve</code> — it had loaded the token file once, at startup</td></tr>
+<tr><td>A setting will not stick</td><td>The status bar says <code>settings: not saved — …</code>. A read-only server (<code>--read-only</code>) refuses the write</td></tr>
+<tr><td>A message reads "could not be read"</td><td>notmuch has it indexed and the file is gone or unreadable. <code>notmuch new</code> after fixing the maildir</td></tr>
+<tr><td>Empty inbox, no error</td><td>The query. <code>/api/v1/threads?q=*</code> should return everything</td></tr>
+<tr><td><code>503</code> responses</td><td>A binary is missing from the service's <code>PATH</code>; pin absolute paths in <code>server.toml</code></td></tr>
+<tr><td>Sync fails with an auth error</td><td><code>ecr oauth status &lt;account&gt;</code>; the token may need reauthorizing with <code>ecr oauth authorize &lt;account&gt;</code></td></tr>
+<tr><td>Sync fails with <code>selected SASL mechanism(s) not available</code>, and <code>mbsync</code> run by hand works</td><td>ecr ran a different <code>mbsync</code>. <code>systemctl --user show -pEnvironment ecr</code> and compare the first <code>mbsync</code> on that <code>PATH</code> with <code>command -v mbsync</code> in your shell; the XOAUTH2 plugin comes from your own wrapper, not from ecr. Pinning <code>mbsync_bin</code> in <code>server.toml</code> settles it</td></tr>
+<tr><td>New mail does not appear</td><td>Was the server started with <code>--no-watch</code>? Otherwise check the log for watcher warnings</td></tr>
+<tr><td>Tags silently do nothing</td><td><code>notmuch tag --batch</code> exits 0 on malformed input; <code>ecr-store</code> validates first, so a <code>400</code> here is the intended behaviour</td></tr>
+<tr><td>A list looks wrong, and you suspect the index</td><td>Delete <code>~/.local/state/ecr/index.sqlite3</code> and restart, or set <code>index = false</code> in <code>server.toml</code> to take notmuch's answer directly. If both agree, the index was not it</td></tr>
+</tbody></table>
+
+    </div>
+
+    
+    
+    
+</article>
+
+
+
+<nav class="page-nav" aria-label="Page navigation">
+    
+
+    
+</nav>
+
+
+
+                </main>
+
+                
+                
+                
+
+
+
+
+<aside id="page-toc-panel" class="page-toc-panel" aria-hidden="true" aria-label="On this page">
+    <div class="page-toc-panel__content">
+        <div class="page-toc-panel__header">
+            <span class="page-toc-panel__title">On this page</span>
+            <button class="page-toc-panel__close" type="button" aria-label="Close table of contents">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 6 6 18"/>
+                    <path d="m6 6 12 12"/>
+                </svg>
+            </button>
+        </div>
+        <nav class="page-toc-panel__nav" aria-label="Page sections">
+            <ul class="page-toc-panel__list">
+                
+                <li class="page-toc-panel__item">
+                    <a href="#prerequisites" class="page-toc-panel__link">
+                        Prerequisites
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#the-command" class="page-toc-panel__link">
+                        The command
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#start-here" class="page-toc-panel__link">
+                        Start here
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#tokens" class="page-toc-panel__link">
+                        Tokens
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#what-the-server-says-about-itself" class="page-toc-panel__link">
+                        What the server says about itself
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#oauth" class="page-toc-panel__link">
+                        OAuth
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#running" class="page-toc-panel__link">
+                        Running
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#the-client-is-served-by-the-server" class="page-toc-panel__link">
+                        The client is served by the server
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#configuration" class="page-toc-panel__link">
+                        Configuration
+                    </a>
+                    
+                    <ul class="page-toc-panel__list page-toc-panel__list--nested">
+                        
+                        <li class="page-toc-panel__item">
+                            <a href="#the-mail-index" class="page-toc-panel__link">
+                                The mail index
+                            </a>
+                        </li>
+                        
+                    </ul>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#reaching-it-from-a-phone" class="page-toc-panel__link">
+                        Reaching it from a phone
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#android" class="page-toc-panel__link">
+                        Android
+                    </a>
+                    
+                    <ul class="page-toc-panel__list page-toc-panel__list--nested">
+                        
+                        <li class="page-toc-panel__item">
+                            <a href="#checking-for-a-newer-version" class="page-toc-panel__link">
+                                Checking for a newer version
+                            </a>
+                        </li>
+                        
+                        <li class="page-toc-panel__item">
+                            <a href="#running-it-on-a-device-you-have-plugged-in" class="page-toc-panel__link">
+                                Running it on a device you have plugged in
+                            </a>
+                        </li>
+                        
+                        <li class="page-toc-panel__item">
+                            <a href="#the-toolchain" class="page-toc-panel__link">
+                                The toolchain
+                            </a>
+                        </li>
+                        
+                    </ul>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#installing-a-release" class="page-toc-panel__link">
+                        Installing a release
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#troubleshooting" class="page-toc-panel__link">
+                        Troubleshooting
+                    </a>
+                    
+                </li>
+                
+            </ul>
+        </nav>
+    </div>
+</aside>
+
+
+                
+            </div>
+
+            
+            
+            
+        </div>
+    </div>
+
+    
+    <div class="sidebar-overlay" aria-hidden="true"></div>
+
+    
+    
+    
+<div class="search-overlay" role="dialog" aria-modal="true" aria-labelledby="search-title" aria-describedby="search-description">
+    <div class="search">
+        <h2 id="search-title" class="sr-only">Search documentation</h2>
+        <p id="search-description" class="sr-only">Type to search. Use arrow keys to navigate results, Enter to select, Escape to close.</p>
+
+        <div class="search__input-wrapper">
+            <span class="search__icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.3-4.3"/>
+                </svg>
+            </span>
+            <input
+                type="search"
+                class="search__input"
+                placeholder="Search documentation..."
+                autocomplete="off"
+                autofocus
+                aria-label="Search query"
+                aria-controls="search-results"
+                aria-autocomplete="list"
+            >
+            <span class="search__shortcut" aria-hidden="true">/</span>
+            <button class="search__close" type="button" aria-label="Close search dialog" title="Close (Esc)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 6 6 18"/>
+                    <path d="m6 6 12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <div id="search-results" class="search__results" role="listbox" aria-label="Search results">
+            
+        </div>
+
+        <footer class="search__footer">
+            <nav class="search__hints" aria-label="Keyboard shortcuts">
+                <span class="search__hint">
+                    <kbd aria-label="Up and down arrows">↑</kbd><kbd aria-hidden="true">↓</kbd> <span>Navigate</span>
+                </span>
+                <span class="search__hint">
+                    <kbd aria-label="Enter">↵</kbd> <span>Select</span>
+                </span>
+                <span class="search__hint">
+                    <kbd aria-label="Escape">esc</kbd> <span>Close</span>
+                </span>
+            </nav>
+            <span class="search__powered-by">Powered by <a href="https://github.com/weixsong/elasticlunr.js" target="_blank" rel="noopener noreferrer" aria-label="elasticlunr.js on GitHub (opens in new tab)">elasticlunr</a></span>
+        </footer>
+    </div>
+</div>
+
+    
+
+    
+    
+
+    
+    
+
+    
+    
+    
+    <button class="page-toc-toggle" type="button" aria-label="Toggle table of contents" aria-expanded="false" aria-controls="page-toc-panel" title="On this page">
+        <svg class="page-toc-toggle__icon page-toc-toggle__icon--list" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M16 5H3"/>
+            <path d="M16 12H3"/>
+            <path d="M16 19H3"/>
+            <path d="M21 5h.01"/>
+            <path d="M21 12h.01"/>
+            <path d="M21 19h.01"/>
+        </svg>
+        <svg class="page-toc-toggle__icon page-toc-toggle__icon--close" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 6 6 18"/>
+            <path d="m6 6 12 12"/>
+        </svg>
+    </button>
+    
+
+    
+    
+    <button class="fab scroll-to-top" aria-label="Scroll to top" title="Scroll to top">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m18 15-6-6-6 6"/>
+        </svg>
+    </button>
+    
+
+    
+    
+    
+    <script src="https://www.lokeshmohanty.in/ecr/js/theme.js" defer></script>
+    <script src="https://www.lokeshmohanty.in/ecr/js/navigation.js" defer></script>
+    <script src="https://www.lokeshmohanty.in/ecr/js/code.js" defer></script>
+
+    
+    <script src="https://www.lokeshmohanty.in/ecr/elasticlunr.min.js"></script>
+    <script src="https://www.lokeshmohanty.in/ecr/search_index.en.js"></script>
+    <script src="https://www.lokeshmohanty.in/ecr/js/search.js" defer></script>
+    
+    
+
+    
+</body>
+</html>

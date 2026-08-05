@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+        <loc>https://www.lokeshmohanty.in/ecr/</loc>
+    </url>
+    <url>
+        <loc>https://www.lokeshmohanty.in/ecr/api/</loc>
+    </url>
+    <url>
+        <loc>https://www.lokeshmohanty.in/ecr/architecture/</loc>
+    </url>
+    <url>
+        <loc>https://www.lokeshmohanty.in/ecr/development/</loc>
+    </url>
+    <url>
+        <loc>https://www.lokeshmohanty.in/ecr/installing/</loc>
+    </url>
+    <url>
+        <loc>https://www.lokeshmohanty.in/ecr/operations/</loc>
+    </url>
+    <url>
+        <loc>https://www.lokeshmohanty.in/ecr/releasing/</loc>
+    </url>
+</urlset>

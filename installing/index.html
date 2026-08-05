@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en" prefix="og: https://ogp.me/ns#">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark light">
+    <script>
+    (function(){var s='auto';try{s=localStorage.getItem('reticle-theme')||localStorage.getItem('ThemeColorScheme')||'auto'}catch(e){}
+    var t=s==='auto'?(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'):s;
+    document.documentElement.setAttribute('data-theme',t);
+    document.documentElement.setAttribute('data-theme-setting',s);
+    document.documentElement.setAttribute('data-user-color-scheme',t)})();
+    </script>
+
+    
+    <title>Installing | ecr</title>
+
+    
+    
+    <meta name="description" content="The two published channels, Home Manager, NixOS, and what each release artifact carries.">
+    
+
+    
+    
+
+    
+    
+
+    
+    <meta name="robots" content="index, follow">
+    <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+
+    
+    
+    <link rel="canonical" href="https://www.lokeshmohanty.in/ecr/installing/">
+    <link rel="alternate" hreflang="en" href="https://www.lokeshmohanty.in/ecr/installing/">
+    <link rel="alternate" hreflang="x-default" href="https://www.lokeshmohanty.in/ecr/installing/">
+    
+
+    
+    <meta property="og:type" content="article">
+    
+    <meta property="og:url" content="https://www.lokeshmohanty.in/ecr/installing/">
+    
+    
+    <meta property="og:title" content="Installing">
+    
+    
+    <meta property="og:description" content="The two published channels, Home Manager, NixOS, and what each release artifact carries.">
+    
+    
+    <meta property="og:site_name" content="ecr">
+    <meta property="og:locale" content="en">
+
+    
+    
+    
+    
+    
+    
+
+    
+    <meta name="twitter:card" content="summary_large_image">
+    
+    <meta name="twitter:url" content="https://www.lokeshmohanty.in/ecr/installing/">
+    
+    
+    <meta name="twitter:title" content="Installing">
+    
+    
+    <meta name="twitter:description" content="The two published channels, Home Manager, NixOS, and what each release artifact carries.">
+    
+    
+    
+
+    
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "WebSite",
+                "@id": "https://www.lokeshmohanty.in/ecr#website",
+                "url": "https://www.lokeshmohanty.in/ecr",
+                "name": "ecr",
+                "description": "Email Client in Rust — a keyboard-driven mail client for an existing notmuch maildir",
+                "publisher": {
+                    "@id": "https://zentinelproxy.io/#organization"
+                },
+                "inLanguage": "en",
+                "potentialAction": {
+                    "@type": "SearchAction",
+                    "target": {
+                        "@type": "EntryPoint",
+                        "urlTemplate": "https://www.lokeshmohanty.in/ecr?q={search_term_string}"
+                    },
+                    "query-input": "required name=search_term_string"
+                }
+            },
+            {
+                "@type": "Organization",
+                "@id": "https://zentinelproxy.io/#organization",
+                "name": "lokeshmohanty",
+                "url": "https://zentinelproxy.io",
+                "logo": {
+                    "@type": "ImageObject",
+                    "url": "https://zentinelproxy.io/img/og-image.png",
+                    "width": 1200,
+                    "height": 630
+                }
+            },
+            {
+                "@type": "WebPage",
+                "@id": "https://www.lokeshmohanty.in/ecr/installing/#webpage",
+                "url": "https://www.lokeshmohanty.in/ecr/installing/",
+                "name": "Installing",
+                "isPartOf": {
+                    "@id": "https://www.lokeshmohanty.in/ecr#website"
+                },
+                "description": "The two published channels, Home Manager, NixOS, and what each release artifact carries.",
+                "inLanguage": "en"
+                
+                
+            }
+            
+            ,{
+                "@type": "Article",
+                "@id": "https://www.lokeshmohanty.in/ecr/installing/#article",
+                "isPartOf": {
+                    "@id": "https://www.lokeshmohanty.in/ecr/installing/#webpage"
+                },
+                "headline": "Installing",
+                
+                "description": "The two published channels, Home Manager, NixOS, and what each release artifact carries.",
+                
+                
+                
+                "author": {
+                    "@id": "https://zentinelproxy.io/#organization"
+                },
+                "publisher": {
+                    "@id": "https://zentinelproxy.io/#organization"
+                },
+                
+                
+                "wordCount": 782,
+                
+                "inLanguage": "en"
+            }
+            
+        ]
+    }
+    </script>
+
+    
+    
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "ecr",
+                "item": "https://www.lokeshmohanty.in/ecr"
+            }
+            
+            
+            
+            ,{
+                "@type": "ListItem",
+                "position": 2,
+                "name": "ecr",
+                "item": "https://www.lokeshmohanty.in/ecr/"
+            }
+            
+            
+            ,{
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Installing",
+                "item": "https://www.lokeshmohanty.in/ecr/installing/"
+            }
+        ]
+    }
+    </script>
+    
+
+    
+    <link rel="stylesheet" href="https://www.lokeshmohanty.in/ecr/style.css">
+
+    
+    
+    <link rel="stylesheet" href="https://www.lokeshmohanty.in/ecr/syntax-light.css" media="(prefers-color-scheme: light)">
+    <link rel="stylesheet" href="https://www.lokeshmohanty.in/ecr/syntax-dark.css" media="(prefers-color-scheme: dark)">
+    
+
+    
+    <link rel="preload" href="https://www.lokeshmohanty.in/ecr/fonts/SpaceGrotesk-Variable.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="https://www.lokeshmohanty.in/ecr/fonts/Nunito-Variable.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="https://www.lokeshmohanty.in/ecr/fonts/CascadiaCode-Variable.woff2" as="font" type="font/woff2" crossorigin>
+
+    
+    
+    <link rel="icon" href="https://www.lokeshmohanty.in/ecr/favicon.png">
+    
+    
+
+    
+    
+
+    
+    
+    
+    
+    <script>
+        (function() {
+            try {
+                var stored = localStorage.getItem('reticle-theme') || localStorage.getItem('ThemeColorScheme') || 'auto';
+                var theme = stored === 'auto'
+                    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                    : stored;
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.setAttribute('data-theme-setting', stored);
+                document.documentElement.setAttribute('data-user-color-scheme', theme);
+            } catch(e) {}
+        })();
+    </script>
+    
+
+    
+</head>
+<body class="page-installing">
+    
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    
+    
+
+    
+    
+        
+    
+
+    
+    <div class="layout layout--docs layout--fixed-header" data-mode="docs">
+        
+
+
+<aside id="sidebar" class="sidebar" role="complementary" aria-labelledby="sidebar-title">
+    
+    <div class="sidebar__resize-handle" aria-hidden="true" title="Drag to resize sidebar width"></div>
+
+    <div class="sidebar__header">
+        <span id="sidebar-title" class="sidebar__title">Table of contents</span>
+        <button class="sidebar__close" type="button" aria-label="Close sidebar" title="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M18 6 6 18"/>
+                <path d="m6 6 12 12"/>
+            </svg>
+        </button>
+    </div>
+
+    <nav class="sidebar__content" aria-label="Documentation navigation">
+        <div class="toc">
+            
+            
+
+            
+            <div class="toc__section">
+                <ol class="toc__list toc__list--numbered" start="0">
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/installing/" class="toc__link active">
+                            <span class="toc__number">0.</span>
+                            Installing
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/operations/" class="toc__link ">
+                            <span class="toc__number">1.</span>
+                            Operations
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/architecture/" class="toc__link ">
+                            <span class="toc__number">2.</span>
+                            Architecture
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/api/" class="toc__link ">
+                            <span class="toc__number">3.</span>
+                            HTTP API
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/development/" class="toc__link ">
+                            <span class="toc__number">4.</span>
+                            Development
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/releasing/" class="toc__link ">
+                            <span class="toc__number">5.</span>
+                            Releasing
+                        </a>
+                    </li>
+                    
+                    
+                </ol>
+            </div>
+
+            
+            
+            
+        </div>
+    </nav>
+
+    <div class="sidebar__footer">
+        
+        <div class="sidebar__actions-mobile">
+            
+            
+
+            
+            
+            <div class="sidebar__action">
+                <span class="sidebar__action-label">Theme</span>
+                
+<button class="theme-toggle" type="button" aria-label="Toggle color theme: cycles through light, dark, and auto modes" aria-live="polite" title="Toggle theme">
+    <span class="theme-toggle__icons">
+        
+        <span class="theme-toggle__sun" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2"/>
+                <path d="M12 20v2"/>
+                <path d="m4.93 4.93 1.41 1.41"/>
+                <path d="m17.66 17.66 1.41 1.41"/>
+                <path d="M2 12h2"/>
+                <path d="M20 12h2"/>
+                <path d="m6.34 17.66-1.41 1.41"/>
+                <path d="m19.07 4.93-1.41 1.41"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__moon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__auto" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 2a7 7 0 1 0 7 7"/>
+            </svg>
+        </span>
+    </span>
+    <span class="sr-only theme-toggle__status">Current theme: auto</span>
+</button>
+
+            </div>
+            
+
+            
+            
+            <a href="https:&#x2F;&#x2F;github.com&#x2F;lokeshmohanty&#x2F;ecr" class="sidebar__github" target="_blank" rel="noopener noreferrer" aria-label="View project on GitHub (opens in new tab)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
+                    <path d="M9 18c-4.51 2-5-2-7-2"/>
+                </svg>
+                <span>View on GitHub</span>
+            </a>
+            
+        </div>
+
+        
+        <a href="https://www.lokeshmohanty.in/ecr/print?auto=true" class="print-button" target="_blank" rel="noopener" aria-label="Print all documentation pages (opens print dialog)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 6 2 18 2 18 9"/>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                <rect width="12" height="8" x="6" y="14"/>
+            </svg>
+            <span>Print all pages</span>
+        </a>
+    </div>
+</aside>
+
+
+
+
+        <div class="layout__main">
+            
+            
+
+
+
+
+<header class="header" role="banner">
+    <div class="header__left">
+        
+        
+        <button class="sidebar-toggle" type="button" aria-label="Toggle sidebar navigation" aria-expanded="true" aria-controls="sidebar" title="Toggle sidebar">
+            <svg class="sidebar-toggle__icon sidebar-toggle__icon--open" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                <path d="M9 3v18"/>
+                <path d="m16 15-3-3 3-3"/>
+            </svg>
+            <svg class="sidebar-toggle__icon sidebar-toggle__icon--closed" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                <path d="M9 3v18"/>
+                <path d="m14 9 3 3-3 3"/>
+            </svg>
+        </button>
+        
+
+        
+        
+        <button class="toc-toggle toc-toggle--docs" type="button" aria-label="Open table of contents" aria-expanded="false" aria-controls="sidebar" title="Table of contents">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                <path d="M9 3v18"/>
+                <path d="m16 15-3-3 3-3"/>
+            </svg>
+        </button>
+        
+
+        
+        
+
+        
+        
+
+        
+        <a href="https://www.lokeshmohanty.in/ecr" class="header__logo" aria-label="ecr - Go to homepage">
+            
+            
+            
+                
+            
+            <img src="https://www.lokeshmohanty.in/ecr/assets/logo.png" alt="" aria-hidden="true">
+            
+            <span>ecr</span>
+        </a>
+    </div>
+
+    
+    <nav class="header__nav" role="navigation" aria-label="Main navigation">
+        
+    </nav>
+
+    
+    <div class="header__actions" role="group" aria-label="Site actions">
+        
+        
+        <button class="search-toggle" type="button" aria-label="Open search dialog" aria-keyshortcuts="/" aria-haspopup="dialog" title="Search (press /)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.3-4.3"/>
+            </svg>
+        </button>
+        
+
+        
+        <div class="header__actions-desktop">
+            
+            
+
+            
+            
+            
+<button class="theme-toggle" type="button" aria-label="Toggle color theme: cycles through light, dark, and auto modes" aria-live="polite" title="Toggle theme">
+    <span class="theme-toggle__icons">
+        
+        <span class="theme-toggle__sun" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2"/>
+                <path d="M12 20v2"/>
+                <path d="m4.93 4.93 1.41 1.41"/>
+                <path d="m17.66 17.66 1.41 1.41"/>
+                <path d="M2 12h2"/>
+                <path d="M20 12h2"/>
+                <path d="m6.34 17.66-1.41 1.41"/>
+                <path d="m19.07 4.93-1.41 1.41"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__moon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__auto" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 2a7 7 0 1 0 7 7"/>
+            </svg>
+        </span>
+    </span>
+    <span class="sr-only theme-toggle__status">Current theme: auto</span>
+</button>
+
+            
+
+            
+            
+            <a href="https:&#x2F;&#x2F;github.com&#x2F;lokeshmohanty&#x2F;ecr&#x2F;edit&#x2F;main&#x2F;docs&#x2F;content/installing.md" class="btn btn--icon btn--ghost" aria-label="Edit this page on GitHub (opens in new tab)" target="_blank" rel="noopener noreferrer" title="Edit this page">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                    <path d="m15 5 4 4"/>
+                </svg>
+            </a>
+            
+
+            
+            
+            <a href="https:&#x2F;&#x2F;github.com&#x2F;lokeshmohanty&#x2F;ecr" class="btn btn--icon btn--ghost" aria-label="View project on GitHub (opens in new tab)" target="_blank" rel="noopener noreferrer" title="GitHub">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
+                    <path d="M9 18c-4.51 2-5-2-7-2"/>
+                </svg>
+            </a>
+            
+        </div>
+    </div>
+</header>
+
+
+            
+
+            
+            
+            <div class="scroll-progress" aria-hidden="true">
+                <div class="scroll-progress__bar"></div>
+                <span class="scroll-progress__percent">0%</span>
+            </div>
+            
+
+            
+
+
+
+
+
+
+    
+
+
+<nav class="nav-buttons" aria-label="Page navigation">
+    
+    
+    <div class="nav-button nav-button--prev disabled" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m15 18-6-6 6-6"/>
+        </svg>
+    </div>
+    
+
+    
+    
+    <a href="https://www.lokeshmohanty.in/ecr/operations/" class="nav-button nav-button--next" aria-label="Next: Operations">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m9 18 6-6-6-6"/>
+        </svg>
+        <span class="nav-button__label">
+            Operations
+            <span class="nav-button__shortcut">→</span>
+        </span>
+    </a>
+    
+</nav>
+
+
+
+
+            <div class="layout__content-area">
+                <main id="main-content" class="main-content" role="main" aria-label="Main content">
+                    
+
+
+<article class="article" itemscope itemtype="https://schema.org/Article" aria-labelledby="article-title">
+    
+    <header class="article__header article__header--docs">
+        <h1 id="article-title" itemprop="headline">Installing</h1>
+        
+        <p class="article__description" itemprop="description">The two published channels, Home Manager, NixOS, and what each release artifact carries.</p>
+        
+    </header>
+
+    <div class="article__content" itemprop="articleBody">
+        <p>Two channels are published from this repository, and they differ only in which
+commit you get.</p>
+<table><thead><tr><th>Channel</th><th>Flake ref</th><th>What it is</th></tr></thead><tbody>
+<tr><td><strong>release</strong></td><td><code>github:lokeshmohanty/ecr/release</code></td><td>the newest tagged release. CI fast-forwards this branch to each tag once every artifact for it has built</td></tr>
+<tr><td><strong>main</strong></td><td><code>github:lokeshmohanty/ecr</code></td><td>whatever <code>main</code> is at. Everything on it has passed <code>just check</code> in CI, and nothing else is promised</td></tr>
+</tbody></table>
+<p>Neither is special-cased in the code: <code>release</code> is a branch that points at a
+tag, and both build the same derivations from the same <code>flake.nix</code>.</p>
+<h2 id="telling-them-apart"><a class="zola-anchor" href="#telling-them-apart" aria-label="Anchor link for: telling-them-apart">🔗</a>Telling them apart</h2>
+<p>Both channels can sit at the same Cargo version for weeks, so the version alone
+cannot answer which one is installed. Every Nix build stamps the revision into
+the version string, and <code>ecr --version</code> reports it:</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>$ ecr --version</span></span>
+<span class="giallo-l"><span>ecr 0.1.1+20260803.a1b2c3d</span></span></code></pre>
+<p>The same string is what <code>nix profile list</code> shows. <code>0.1.1</code> is the release the
+tree is at or after; the date and the short revision say exactly which commit.</p>
+<p>A build from a source tarball or plain <code>cargo install</code> has no revision to stamp
+and reports <code>0.1.1</code>.</p>
+<h2 id="home-manager"><a class="zola-anchor" href="#home-manager" aria-label="Anchor link for: home-manager">🔗</a>Home Manager</h2>
+<p>The recommended route, and the one that tracks a channel properly. Point the
+input at whichever channel you want:</p>
+<pre class="giallo z-code"><code data-lang="nix"><span class="giallo-l"><span>{</span></span>
+<span class="giallo-l"><span class="z-entity">  inputs</span><span class="z-keyword"> =</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity">    nixpkgs</span><span>.</span><span class="z-entity">url</span><span class="z-keyword"> =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">github:NixOS/nixpkgs/nixos-unstable</span><span class="z-punctuation z-definition z-string">&quot;</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity">    home-manager</span><span>.</span><span class="z-entity">url</span><span class="z-keyword"> =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">github:nix-community/home-manager</span><span class="z-punctuation z-definition z-string">&quot;</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-comment">    #</span><span class="z-comment"> Track main. For the stable channel:</span></span>
+<span class="giallo-l"><span class="z-comment">    #</span><span class="z-comment">   ecr.url = &quot;github:lokeshmohanty/ecr/release&quot;;</span></span>
+<span class="giallo-l"><span class="z-entity">    ecr</span><span>.</span><span class="z-entity">url</span><span class="z-keyword"> =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">github:lokeshmohanty/ecr</span><span class="z-punctuation z-definition z-string">&quot;</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity">    ecr</span><span>.</span><span class="z-entity">inputs</span><span>.</span><span class="z-entity">nixpkgs</span><span>.</span><span class="z-entity">follows</span><span class="z-keyword"> =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">nixpkgs</span><span class="z-punctuation z-definition z-string">&quot;</span><span>;</span></span>
+<span class="giallo-l"><span>  }</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo z-code"><code data-lang="nix"><span class="giallo-l"><span>{</span><span class="z-variable z-parameter z-function"> inputs</span><span class="z-keyword">,</span><span class="z-keyword"> ...</span><span> }</span><span>:</span></span>
+<span class="giallo-l"><span>{</span></span>
+<span class="giallo-l"><span class="z-entity">  imports</span><span class="z-keyword"> =</span><span> [</span><span class="z-variable"> inputs</span><span class="z-keyword">.</span><span class="z-variable">ecr</span><span class="z-keyword">.</span><span class="z-variable">homeManagerModules</span><span class="z-keyword">.</span><span class="z-variable">default</span><span> ]</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-entity">  programs</span><span>.</span><span class="z-entity">ecr</span><span class="z-keyword"> =</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity">    enable</span><span class="z-keyword"> =</span><span class="z-constant"> true</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity">    desktop</span><span class="z-keyword"> =</span><span class="z-constant"> true</span><span>;</span><span class="z-comment">          #</span><span class="z-comment"> also install ecr-desktop, the Tauri client</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-entity">    server</span><span class="z-keyword"> =</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity">      enable</span><span class="z-keyword"> =</span><span class="z-constant"> true</span><span>;</span><span class="z-comment">         #</span><span class="z-comment"> run `ecr serve` as a systemd user service</span></span>
+<span class="giallo-l"><span class="z-entity">      bind</span><span class="z-keyword"> =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">127.0.0.1:8383</span><span class="z-punctuation z-definition z-string">&quot;</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span><span>;</span></span>
+<span class="giallo-l"><span>  }</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Switching channel is one line, and <code>nix flake update ecr</code> moves whichever one
+you are on. On the release channel that means the newest release, with no edit
+per release; on main it means the newest commit.</p>
+<h3 id="why-a-user-service"><a class="zola-anchor" href="#why-a-user-service" aria-label="Anchor link for: why-a-user-service">🔗</a>Why a <em>user</em> service</h3>
+<p>The maildir, the notmuch database, the mbsync and msmtp configs and the token
+store all live in <code>$HOME</code>, and Xapian has to be able to write there. A system
+service would have to be told to run as you anyway — which is exactly what the
+NixOS module's <code>services.ecr.user</code> option does, and why it cannot enable
+<code>ProtectHome</code>.</p>
+<p>Use the NixOS module instead when the server should come up at boot without
+anyone logging in; use this one otherwise.</p>
+<h3 id="options"><a class="zola-anchor" href="#options" aria-label="Anchor link for: options">🔗</a>Options</h3>
+<table><thead><tr><th>Option</th><th>Default</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>programs.ecr.enable</code></td><td><code>false</code></td><td>install <code>ecr</code></td></tr>
+<tr><td><code>programs.ecr.package</code></td><td>the flake's <code>ecr</code></td><td>the server and CLI</td></tr>
+<tr><td><code>programs.ecr.desktop</code></td><td><code>false</code></td><td>also install <code>ecr-desktop</code>. Links WebKitGTK; leave off on a headless machine</td></tr>
+<tr><td><code>programs.ecr.desktopPackage</code></td><td>the flake's <code>ecr-desktop</code></td><td>which desktop client</td></tr>
+<tr><td><code>programs.ecr.server.enable</code></td><td><code>false</code></td><td>run <code>ecr serve</code> as a systemd user service</td></tr>
+<tr><td><code>programs.ecr.server.bind</code></td><td><code>127.0.0.1:8383</code></td><td>address to listen on</td></tr>
+<tr><td><code>programs.ecr.server.readOnly</code></td><td><code>false</code></td><td>refuse every write</td></tr>
+<tr><td><code>programs.ecr.server.extraArgs</code></td><td><code>[ ]</code></td><td>further arguments for <code>ecr serve</code></td></tr>
+<tr><td><code>programs.ecr.server.environment</code></td><td><code>{ }</code></td><td>extra environment for the service</td></tr>
+</tbody></table>
+<p><code>ecr doctor</code> has to pass before the service will start. Check it after the first
+switch:</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">systemctl</span><span class="z-constant"> -</span><span class="z-constant">-user</span><span class="z-string"> status</span><span class="z-string"> ecr</span></span>
+<span class="giallo-l"><span class="z-entity z-name">journalctl</span><span class="z-constant"> -</span><span class="z-constant">-user</span><span class="z-constant"> -</span><span class="z-constant">u</span><span class="z-string"> ecr</span><span class="z-constant"> -</span><span class="z-constant">e</span></span></code></pre><h2 id="nixos"><a class="zola-anchor" href="#nixos" aria-label="Anchor link for: nixos">🔗</a>NixOS</h2>
+<p>For a machine that should serve mail without anyone logged in:</p>
+<pre class="giallo z-code"><code data-lang="nix"><span class="giallo-l"><span>{</span></span>
+<span class="giallo-l"><span class="z-entity">  imports</span><span class="z-keyword"> =</span><span> [</span><span class="z-variable"> inputs</span><span class="z-keyword">.</span><span class="z-variable">ecr</span><span class="z-keyword">.</span><span class="z-variable">nixosModules</span><span class="z-keyword">.</span><span class="z-variable">default</span><span> ]</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity">  services</span><span>.</span><span class="z-entity">ecr</span><span class="z-keyword"> =</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity">    enable</span><span class="z-keyword"> =</span><span class="z-constant"> true</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity">    user</span><span class="z-keyword"> =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">lokesh</span><span class="z-punctuation z-definition z-string">&quot;</span><span>;</span><span class="z-comment">           #</span><span class="z-comment"> whose maildir is served</span></span>
+<span class="giallo-l"><span class="z-entity">    bind</span><span class="z-keyword"> =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">127.0.0.1:8383</span><span class="z-punctuation z-definition z-string">&quot;</span><span>;</span></span>
+<span class="giallo-l"><span>  }</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The same channel choice applies — the input's ref is what decides it.</p>
+<p>The package carries no <code>notmuch</code>, <code>mbsync</code> or <code>msmtp</code> of its own, and a
+<em>system</em> unit's <code>PATH</code> does not reach the served user's profile, so name them:</p>
+<pre class="giallo z-code"><code data-lang="nix"><span class="giallo-l"><span class="z-variable">services</span><span class="z-keyword">.</span><span class="z-variable">ecr</span><span class="z-keyword">.</span><span class="z-variable">path</span><span class="z-invalid z-illegal"> =</span><span class="z-invalid z-illegal"> with</span><span class="z-variable"> pkgs</span><span class="z-invalid z-illegal">;</span><span> [</span></span>
+<span class="giallo-l"><span class="z-variable">  notmuch</span></span>
+<span class="giallo-l"><span>  (</span><span class="z-variable">isync</span><span class="z-keyword">.</span><span class="z-variable">override</span><span> {</span><span class="z-entity"> withCyrusSaslXoauth2</span><span class="z-keyword"> =</span><span class="z-constant"> true</span><span>;</span><span> }</span><span>)</span></span>
+<span class="giallo-l"><span class="z-variable">  msmtp</span></span>
+<span class="giallo-l"><span>]</span><span class="z-invalid z-illegal">;</span></span></code></pre>
+<p>Name the same derivations that user's own configuration uses. A second copy is
+not the same binary: XOAUTH2 is a separate SASL plugin, and a plain <code>mbsync</code>
+fails every OAuth account with <code>selected SASL mechanism(s) not available</code> out of
+a configuration that syncs by hand. The Home Manager module needs nothing here
+— a user unit's <code>PATH</code> carries that user's own profiles already.</p>
+<h2 id="nix-profile"><a class="zola-anchor" href="#nix-profile" aria-label="Anchor link for: nix-profile">🔗</a>nix profile</h2>
+<p>Fine for trying it; it does not track a channel on its own, and an upgrade is a
+command you have to remember to run.</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">nix</span><span class="z-string"> profile</span><span class="z-string"> install</span><span class="z-string"> github:lokeshmohanty/ecr#ecr</span><span class="z-punctuation z-definition z-comment">           #</span><span class="z-comment"> main</span></span>
+<span class="giallo-l"><span class="z-entity z-name">nix</span><span class="z-string"> profile</span><span class="z-string"> install</span><span class="z-string"> github:lokeshmohanty/ecr/release#ecr</span><span class="z-punctuation z-definition z-comment">   #</span><span class="z-comment"> newest release</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-entity z-name">nix</span><span class="z-string"> profile</span><span class="z-string"> upgrade</span><span class="z-string"> ecr</span></span></code></pre>
+<p>Installing both at once does not work: each provides <code>bin/ecr</code> and the profile
+refuses the collision. Pick a channel, or use <code>nix run</code> for the other:</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">nix</span><span class="z-string"> run</span><span class="z-string"> github:lokeshmohanty/ecr#ecr</span><span class="z-constant"> -</span><span class="z-constant">-</span><span class="z-string"> doctor</span></span></code></pre><h2 id="the-binary-cache"><a class="zola-anchor" href="#the-binary-cache" aria-label="Anchor link for: the-binary-cache">🔗</a>The binary cache</h2>
+<p><code>flake.nix</code> sets <code>lokeshmohanty.cachix.org</code> as a substituter, and CI pushes to
+it on every push to <code>main</code>. Without it, tracking the main channel means
+compiling the Rust server and the web client on every update.</p>
+<p>Nix will ask to trust the substituter the first time. To accept it ahead of
+time:</p>
+<pre class="giallo z-code"><code data-lang="nix"><span class="giallo-l"><span class="z-variable">nix</span><span class="z-keyword">.</span><span class="z-variable">settings</span><span class="z-invalid z-illegal"> =</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity">  substituters</span><span class="z-keyword"> =</span><span> [</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">https://lokeshmohanty.cachix.org</span><span class="z-punctuation z-definition z-string">&quot;</span><span> ]</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity">  trusted-public-keys</span><span class="z-keyword"> =</span><span> [</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">    &quot;</span><span class="z-string">lokeshmohanty.cachix.org-1:XkCPbX2XsKzlr0P/MecvqruyTeOA8SzJzwMcCOfuLuI=</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span>  ]</span><span>;</span></span>
+<span class="giallo-l"><span>}</span><span class="z-invalid z-illegal">;</span></span></code></pre><h2 id="not-nix"><a class="zola-anchor" href="#not-nix" aria-label="Anchor link for: not-nix">🔗</a>Not Nix</h2>
+<p>The release artifacts are on the
+<a rel="external" href="https://github.com/lokeshmohanty/ecr/releases/latest">latest release</a>; there is
+no rolling channel for them, because there is no tag to build one from.</p>
+<p>The tarball carries the binary, the web client, a man page, shell completions
+for bash/zsh/fish, and a systemd <strong>user</strong> unit:</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">tar</span><span class="z-string"> xzf</span><span class="z-string"> ecr-x86_64-unknown-linux-gnu.tar.gz</span></span>
+<span class="giallo-l"><span class="z-support">cd</span><span class="z-string"> ecr-x86_64-unknown-linux-gnu</span></span>
+<span class="giallo-l"><span class="z-entity z-name">./bin/ecr</span><span class="z-string"> doctor</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-entity z-name">install</span><span class="z-constant"> -</span><span class="z-constant">Dm755</span><span class="z-string"> bin/ecr</span><span class="z-string"> ~/.local/bin/ecr</span></span>
+<span class="giallo-l"><span class="z-entity z-name">install</span><span class="z-constant"> -</span><span class="z-constant">Dm644</span><span class="z-string"> share/systemd/user/ecr.service</span><span class="z-string"> ~/.config/systemd/user/ecr.service</span></span>
+<span class="giallo-l"><span class="z-entity z-name">systemctl</span><span class="z-constant"> -</span><span class="z-constant">-user</span><span class="z-string"> daemon-reload</span></span>
+<span class="giallo-l"><span class="z-entity z-name">systemctl</span><span class="z-constant"> -</span><span class="z-constant">-user</span><span class="z-string"> enable</span><span class="z-constant"> -</span><span class="z-constant">-now</span><span class="z-string"> ecr</span></span></code></pre>
+<p>The unit's <code>ExecStart</code> points at <code>~/.local/bin/ecr</code> and its <code>PATH</code> has to reach
+<code>notmuch</code>, <code>mbsync</code> and <code>msmtp</code> — plus <code>ecr</code> itself, if your mbsync or msmtp
+config authenticates with <code>ecr oauth token</code>, because mbsync is a child of the
+server and resolves it off <code>PATH</code> like anything else. A user unit inherits
+nothing from the login shell.</p>
+<p>The <code>.deb</code> and the AppImage carry the <strong>desktop client</strong>, not the server. They
+install the desktop entry, the icons and the AppStream metadata, and drop a copy
+of the unit at <code>/usr/share/doc/ecr/ecr.service</code>; the server still comes from the
+tarball or from Nix.</p>
+
+    </div>
+
+    
+    
+    
+</article>
+
+
+
+<nav class="page-nav" aria-label="Page navigation">
+    
+
+    
+</nav>
+
+
+
+                </main>
+
+                
+                
+                
+
+
+
+
+<aside id="page-toc-panel" class="page-toc-panel" aria-hidden="true" aria-label="On this page">
+    <div class="page-toc-panel__content">
+        <div class="page-toc-panel__header">
+            <span class="page-toc-panel__title">On this page</span>
+            <button class="page-toc-panel__close" type="button" aria-label="Close table of contents">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 6 6 18"/>
+                    <path d="m6 6 12 12"/>
+                </svg>
+            </button>
+        </div>
+        <nav class="page-toc-panel__nav" aria-label="Page sections">
+            <ul class="page-toc-panel__list">
+                
+                <li class="page-toc-panel__item">
+                    <a href="#telling-them-apart" class="page-toc-panel__link">
+                        Telling them apart
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#home-manager" class="page-toc-panel__link">
+                        Home Manager
+                    </a>
+                    
+                    <ul class="page-toc-panel__list page-toc-panel__list--nested">
+                        
+                        <li class="page-toc-panel__item">
+                            <a href="#why-a-user-service" class="page-toc-panel__link">
+                                Why a user service
+                            </a>
+                        </li>
+                        
+                        <li class="page-toc-panel__item">
+                            <a href="#options" class="page-toc-panel__link">
+                                Options
+                            </a>
+                        </li>
+                        
+                    </ul>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#nixos" class="page-toc-panel__link">
+                        NixOS
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#nix-profile" class="page-toc-panel__link">
+                        nix profile
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#the-binary-cache" class="page-toc-panel__link">
+                        The binary cache
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#not-nix" class="page-toc-panel__link">
+                        Not Nix
+                    </a>
+                    
+                </li>
+                
+            </ul>
+        </nav>
+    </div>
+</aside>
+
+
+                
+            </div>
+
+            
+            
+            
+        </div>
+    </div>
+
+    
+    <div class="sidebar-overlay" aria-hidden="true"></div>
+
+    
+    
+    
+<div class="search-overlay" role="dialog" aria-modal="true" aria-labelledby="search-title" aria-describedby="search-description">
+    <div class="search">
+        <h2 id="search-title" class="sr-only">Search documentation</h2>
+        <p id="search-description" class="sr-only">Type to search. Use arrow keys to navigate results, Enter to select, Escape to close.</p>
+
+        <div class="search__input-wrapper">
+            <span class="search__icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.3-4.3"/>
+                </svg>
+            </span>
+            <input
+                type="search"
+                class="search__input"
+                placeholder="Search documentation..."
+                autocomplete="off"
+                autofocus
+                aria-label="Search query"
+                aria-controls="search-results"
+                aria-autocomplete="list"
+            >
+            <span class="search__shortcut" aria-hidden="true">/</span>
+            <button class="search__close" type="button" aria-label="Close search dialog" title="Close (Esc)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 6 6 18"/>
+                    <path d="m6 6 12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <div id="search-results" class="search__results" role="listbox" aria-label="Search results">
+            
+        </div>
+
+        <footer class="search__footer">
+            <nav class="search__hints" aria-label="Keyboard shortcuts">
+                <span class="search__hint">
+                    <kbd aria-label="Up and down arrows">↑</kbd><kbd aria-hidden="true">↓</kbd> <span>Navigate</span>
+                </span>
+                <span class="search__hint">
+                    <kbd aria-label="Enter">↵</kbd> <span>Select</span>
+                </span>
+                <span class="search__hint">
+                    <kbd aria-label="Escape">esc</kbd> <span>Close</span>
+                </span>
+            </nav>
+            <span class="search__powered-by">Powered by <a href="https://github.com/weixsong/elasticlunr.js" target="_blank" rel="noopener noreferrer" aria-label="elasticlunr.js on GitHub (opens in new tab)">elasticlunr</a></span>
+        </footer>
+    </div>
+</div>
+
+    
+
+    
+    
+
+    
+    
+
+    
+    
+    
+    <button class="page-toc-toggle" type="button" aria-label="Toggle table of contents" aria-expanded="false" aria-controls="page-toc-panel" title="On this page">
+        <svg class="page-toc-toggle__icon page-toc-toggle__icon--list" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M16 5H3"/>
+            <path d="M16 12H3"/>
+            <path d="M16 19H3"/>
+            <path d="M21 5h.01"/>
+            <path d="M21 12h.01"/>
+            <path d="M21 19h.01"/>
+        </svg>
+        <svg class="page-toc-toggle__icon page-toc-toggle__icon--close" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 6 6 18"/>
+            <path d="m6 6 12 12"/>
+        </svg>
+    </button>
+    
+
+    
+    
+    <button class="fab scroll-to-top" aria-label="Scroll to top" title="Scroll to top">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m18 15-6-6-6 6"/>
+        </svg>
+    </button>
+    
+
+    
+    
+    
+    <script src="https://www.lokeshmohanty.in/ecr/js/theme.js" defer></script>
+    <script src="https://www.lokeshmohanty.in/ecr/js/navigation.js" defer></script>
+    <script src="https://www.lokeshmohanty.in/ecr/js/code.js" defer></script>
+
+    
+    <script src="https://www.lokeshmohanty.in/ecr/elasticlunr.min.js"></script>
+    <script src="https://www.lokeshmohanty.in/ecr/search_index.en.js"></script>
+    <script src="https://www.lokeshmohanty.in/ecr/js/search.js" defer></script>
+    
+    
+
+    
+</body>
+</html>

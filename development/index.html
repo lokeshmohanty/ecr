@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en" prefix="og: https://ogp.me/ns#">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark light">
+    <script>
+    (function(){var s='auto';try{s=localStorage.getItem('reticle-theme')||localStorage.getItem('ThemeColorScheme')||'auto'}catch(e){}
+    var t=s==='auto'?(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'):s;
+    document.documentElement.setAttribute('data-theme',t);
+    document.documentElement.setAttribute('data-theme-setting',s);
+    document.documentElement.setAttribute('data-user-color-scheme',t)})();
+    </script>
+
+    
+    <title>Development | ecr</title>
+
+    
+    
+    <meta name="description" content="Building, testing and verifying a change.">
+    
+
+    
+    
+
+    
+    
+
+    
+    <meta name="robots" content="index, follow">
+    <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+
+    
+    
+    <link rel="canonical" href="https://www.lokeshmohanty.in/ecr/development/">
+    <link rel="alternate" hreflang="en" href="https://www.lokeshmohanty.in/ecr/development/">
+    <link rel="alternate" hreflang="x-default" href="https://www.lokeshmohanty.in/ecr/development/">
+    
+
+    
+    <meta property="og:type" content="article">
+    
+    <meta property="og:url" content="https://www.lokeshmohanty.in/ecr/development/">
+    
+    
+    <meta property="og:title" content="Development">
+    
+    
+    <meta property="og:description" content="Building, testing and verifying a change.">
+    
+    
+    <meta property="og:site_name" content="ecr">
+    <meta property="og:locale" content="en">
+
+    
+    
+    
+    
+    
+    
+
+    
+    <meta name="twitter:card" content="summary_large_image">
+    
+    <meta name="twitter:url" content="https://www.lokeshmohanty.in/ecr/development/">
+    
+    
+    <meta name="twitter:title" content="Development">
+    
+    
+    <meta name="twitter:description" content="Building, testing and verifying a change.">
+    
+    
+    
+
+    
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "WebSite",
+                "@id": "https://www.lokeshmohanty.in/ecr#website",
+                "url": "https://www.lokeshmohanty.in/ecr",
+                "name": "ecr",
+                "description": "Email Client in Rust — a keyboard-driven mail client for an existing notmuch maildir",
+                "publisher": {
+                    "@id": "https://zentinelproxy.io/#organization"
+                },
+                "inLanguage": "en",
+                "potentialAction": {
+                    "@type": "SearchAction",
+                    "target": {
+                        "@type": "EntryPoint",
+                        "urlTemplate": "https://www.lokeshmohanty.in/ecr?q={search_term_string}"
+                    },
+                    "query-input": "required name=search_term_string"
+                }
+            },
+            {
+                "@type": "Organization",
+                "@id": "https://zentinelproxy.io/#organization",
+                "name": "lokeshmohanty",
+                "url": "https://zentinelproxy.io",
+                "logo": {
+                    "@type": "ImageObject",
+                    "url": "https://zentinelproxy.io/img/og-image.png",
+                    "width": 1200,
+                    "height": 630
+                }
+            },
+            {
+                "@type": "WebPage",
+                "@id": "https://www.lokeshmohanty.in/ecr/development/#webpage",
+                "url": "https://www.lokeshmohanty.in/ecr/development/",
+                "name": "Development",
+                "isPartOf": {
+                    "@id": "https://www.lokeshmohanty.in/ecr#website"
+                },
+                "description": "Building, testing and verifying a change.",
+                "inLanguage": "en"
+                
+                
+            }
+            
+            ,{
+                "@type": "Article",
+                "@id": "https://www.lokeshmohanty.in/ecr/development/#article",
+                "isPartOf": {
+                    "@id": "https://www.lokeshmohanty.in/ecr/development/#webpage"
+                },
+                "headline": "Development",
+                
+                "description": "Building, testing and verifying a change.",
+                
+                
+                
+                "author": {
+                    "@id": "https://zentinelproxy.io/#organization"
+                },
+                "publisher": {
+                    "@id": "https://zentinelproxy.io/#organization"
+                },
+                
+                
+                "wordCount": 1854,
+                
+                "inLanguage": "en"
+            }
+            
+        ]
+    }
+    </script>
+
+    
+    
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "ecr",
+                "item": "https://www.lokeshmohanty.in/ecr"
+            }
+            
+            
+            
+            ,{
+                "@type": "ListItem",
+                "position": 2,
+                "name": "ecr",
+                "item": "https://www.lokeshmohanty.in/ecr/"
+            }
+            
+            
+            ,{
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Development",
+                "item": "https://www.lokeshmohanty.in/ecr/development/"
+            }
+        ]
+    }
+    </script>
+    
+
+    
+    <link rel="stylesheet" href="https://www.lokeshmohanty.in/ecr/style.css">
+
+    
+    
+    <link rel="stylesheet" href="https://www.lokeshmohanty.in/ecr/syntax-light.css" media="(prefers-color-scheme: light)">
+    <link rel="stylesheet" href="https://www.lokeshmohanty.in/ecr/syntax-dark.css" media="(prefers-color-scheme: dark)">
+    
+
+    
+    <link rel="preload" href="https://www.lokeshmohanty.in/ecr/fonts/SpaceGrotesk-Variable.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="https://www.lokeshmohanty.in/ecr/fonts/Nunito-Variable.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="https://www.lokeshmohanty.in/ecr/fonts/CascadiaCode-Variable.woff2" as="font" type="font/woff2" crossorigin>
+
+    
+    
+    <link rel="icon" href="https://www.lokeshmohanty.in/ecr/favicon.png">
+    
+    
+
+    
+    
+
+    
+    
+    
+    
+    <script>
+        (function() {
+            try {
+                var stored = localStorage.getItem('reticle-theme') || localStorage.getItem('ThemeColorScheme') || 'auto';
+                var theme = stored === 'auto'
+                    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                    : stored;
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.setAttribute('data-theme-setting', stored);
+                document.documentElement.setAttribute('data-user-color-scheme', theme);
+            } catch(e) {}
+        })();
+    </script>
+    
+
+    
+</head>
+<body class="page-development">
+    
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    
+    
+
+    
+    
+        
+    
+
+    
+    <div class="layout layout--docs layout--fixed-header" data-mode="docs">
+        
+
+
+<aside id="sidebar" class="sidebar" role="complementary" aria-labelledby="sidebar-title">
+    
+    <div class="sidebar__resize-handle" aria-hidden="true" title="Drag to resize sidebar width"></div>
+
+    <div class="sidebar__header">
+        <span id="sidebar-title" class="sidebar__title">Table of contents</span>
+        <button class="sidebar__close" type="button" aria-label="Close sidebar" title="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M18 6 6 18"/>
+                <path d="m6 6 12 12"/>
+            </svg>
+        </button>
+    </div>
+
+    <nav class="sidebar__content" aria-label="Documentation navigation">
+        <div class="toc">
+            
+            
+
+            
+            <div class="toc__section">
+                <ol class="toc__list toc__list--numbered" start="0">
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/installing/" class="toc__link ">
+                            <span class="toc__number">0.</span>
+                            Installing
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/operations/" class="toc__link ">
+                            <span class="toc__number">1.</span>
+                            Operations
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/architecture/" class="toc__link ">
+                            <span class="toc__number">2.</span>
+                            Architecture
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/api/" class="toc__link ">
+                            <span class="toc__number">3.</span>
+                            HTTP API
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/development/" class="toc__link active">
+                            <span class="toc__number">4.</span>
+                            Development
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/releasing/" class="toc__link ">
+                            <span class="toc__number">5.</span>
+                            Releasing
+                        </a>
+                    </li>
+                    
+                    
+                </ol>
+            </div>
+
+            
+            
+            
+        </div>
+    </nav>
+
+    <div class="sidebar__footer">
+        
+        <div class="sidebar__actions-mobile">
+            
+            
+
+            
+            
+            <div class="sidebar__action">
+                <span class="sidebar__action-label">Theme</span>
+                
+<button class="theme-toggle" type="button" aria-label="Toggle color theme: cycles through light, dark, and auto modes" aria-live="polite" title="Toggle theme">
+    <span class="theme-toggle__icons">
+        
+        <span class="theme-toggle__sun" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2"/>
+                <path d="M12 20v2"/>
+                <path d="m4.93 4.93 1.41 1.41"/>
+                <path d="m17.66 17.66 1.41 1.41"/>
+                <path d="M2 12h2"/>
+                <path d="M20 12h2"/>
+                <path d="m6.34 17.66-1.41 1.41"/>
+                <path d="m19.07 4.93-1.41 1.41"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__moon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__auto" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 2a7 7 0 1 0 7 7"/>
+            </svg>
+        </span>
+    </span>
+    <span class="sr-only theme-toggle__status">Current theme: auto</span>
+</button>
+
+            </div>
+            
+
+            
+            
+            <a href="https:&#x2F;&#x2F;github.com&#x2F;lokeshmohanty&#x2F;ecr" class="sidebar__github" target="_blank" rel="noopener noreferrer" aria-label="View project on GitHub (opens in new tab)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
+                    <path d="M9 18c-4.51 2-5-2-7-2"/>
+                </svg>
+                <span>View on GitHub</span>
+            </a>
+            
+        </div>
+
+        
+        <a href="https://www.lokeshmohanty.in/ecr/print?auto=true" class="print-button" target="_blank" rel="noopener" aria-label="Print all documentation pages (opens print dialog)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 6 2 18 2 18 9"/>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                <rect width="12" height="8" x="6" y="14"/>
+            </svg>
+            <span>Print all pages</span>
+        </a>
+    </div>
+</aside>
+
+
+
+
+        <div class="layout__main">
+            
+            
+
+
+
+
+<header class="header" role="banner">
+    <div class="header__left">
+        
+        
+        <button class="sidebar-toggle" type="button" aria-label="Toggle sidebar navigation" aria-expanded="true" aria-controls="sidebar" title="Toggle sidebar">
+            <svg class="sidebar-toggle__icon sidebar-toggle__icon--open" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                <path d="M9 3v18"/>
+                <path d="m16 15-3-3 3-3"/>
+            </svg>
+            <svg class="sidebar-toggle__icon sidebar-toggle__icon--closed" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                <path d="M9 3v18"/>
+                <path d="m14 9 3 3-3 3"/>
+            </svg>
+        </button>
+        
+
+        
+        
+        <button class="toc-toggle toc-toggle--docs" type="button" aria-label="Open table of contents" aria-expanded="false" aria-controls="sidebar" title="Table of contents">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                <path d="M9 3v18"/>
+                <path d="m16 15-3-3 3-3"/>
+            </svg>
+        </button>
+        
+
+        
+        
+
+        
+        
+
+        
+        <a href="https://www.lokeshmohanty.in/ecr" class="header__logo" aria-label="ecr - Go to homepage">
+            
+            
+            
+                
+            
+            <img src="https://www.lokeshmohanty.in/ecr/assets/logo.png" alt="" aria-hidden="true">
+            
+            <span>ecr</span>
+        </a>
+    </div>
+
+    
+    <nav class="header__nav" role="navigation" aria-label="Main navigation">
+        
+    </nav>
+
+    
+    <div class="header__actions" role="group" aria-label="Site actions">
+        
+        
+        <button class="search-toggle" type="button" aria-label="Open search dialog" aria-keyshortcuts="/" aria-haspopup="dialog" title="Search (press /)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.3-4.3"/>
+            </svg>
+        </button>
+        
+
+        
+        <div class="header__actions-desktop">
+            
+            
+
+            
+            
+            
+<button class="theme-toggle" type="button" aria-label="Toggle color theme: cycles through light, dark, and auto modes" aria-live="polite" title="Toggle theme">
+    <span class="theme-toggle__icons">
+        
+        <span class="theme-toggle__sun" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2"/>
+                <path d="M12 20v2"/>
+                <path d="m4.93 4.93 1.41 1.41"/>
+                <path d="m17.66 17.66 1.41 1.41"/>
+                <path d="M2 12h2"/>
+                <path d="M20 12h2"/>
+                <path d="m6.34 17.66-1.41 1.41"/>
+                <path d="m19.07 4.93-1.41 1.41"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__moon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__auto" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 2a7 7 0 1 0 7 7"/>
+            </svg>
+        </span>
+    </span>
+    <span class="sr-only theme-toggle__status">Current theme: auto</span>
+</button>
+
+            
+
+            
+            
+            <a href="https:&#x2F;&#x2F;github.com&#x2F;lokeshmohanty&#x2F;ecr&#x2F;edit&#x2F;main&#x2F;docs&#x2F;content/development.md" class="btn btn--icon btn--ghost" aria-label="Edit this page on GitHub (opens in new tab)" target="_blank" rel="noopener noreferrer" title="Edit this page">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                    <path d="m15 5 4 4"/>
+                </svg>
+            </a>
+            
+
+            
+            
+            <a href="https:&#x2F;&#x2F;github.com&#x2F;lokeshmohanty&#x2F;ecr" class="btn btn--icon btn--ghost" aria-label="View project on GitHub (opens in new tab)" target="_blank" rel="noopener noreferrer" title="GitHub">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
+                    <path d="M9 18c-4.51 2-5-2-7-2"/>
+                </svg>
+            </a>
+            
+        </div>
+    </div>
+</header>
+
+
+            
+
+            
+            
+            <div class="scroll-progress" aria-hidden="true">
+                <div class="scroll-progress__bar"></div>
+                <span class="scroll-progress__percent">0%</span>
+            </div>
+            
+
+            
+
+
+
+
+
+    
+
+
+    
+
+
+<nav class="nav-buttons" aria-label="Page navigation">
+    
+    
+    <a href="https://www.lokeshmohanty.in/ecr/api/" class="nav-button nav-button--prev" aria-label="Previous: HTTP API">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m15 18-6-6 6-6"/>
+        </svg>
+        <span class="nav-button__label">
+            HTTP API
+            <span class="nav-button__shortcut">←</span>
+        </span>
+    </a>
+    
+
+    
+    
+    <a href="https://www.lokeshmohanty.in/ecr/releasing/" class="nav-button nav-button--next" aria-label="Next: Releasing">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m9 18 6-6-6-6"/>
+        </svg>
+        <span class="nav-button__label">
+            Releasing
+            <span class="nav-button__shortcut">→</span>
+        </span>
+    </a>
+    
+</nav>
+
+
+
+
+            <div class="layout__content-area">
+                <main id="main-content" class="main-content" role="main" aria-label="Main content">
+                    
+
+
+<article class="article" itemscope itemtype="https://schema.org/Article" aria-labelledby="article-title">
+    
+    <header class="article__header article__header--docs">
+        <h1 id="article-title" itemprop="headline">Development</h1>
+        
+        <p class="article__description" itemprop="description">Building, testing and verifying a change.</p>
+        
+    </header>
+
+    <div class="article__content" itemprop="articleBody">
+        <h2 id="environment"><a class="zola-anchor" href="#environment" aria-label="Anchor link for: environment">🔗</a>Environment</h2>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">direnv</span><span class="z-string"> allow</span><span class="z-punctuation z-definition z-comment">      #</span><span class="z-comment"> or: nix develop</span></span></code></pre>
+<p>The shell provides the Rust toolchain, Node and pnpm, <code>hurl</code>, <code>sqlite</code>, and the
+WebKitGTK closure Tauri needs.</p>
+<p>It deliberately does <strong>not</strong> provide <code>notmuch</code>, <code>isync</code> or <code>msmtp</code>, the same way
+the package ships no copy of them: a shell that supplied its own would put a
+plain <code>mbsync</code> ahead of yours, and <code>just serve</code> against a real inbox would fail
+every OAuth account with <code>selected SASL mechanism(s) not available</code> — the
+mechanisms of the copy this shell handed you, not of the one your config was
+written for. The suites need all three, so install them on the machine you
+develop on; <code>just doctor</code> names whichever is missing, and the shell's greeting
+prints the version of each or says <code>not installed</code>.</p>
+<h2 id="commands"><a class="zola-anchor" href="#commands" aria-label="Anchor link for: commands">🔗</a>Commands</h2>
+<p><code>just</code> wraps everything. <code>just</code> on its own lists the recipes.</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">just</span><span class="z-string"> install</span><span class="z-punctuation z-definition z-comment">        #</span><span class="z-comment"> web dependencies</span></span>
+<span class="giallo-l"><span class="z-entity z-name">just</span><span class="z-string"> doctor</span><span class="z-punctuation z-definition z-comment">         #</span><span class="z-comment"> verify the mail setup — do this first</span></span>
+<span class="giallo-l"><span class="z-entity z-name">just</span><span class="z-string"> test</span><span class="z-punctuation z-definition z-comment">           #</span><span class="z-comment"> 307 Rust tests</span></span>
+<span class="giallo-l"><span class="z-entity z-name">just</span><span class="z-string"> test-web</span><span class="z-punctuation z-definition z-comment">       #</span><span class="z-comment"> 534 web tests + tsc</span></span>
+<span class="giallo-l"><span class="z-entity z-name">just</span><span class="z-string"> verify</span><span class="z-punctuation z-definition z-comment">         #</span><span class="z-comment"> 22 checks in a real browser</span></span>
+<span class="giallo-l"><span class="z-entity z-name">just</span><span class="z-string"> check</span><span class="z-punctuation z-definition z-comment">          #</span><span class="z-comment"> fmt, lint, both suites, browser, visual and UX verification</span></span>
+<span class="giallo-l"><span class="z-entity z-name">just</span><span class="z-string"> deny</span><span class="z-punctuation z-definition z-comment">           #</span><span class="z-comment"> licences, bans, sources, advisories</span></span>
+<span class="giallo-l"><span class="z-entity z-name">just</span><span class="z-string"> licenses</span><span class="z-punctuation z-definition z-comment">       #</span><span class="z-comment"> re-audit every dependency licence</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-entity z-name">just</span><span class="z-string"> serve</span><span class="z-punctuation z-definition z-comment">          #</span><span class="z-comment"> run the server</span></span>
+<span class="giallo-l"><span class="z-entity z-name">just</span><span class="z-string"> dev</span><span class="z-punctuation z-definition z-comment">            #</span><span class="z-comment"> web client with hot reload</span></span>
+<span class="giallo-l"><span class="z-entity z-name">just</span><span class="z-string"> token</span><span class="z-string"> phone</span><span class="z-punctuation z-definition z-comment">    #</span><span class="z-comment"> issue a device token, with a pairing QR</span></span>
+<span class="giallo-l"><span class="z-entity z-name">just</span><span class="z-string"> verify-live</span><span class="z-punctuation z-definition z-comment">    #</span><span class="z-comment"> read-only smoke test against your real mail</span></span></code></pre>
+<p>Every recipe that starts a server binds <code>0.0.0.0:8399</code>, and <code>ECR_BIND</code> overrides
+it. The port is deliberately not the installed server's 8383: on a machine that
+also runs <code>ecr serve</code> as a service — the NixOS module, the home-manager module
+or <code>packaging/ecr.service</code> — sharing the port means one of the two loses it, and
+which one depends on the order they happened to start in. Keeping them apart
+lets a working tree and an installed service run side by side, which comparing
+the two needs anyway.</p>
+<h2 id="the-dev-token"><a class="zola-anchor" href="#the-dev-token" aria-label="Anchor link for: the-dev-token">🔗</a>The dev token</h2>
+<p>Once you have issued yourself a device token the API is authenticated, and every
+request without one is a 401 — including the ones the client you are developing
+makes. So the recipes that launch a client issue and carry their own token
+rather than leaving you to paste one in.</p>
+<p><code>scripts/dev-token.sh</code> issues it, into <code>~/.config/ecr/dev-tokens.toml</code> and
+<strong>not</strong> the real <code>tokens.toml</code>. That separation is load-bearing in both
+directions: the <code>verify-*</code> recipes drive the real config in place and rely on
+auth being off, which an empty store is what gives them, and a dev token in
+there would break every one of them. It also caches the plaintext in
+<code>~/.config/ecr/dev-token</code>, because <code>ecr token new</code> prints a token once and a
+second command would otherwise have no way to recover the one a running server
+was started with. <code>ECR_DEV_TOKENS</code> and <code>ECR_DEV_TOKEN_FILE</code> move both.</p>
+<p>Each client then gets the token by the only route open to it:</p>
+<table><thead><tr><th>Recipe</th><th>How the token arrives</th></tr></thead><tbody>
+<tr><td><code>just run</code></td><td><code>?token=</code> on the URL the browser is opened with</td></tr>
+<tr><td><code>just dev</code></td><td>the same, on <code>localhost:1420</code>; vite proxies <code>/api</code> to the server</td></tr>
+<tr><td><code>just desktop</code></td><td><code>ECR_TOKEN</code> in the environment, read by the shell's <code>default_token</code></td></tr>
+<tr><td><code>just android</code></td><td><code>ECR_TOKEN</code> at <strong>build</strong> time, baked into the debug APK</td></tr>
+</tbody></table>
+<p>The browser cases work because the client strips <code>?token=</code> out of the URL as it
+starts — it saves the token, rewrites the address bar with <code>replaceState</code> so it
+does not linger in history, and never shows the connection form.</p>
+<p>The two shell cases have no URL to carry anything: the webview is not served by
+the server. The desktop reads the environment it was launched with. A phone has
+no such environment — it runs an installed APK and reaches this machine back
+down the USB cable — so <code>just android</code> sets <code>ECR_TOKEN</code> for the build and
+<code>option_env!</code> compiles it in. Only that debug build carries it; a release is
+compiled without the variable and <code>default_token</code> answers <code>None</code>, which is what
+keeps a dev token out of a shipped artifact. <code>shell/build.rs</code> declares
+<code>rerun-if-env-changed=ECR_TOKEN</code>, or rotating the token would leave a cached
+binary presenting the old one and the app would look unable to reach the server.</p>
+<p>A token stored on the device always wins over the shell's, so pairing a phone
+properly with <code>just token phone</code> is not undone by later running <code>just android</code>.</p>
+<p>That rule is also why <code>just desktop</code> runs the shell against <strong>its own data
+directory</strong>, <code>.dev/share</code>, through <code>XDG_DATA_HOME</code>. A Tauri webview keeps its
+localStorage under an app data directory derived from the bundle identifier, so
+without this a dev launch and an installed ecr share one — and the connection
+record is the thing they must not share. <code>ECR_SERVER_URL</code> is authoritative while
+<code>ECR_TOKEN</code> is only the fallback, so a client that had been paired properly got
+moved to the dev server on 8399 while keeping the token for the real one, and
+said <strong>this device is not authorised</strong> about a setup in which nothing was wrong.
+Separate directories give the dev launch an empty store, so it takes both halves
+of the identity the shell hands it, and an installed ecr is left alone. Set
+<code>ECR_DEV_DATA</code> to put it somewhere else; <code>just clean</code> removes it.</p>
+<p>Being authoritative is also why the shell answers with a server only when
+<code>ECR_SERVER_URL</code> names one. It used to fall back to <code>http://localhost:8383</code>, and
+a phone has no environment for that variable to be in — so every Android launch
+overwrote the address the device had been paired with, and the app had to be
+paired again each time it was opened. A client with nothing stored still starts
+at that address, but from <code>defaultBaseUrl</code> in the client, which is read only when
+localStorage is empty and so cannot displace a pairing.</p>
+<p>The underlying commands are ordinary and can still be run directly:</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">cargo</span><span class="z-string"> test</span><span class="z-constant"> -</span><span class="z-constant">-workspace</span></span>
+<span class="giallo-l"><span class="z-entity z-name">cargo</span><span class="z-string"> clippy</span><span class="z-constant"> -</span><span class="z-constant">-workspace</span><span class="z-constant"> -</span><span class="z-constant">-all-targets</span><span class="z-constant"> -</span><span class="z-constant">-</span><span class="z-constant"> -</span><span class="z-constant">D</span><span class="z-string"> warnings</span></span>
+<span class="giallo-l"><span class="z-entity z-name">cargo</span><span class="z-string"> fmt</span><span class="z-constant"> -</span><span class="z-constant">-all</span></span>
+<span class="giallo-l"><span class="z-entity z-name">pnpm</span><span class="z-constant"> -</span><span class="z-constant">-dir</span><span class="z-string"> web</span><span class="z-string"> test</span></span>
+<span class="giallo-l"><span class="z-entity z-name">./scripts/verify-web.sh</span></span></code></pre><h2 id="tests"><a class="zola-anchor" href="#tests" aria-label="Anchor link for: tests">🔗</a>Tests</h2>
+<p><strong>Rust unit tests</strong> cover pure logic: config resolution order, the isyncrc and
+notmuch config parsers, tag-batch construction, MIME parsing and sanitization,
+error mapping.</p>
+<p><strong>Rust integration tests</strong> (<code>crates/ecr-store/tests</code>, <code>crates/ecr-server/tests</code>)
+build a throwaway notmuch database in a tempdir from <code>fixtures/</code> and drive the
+real <code>notmuch</code> binary, then a real HTTP server. They never touch your mail.</p>
+<p>Sync and send are exercised against <strong>stub binaries</strong>: <code>ServerSettings</code> lets the
+binary paths be overridden, so the test writes a shell script that delivers into
+the maildir or captures stdin. The real <code>notmuch new</code> path, including the
+<code>post-new</code> hook, is genuinely covered — with no network and no Gmail.</p>
+<p><strong>Web unit tests</strong> cover the keymap engine (every binding, sequence timeouts,
+modifier passthrough, the focus rule), the windowing arithmetic, the mark-queue
+to tag-operation mapping, the command grammar and part-URL absolutization.</p>
+<p><strong>Browser verification</strong> (<code>scripts/verify-web.sh</code>) builds a demo maildir, starts
+the real server and the built client, and drives Chrome: rows render, cells do
+not overlap, the webfont actually loaded, <code>j</code> moves the selection, Enter opens a
+thread, the body renders sandboxed, no script survived, the inline image
+actually loads, Escape closes the help, and there is no horizontal scroll at
+390px. It writes <code>screenshots/web-client.png</code>.</p>
+<p>On NixOS Playwright's bundled chromium fails on <code>libnspr4.so</code>; <code>web/browser.mjs</code>
+picks <code>/run/current-system/sw/bin/google-chrome-stable</code> instead. <code>just visual</code>
+pins its own browser through <code>ECR_CHROME</code>, because two browser builds rasterise
+the same glyph differently.</p>
+<p><strong>End-to-end</strong> (<code>just e2e</code>) is the <code>@playwright/test</code> suite in <code>web/e2e/</code>. A
+worker-scoped fixture builds its own demo maildir and runs a server on port
+8501, so it does not collide with the <code>verify-*</code> recipes. Each worker starts
+against a <em>cold</em> config directory, which is what exposed the sidebar counts
+never appearing until something unrelated forced a re-render. Keep <code>playwright</code>
+and <code>@playwright/test</code> on the same version: two copies in the tree and the
+runner collects nothing.</p>
+<p><strong>Figures</strong> (<code>just figures</code>) regenerates the images the README shows, into
+<code>figures/</code>. Same fixture maildir as the visual suite, with the clock pinned, so
+re-running it on another day produces the same pictures. Distinct from
+<code>screenshots/visual/</code>, which is regression output rather than documentation.</p>
+<h2 id="fixtures"><a class="zola-anchor" href="#fixtures" aria-label="Anchor link for: fixtures">🔗</a>Fixtures</h2>
+<p>Every fixture is synthetic and every address is <code>@example.com</code> per RFC 2606. No
+real message is committed, and neither is any screenshot taken against real mail
+— the verifiers that drive real mail write to the gitignored <code>screenshots/live/</code>,
+because the composer's address completion puts other people's addresses on
+screen. A new verifier that touches real mail must write there too.</p>
+<ul>
+<li><code>fixtures/maildir/cur/*.eml</code> — plain threading fixtures</li>
+<li><code>fixtures/mime/*.eml</code> — nested multipart with an inline PNG and a PDF, an
+RFC 2047 encoded subject, a latin1 body, an HTML-only message</li>
+</ul>
+<p>Maildir flags are authoritative: a file named <code>:2,S</code> is Seen and notmuch will
+strip <code>unread</code> from it. Fixtures use <code>:2,</code> so they index as unread.</p>
+<p><code>scripts/demo-env.sh</code> builds the throwaway maildir the browser suites drive, and
+anything serving it must be launched with <code>NOTMUCH_CONFIG</code>, <code>NOTMUCH_PROFILE</code> and
+<code>MBSYNCRC</code> <strong>stripped</strong> — <code>env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC</code>
+— not merely with <code>HOME</code> and <code>XDG_CONFIG_HOME</code> pointed at the demo directory.
+<a href="https://www.lokeshmohanty.in/ecr/architecture/"><code>paths</code></a> ranks the environment variable above the XDG
+location, which is right for someone who exported it on purpose and wrong for a
+test that inherited it: the dev shell exports <code>NOTMUCH_CONFIG</code>, so a launcher
+that only overrode <code>HOME</code> served the real mailbox. <code>just visual</code> compared 31
+baselines against a live inbox that way, and <code>just verify-marks</code> writes tags. A
+new suite that serves the demo directory must copy that <code>env -u</code> prefix.</p>
+<p>It must also set <code>XDG_STATE_HOME</code> alongside <code>XDG_CONFIG_HOME</code>. That is the same
+gap one directory over: a desktop session exports it, so <code>dirs::state_dir()</code>
+answers the real <code>~/.local/state</code> however <code>HOME</code> is pointed, and the mail index
+lives there. A fixture server that inherited it opened the developer's own
+<code>index.sqlite3</code>, found it built against another database and rebuilt it — tens of
+thousands of messages of work against a database of eleven, with the real index
+gone afterwards. Nothing fails; doctor warns and the suite passes. What it costs
+is a startup slow and variable enough to make the fixed waits in the <code>verify-*</code>
+scripts intermittently too short, which reads as the feature under test not
+working.</p>
+<h2 id="adding-an-endpoint"><a class="zola-anchor" href="#adding-an-endpoint" aria-label="Anchor link for: adding-an-endpoint">🔗</a>Adding an endpoint</h2>
+<ol>
+<li>Add the wire type to <code>ecr-core</code> if it is new.</li>
+<li>Add the method to <code>MailStore</code> and implement it in <code>NotmuchStore</code>.</li>
+<li>Add the handler in <code>crates/ecr-server/src/routes.rs</code> and route it in <code>app.rs</code>.</li>
+<li>Add an integration test in <code>crates/ecr-server/tests/api.rs</code>.</li>
+<li>Add the client method in <code>web/src/api/client.ts</code> and the type in <code>types.ts</code>.</li>
+</ol>
+<h2 id="adding-a-keybinding"><a class="zola-anchor" href="#adding-a-keybinding" aria-label="Anchor link for: adding-a-keybinding">🔗</a>Adding a keybinding</h2>
+<ol>
+<li>Add the <code>Action</code> variant in <code>web/src/keymap/engine.ts</code>.</li>
+<li>Add the binding to <code>DEFAULT_BINDINGS</code> — the "every default binding is
+reachable" test will start covering it automatically.</li>
+<li>Handle it in <code>dispatch()</code> in <code>web/src/App.tsx</code>.</li>
+</ol>
+<h2 id="known-gaps"><a class="zola-anchor" href="#known-gaps" aria-label="Anchor link for: known-gaps">🔗</a>Known gaps</h2>
+<ul>
+<li><strong>The mail index covers only part of notmuch's query syntax.</strong> <code>date:</code>,
+<code>folder:</code>, <code>attachment:</code>, <code>subject:</code>, <code>from:</code> and any bare word still shell
+out to notmuch, at the original cost. Text search is the deliberate one: an
+FTS index does not select the same messages Xapian does. Widening the rest is
+a matter of proving each addition answers identically first — see the
+comparison tests in <code>crates/ecr-store/tests/index.rs</code>.</li>
+<li><strong>The Android APK is unsigned unless the secrets are set.</strong> <code>release.yml</code>
+builds and attaches one on every tag, but signs it only when
+<code>ANDROID_KEYSTORE</code> is present — and an unsigned build cannot be upgraded in
+place by a later signed one. Locally, <code>just android</code> runs it on a plugged-in
+device from the opt-in <code>.#android</code> shell. See
+<a href="https://www.lokeshmohanty.in/ecr/operations/#android">operations.md</a>.</li>
+<li><strong><code>ts-rs</code> type generation</strong> is not wired up; <code>web/src/api/types.ts</code> is
+maintained by hand and can drift from <code>ecr-core</code>.</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+</article>
+
+
+
+<nav class="page-nav" aria-label="Page navigation">
+    
+
+    
+</nav>
+
+
+
+                </main>
+
+                
+                
+                
+
+
+
+
+<aside id="page-toc-panel" class="page-toc-panel" aria-hidden="true" aria-label="On this page">
+    <div class="page-toc-panel__content">
+        <div class="page-toc-panel__header">
+            <span class="page-toc-panel__title">On this page</span>
+            <button class="page-toc-panel__close" type="button" aria-label="Close table of contents">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 6 6 18"/>
+                    <path d="m6 6 12 12"/>
+                </svg>
+            </button>
+        </div>
+        <nav class="page-toc-panel__nav" aria-label="Page sections">
+            <ul class="page-toc-panel__list">
+                
+                <li class="page-toc-panel__item">
+                    <a href="#environment" class="page-toc-panel__link">
+                        Environment
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#commands" class="page-toc-panel__link">
+                        Commands
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#the-dev-token" class="page-toc-panel__link">
+                        The dev token
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#tests" class="page-toc-panel__link">
+                        Tests
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#fixtures" class="page-toc-panel__link">
+                        Fixtures
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#adding-an-endpoint" class="page-toc-panel__link">
+                        Adding an endpoint
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#adding-a-keybinding" class="page-toc-panel__link">
+                        Adding a keybinding
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#known-gaps" class="page-toc-panel__link">
+                        Known gaps
+                    </a>
+                    
+                </li>
+                
+            </ul>
+        </nav>
+    </div>
+</aside>
+
+
+                
+            </div>
+
+            
+            
+            
+        </div>
+    </div>
+
+    
+    <div class="sidebar-overlay" aria-hidden="true"></div>
+
+    
+    
+    
+<div class="search-overlay" role="dialog" aria-modal="true" aria-labelledby="search-title" aria-describedby="search-description">
+    <div class="search">
+        <h2 id="search-title" class="sr-only">Search documentation</h2>
+        <p id="search-description" class="sr-only">Type to search. Use arrow keys to navigate results, Enter to select, Escape to close.</p>
+
+        <div class="search__input-wrapper">
+            <span class="search__icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.3-4.3"/>
+                </svg>
+            </span>
+            <input
+                type="search"
+                class="search__input"
+                placeholder="Search documentation..."
+                autocomplete="off"
+                autofocus
+                aria-label="Search query"
+                aria-controls="search-results"
+                aria-autocomplete="list"
+            >
+            <span class="search__shortcut" aria-hidden="true">/</span>
+            <button class="search__close" type="button" aria-label="Close search dialog" title="Close (Esc)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 6 6 18"/>
+                    <path d="m6 6 12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <div id="search-results" class="search__results" role="listbox" aria-label="Search results">
+            
+        </div>
+
+        <footer class="search__footer">
+            <nav class="search__hints" aria-label="Keyboard shortcuts">
+                <span class="search__hint">
+                    <kbd aria-label="Up and down arrows">↑</kbd><kbd aria-hidden="true">↓</kbd> <span>Navigate</span>
+                </span>
+                <span class="search__hint">
+                    <kbd aria-label="Enter">↵</kbd> <span>Select</span>
+                </span>
+                <span class="search__hint">
+                    <kbd aria-label="Escape">esc</kbd> <span>Close</span>
+                </span>
+            </nav>
+            <span class="search__powered-by">Powered by <a href="https://github.com/weixsong/elasticlunr.js" target="_blank" rel="noopener noreferrer" aria-label="elasticlunr.js on GitHub (opens in new tab)">elasticlunr</a></span>
+        </footer>
+    </div>
+</div>
+
+    
+
+    
+    
+
+    
+    
+
+    
+    
+    
+    <button class="page-toc-toggle" type="button" aria-label="Toggle table of contents" aria-expanded="false" aria-controls="page-toc-panel" title="On this page">
+        <svg class="page-toc-toggle__icon page-toc-toggle__icon--list" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M16 5H3"/>
+            <path d="M16 12H3"/>
+            <path d="M16 19H3"/>
+            <path d="M21 5h.01"/>
+            <path d="M21 12h.01"/>
+            <path d="M21 19h.01"/>
+        </svg>
+        <svg class="page-toc-toggle__icon page-toc-toggle__icon--close" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 6 6 18"/>
+            <path d="m6 6 12 12"/>
+        </svg>
+    </button>
+    
+
+    
+    
+    <button class="fab scroll-to-top" aria-label="Scroll to top" title="Scroll to top">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m18 15-6-6-6 6"/>
+        </svg>
+    </button>
+    
+
+    
+    
+    
+    <script src="https://www.lokeshmohanty.in/ecr/js/theme.js" defer></script>
+    <script src="https://www.lokeshmohanty.in/ecr/js/navigation.js" defer></script>
+    <script src="https://www.lokeshmohanty.in/ecr/js/code.js" defer></script>
+
+    
+    <script src="https://www.lokeshmohanty.in/ecr/elasticlunr.min.js"></script>
+    <script src="https://www.lokeshmohanty.in/ecr/search_index.en.js"></script>
+    <script src="https://www.lokeshmohanty.in/ecr/js/search.js" defer></script>
+    
+    
+
+    
+</body>
+</html>

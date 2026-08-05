@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en" prefix="og: https://ogp.me/ns#">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark light">
+    <script>
+    (function(){var s='auto';try{s=localStorage.getItem('reticle-theme')||localStorage.getItem('ThemeColorScheme')||'auto'}catch(e){}
+    var t=s==='auto'?(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'):s;
+    document.documentElement.setAttribute('data-theme',t);
+    document.documentElement.setAttribute('data-theme-setting',s);
+    document.documentElement.setAttribute('data-user-color-scheme',t)})();
+    </script>
+
+    
+    <title>HTTP API | ecr</title>
+
+    
+    
+    <meta name="description" content="Every endpoint ecr-server exposes, with its shapes and status codes.">
+    
+
+    
+    
+
+    
+    
+
+    
+    <meta name="robots" content="index, follow">
+    <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+
+    
+    
+    <link rel="canonical" href="https://www.lokeshmohanty.in/ecr/api/">
+    <link rel="alternate" hreflang="en" href="https://www.lokeshmohanty.in/ecr/api/">
+    <link rel="alternate" hreflang="x-default" href="https://www.lokeshmohanty.in/ecr/api/">
+    
+
+    
+    <meta property="og:type" content="article">
+    
+    <meta property="og:url" content="https://www.lokeshmohanty.in/ecr/api/">
+    
+    
+    <meta property="og:title" content="HTTP API">
+    
+    
+    <meta property="og:description" content="Every endpoint ecr-server exposes, with its shapes and status codes.">
+    
+    
+    <meta property="og:site_name" content="ecr">
+    <meta property="og:locale" content="en">
+
+    
+    
+    
+    
+    
+    
+
+    
+    <meta name="twitter:card" content="summary_large_image">
+    
+    <meta name="twitter:url" content="https://www.lokeshmohanty.in/ecr/api/">
+    
+    
+    <meta name="twitter:title" content="HTTP API">
+    
+    
+    <meta name="twitter:description" content="Every endpoint ecr-server exposes, with its shapes and status codes.">
+    
+    
+    
+
+    
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "WebSite",
+                "@id": "https://www.lokeshmohanty.in/ecr#website",
+                "url": "https://www.lokeshmohanty.in/ecr",
+                "name": "ecr",
+                "description": "Email Client in Rust — a keyboard-driven mail client for an existing notmuch maildir",
+                "publisher": {
+                    "@id": "https://zentinelproxy.io/#organization"
+                },
+                "inLanguage": "en",
+                "potentialAction": {
+                    "@type": "SearchAction",
+                    "target": {
+                        "@type": "EntryPoint",
+                        "urlTemplate": "https://www.lokeshmohanty.in/ecr?q={search_term_string}"
+                    },
+                    "query-input": "required name=search_term_string"
+                }
+            },
+            {
+                "@type": "Organization",
+                "@id": "https://zentinelproxy.io/#organization",
+                "name": "lokeshmohanty",
+                "url": "https://zentinelproxy.io",
+                "logo": {
+                    "@type": "ImageObject",
+                    "url": "https://zentinelproxy.io/img/og-image.png",
+                    "width": 1200,
+                    "height": 630
+                }
+            },
+            {
+                "@type": "WebPage",
+                "@id": "https://www.lokeshmohanty.in/ecr/api/#webpage",
+                "url": "https://www.lokeshmohanty.in/ecr/api/",
+                "name": "HTTP API",
+                "isPartOf": {
+                    "@id": "https://www.lokeshmohanty.in/ecr#website"
+                },
+                "description": "Every endpoint ecr-server exposes, with its shapes and status codes.",
+                "inLanguage": "en"
+                
+                
+            }
+            
+            ,{
+                "@type": "Article",
+                "@id": "https://www.lokeshmohanty.in/ecr/api/#article",
+                "isPartOf": {
+                    "@id": "https://www.lokeshmohanty.in/ecr/api/#webpage"
+                },
+                "headline": "HTTP API",
+                
+                "description": "Every endpoint ecr-server exposes, with its shapes and status codes.",
+                
+                
+                
+                "author": {
+                    "@id": "https://zentinelproxy.io/#organization"
+                },
+                "publisher": {
+                    "@id": "https://zentinelproxy.io/#organization"
+                },
+                
+                
+                "wordCount": 431,
+                
+                "inLanguage": "en"
+            }
+            
+        ]
+    }
+    </script>
+
+    
+    
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "ecr",
+                "item": "https://www.lokeshmohanty.in/ecr"
+            }
+            
+            
+            
+            ,{
+                "@type": "ListItem",
+                "position": 2,
+                "name": "ecr",
+                "item": "https://www.lokeshmohanty.in/ecr/"
+            }
+            
+            
+            ,{
+                "@type": "ListItem",
+                "position": 3,
+                "name": "HTTP API",
+                "item": "https://www.lokeshmohanty.in/ecr/api/"
+            }
+        ]
+    }
+    </script>
+    
+
+    
+    <link rel="stylesheet" href="https://www.lokeshmohanty.in/ecr/style.css">
+
+    
+    
+    <link rel="stylesheet" href="https://www.lokeshmohanty.in/ecr/syntax-light.css" media="(prefers-color-scheme: light)">
+    <link rel="stylesheet" href="https://www.lokeshmohanty.in/ecr/syntax-dark.css" media="(prefers-color-scheme: dark)">
+    
+
+    
+    <link rel="preload" href="https://www.lokeshmohanty.in/ecr/fonts/SpaceGrotesk-Variable.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="https://www.lokeshmohanty.in/ecr/fonts/Nunito-Variable.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="https://www.lokeshmohanty.in/ecr/fonts/CascadiaCode-Variable.woff2" as="font" type="font/woff2" crossorigin>
+
+    
+    
+    <link rel="icon" href="https://www.lokeshmohanty.in/ecr/favicon.png">
+    
+    
+
+    
+    
+
+    
+    
+    
+    
+    <script>
+        (function() {
+            try {
+                var stored = localStorage.getItem('reticle-theme') || localStorage.getItem('ThemeColorScheme') || 'auto';
+                var theme = stored === 'auto'
+                    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                    : stored;
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.setAttribute('data-theme-setting', stored);
+                document.documentElement.setAttribute('data-user-color-scheme', theme);
+            } catch(e) {}
+        })();
+    </script>
+    
+
+    
+</head>
+<body class="page-api">
+    
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    
+    
+
+    
+    
+        
+    
+
+    
+    <div class="layout layout--docs layout--fixed-header" data-mode="docs">
+        
+
+
+<aside id="sidebar" class="sidebar" role="complementary" aria-labelledby="sidebar-title">
+    
+    <div class="sidebar__resize-handle" aria-hidden="true" title="Drag to resize sidebar width"></div>
+
+    <div class="sidebar__header">
+        <span id="sidebar-title" class="sidebar__title">Table of contents</span>
+        <button class="sidebar__close" type="button" aria-label="Close sidebar" title="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M18 6 6 18"/>
+                <path d="m6 6 12 12"/>
+            </svg>
+        </button>
+    </div>
+
+    <nav class="sidebar__content" aria-label="Documentation navigation">
+        <div class="toc">
+            
+            
+
+            
+            <div class="toc__section">
+                <ol class="toc__list toc__list--numbered" start="0">
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/installing/" class="toc__link ">
+                            <span class="toc__number">0.</span>
+                            Installing
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/operations/" class="toc__link ">
+                            <span class="toc__number">1.</span>
+                            Operations
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/architecture/" class="toc__link ">
+                            <span class="toc__number">2.</span>
+                            Architecture
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/api/" class="toc__link active">
+                            <span class="toc__number">3.</span>
+                            HTTP API
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/development/" class="toc__link ">
+                            <span class="toc__number">4.</span>
+                            Development
+                        </a>
+                    </li>
+                    
+                    
+                    
+                    <li class="toc__item">
+                        <a href="https://www.lokeshmohanty.in/ecr/releasing/" class="toc__link ">
+                            <span class="toc__number">5.</span>
+                            Releasing
+                        </a>
+                    </li>
+                    
+                    
+                </ol>
+            </div>
+
+            
+            
+            
+        </div>
+    </nav>
+
+    <div class="sidebar__footer">
+        
+        <div class="sidebar__actions-mobile">
+            
+            
+
+            
+            
+            <div class="sidebar__action">
+                <span class="sidebar__action-label">Theme</span>
+                
+<button class="theme-toggle" type="button" aria-label="Toggle color theme: cycles through light, dark, and auto modes" aria-live="polite" title="Toggle theme">
+    <span class="theme-toggle__icons">
+        
+        <span class="theme-toggle__sun" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2"/>
+                <path d="M12 20v2"/>
+                <path d="m4.93 4.93 1.41 1.41"/>
+                <path d="m17.66 17.66 1.41 1.41"/>
+                <path d="M2 12h2"/>
+                <path d="M20 12h2"/>
+                <path d="m6.34 17.66-1.41 1.41"/>
+                <path d="m19.07 4.93-1.41 1.41"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__moon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__auto" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 2a7 7 0 1 0 7 7"/>
+            </svg>
+        </span>
+    </span>
+    <span class="sr-only theme-toggle__status">Current theme: auto</span>
+</button>
+
+            </div>
+            
+
+            
+            
+            <a href="https:&#x2F;&#x2F;github.com&#x2F;lokeshmohanty&#x2F;ecr" class="sidebar__github" target="_blank" rel="noopener noreferrer" aria-label="View project on GitHub (opens in new tab)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
+                    <path d="M9 18c-4.51 2-5-2-7-2"/>
+                </svg>
+                <span>View on GitHub</span>
+            </a>
+            
+        </div>
+
+        
+        <a href="https://www.lokeshmohanty.in/ecr/print?auto=true" class="print-button" target="_blank" rel="noopener" aria-label="Print all documentation pages (opens print dialog)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 6 2 18 2 18 9"/>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                <rect width="12" height="8" x="6" y="14"/>
+            </svg>
+            <span>Print all pages</span>
+        </a>
+    </div>
+</aside>
+
+
+
+
+        <div class="layout__main">
+            
+            
+
+
+
+
+<header class="header" role="banner">
+    <div class="header__left">
+        
+        
+        <button class="sidebar-toggle" type="button" aria-label="Toggle sidebar navigation" aria-expanded="true" aria-controls="sidebar" title="Toggle sidebar">
+            <svg class="sidebar-toggle__icon sidebar-toggle__icon--open" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                <path d="M9 3v18"/>
+                <path d="m16 15-3-3 3-3"/>
+            </svg>
+            <svg class="sidebar-toggle__icon sidebar-toggle__icon--closed" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                <path d="M9 3v18"/>
+                <path d="m14 9 3 3-3 3"/>
+            </svg>
+        </button>
+        
+
+        
+        
+        <button class="toc-toggle toc-toggle--docs" type="button" aria-label="Open table of contents" aria-expanded="false" aria-controls="sidebar" title="Table of contents">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                <path d="M9 3v18"/>
+                <path d="m16 15-3-3 3-3"/>
+            </svg>
+        </button>
+        
+
+        
+        
+
+        
+        
+
+        
+        <a href="https://www.lokeshmohanty.in/ecr" class="header__logo" aria-label="ecr - Go to homepage">
+            
+            
+            
+                
+            
+            <img src="https://www.lokeshmohanty.in/ecr/assets/logo.png" alt="" aria-hidden="true">
+            
+            <span>ecr</span>
+        </a>
+    </div>
+
+    
+    <nav class="header__nav" role="navigation" aria-label="Main navigation">
+        
+    </nav>
+
+    
+    <div class="header__actions" role="group" aria-label="Site actions">
+        
+        
+        <button class="search-toggle" type="button" aria-label="Open search dialog" aria-keyshortcuts="/" aria-haspopup="dialog" title="Search (press /)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.3-4.3"/>
+            </svg>
+        </button>
+        
+
+        
+        <div class="header__actions-desktop">
+            
+            
+
+            
+            
+            
+<button class="theme-toggle" type="button" aria-label="Toggle color theme: cycles through light, dark, and auto modes" aria-live="polite" title="Toggle theme">
+    <span class="theme-toggle__icons">
+        
+        <span class="theme-toggle__sun" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2"/>
+                <path d="M12 20v2"/>
+                <path d="m4.93 4.93 1.41 1.41"/>
+                <path d="m17.66 17.66 1.41 1.41"/>
+                <path d="M2 12h2"/>
+                <path d="M20 12h2"/>
+                <path d="m6.34 17.66-1.41 1.41"/>
+                <path d="m19.07 4.93-1.41 1.41"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__moon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+            </svg>
+        </span>
+
+        
+        <span class="theme-toggle__auto" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 2a7 7 0 1 0 7 7"/>
+            </svg>
+        </span>
+    </span>
+    <span class="sr-only theme-toggle__status">Current theme: auto</span>
+</button>
+
+            
+
+            
+            
+            <a href="https:&#x2F;&#x2F;github.com&#x2F;lokeshmohanty&#x2F;ecr&#x2F;edit&#x2F;main&#x2F;docs&#x2F;content/api.md" class="btn btn--icon btn--ghost" aria-label="Edit this page on GitHub (opens in new tab)" target="_blank" rel="noopener noreferrer" title="Edit this page">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                    <path d="m15 5 4 4"/>
+                </svg>
+            </a>
+            
+
+            
+            
+            <a href="https:&#x2F;&#x2F;github.com&#x2F;lokeshmohanty&#x2F;ecr" class="btn btn--icon btn--ghost" aria-label="View project on GitHub (opens in new tab)" target="_blank" rel="noopener noreferrer" title="GitHub">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
+                    <path d="M9 18c-4.51 2-5-2-7-2"/>
+                </svg>
+            </a>
+            
+        </div>
+    </div>
+</header>
+
+
+            
+
+            
+            
+            <div class="scroll-progress" aria-hidden="true">
+                <div class="scroll-progress__bar"></div>
+                <span class="scroll-progress__percent">0%</span>
+            </div>
+            
+
+            
+
+
+
+
+
+    
+
+
+    
+
+
+<nav class="nav-buttons" aria-label="Page navigation">
+    
+    
+    <a href="https://www.lokeshmohanty.in/ecr/architecture/" class="nav-button nav-button--prev" aria-label="Previous: Architecture">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m15 18-6-6 6-6"/>
+        </svg>
+        <span class="nav-button__label">
+            Architecture
+            <span class="nav-button__shortcut">←</span>
+        </span>
+    </a>
+    
+
+    
+    
+    <a href="https://www.lokeshmohanty.in/ecr/development/" class="nav-button nav-button--next" aria-label="Next: Development">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m9 18 6-6-6-6"/>
+        </svg>
+        <span class="nav-button__label">
+            Development
+            <span class="nav-button__shortcut">→</span>
+        </span>
+    </a>
+    
+</nav>
+
+
+
+
+            <div class="layout__content-area">
+                <main id="main-content" class="main-content" role="main" aria-label="Main content">
+                    
+
+
+<article class="article" itemscope itemtype="https://schema.org/Article" aria-labelledby="article-title">
+    
+    <header class="article__header article__header--docs">
+        <h1 id="article-title" itemprop="headline">HTTP API</h1>
+        
+        <p class="article__description" itemprop="description">Every endpoint ecr-server exposes, with its shapes and status codes.</p>
+        
+    </header>
+
+    <div class="article__content" itemprop="articleBody">
+        <p>Base path <code>/api/v1</code>. Every route except <code>/health</code> requires
+<code>Authorization: Bearer &lt;token&gt;</code>. If no device tokens exist the server runs
+unauthenticated and logs a warning.</p>
+<h2 id="routes"><a class="zola-anchor" href="#routes" aria-label="Anchor link for: routes">🔗</a>Routes</h2>
+<table><thead><tr><th>Method</th><th>Path</th><th>Notes</th></tr></thead><tbody>
+<tr><td>GET</td><td><code>/health</code></td><td>Full doctor report. Unauthenticated.</td></tr>
+<tr><td>GET</td><td><code>/revision</code></td><td><code>{ uuid, lastmod }</code></td></tr>
+<tr><td>GET</td><td><code>/accounts</code></td><td>Accounts with their real folder trees</td></tr>
+<tr><td>GET</td><td><code>/addresses</code></td><td>Ranked addresses for the composer's completion</td></tr>
+<tr><td>GET</td><td><code>/tags</code></td><td>Every tag in the database, for query completion</td></tr>
+<tr><td>POST</td><td><code>/counts</code></td><td><code>{ queries: [] }</code> → <code>{ counts: [] }</code>, positional, via one <code>notmuch count --batch</code>. At most 200 queries</td></tr>
+<tr><td>GET</td><td><code>/lists</code></td><td><code>{ lists, searchable }</code>. <code>searchable</code> is false when <code>index.header.List</code> is unset</td></tr>
+<tr><td>GET</td><td><code>/threads?q=&amp;limit=&amp;offset=</code></td><td><code>ETag</code>; honours <code>If-None-Match</code> with <code>304</code>. <code>limit</code> clamps to 1..500</td></tr>
+<tr><td>GET</td><td><code>/threads/{id}</code></td><td>The messages in the thread. <code>404</code> if unknown</td></tr>
+<tr><td>GET</td><td><code>/messages/{id}</code></td><td>One message with part metadata</td></tr>
+<tr><td>GET</td><td><code>/messages/{id}/body?html=&amp;remote=</code></td><td>Sanitized body. <code>html</code> defaults true, <code>remote</code> false</td></tr>
+<tr><td>GET</td><td><code>/messages/{id}/parts/{n}</code></td><td>Raw part bytes with content-type and disposition</td></tr>
+<tr><td>POST</td><td><code>/tags</code></td><td><code>{ ops: [{ id, add, remove }] }</code> → new revision</td></tr>
+<tr><td>POST</td><td><code>/sync</code></td><td><code>{ accounts: [] }</code> → <code>SyncReport</code>. Empty means all</td></tr>
+<tr><td>POST</td><td><code>/send</code></td><td><code>{ account, to, cc, bcc, subject, body, in_reply_to, references, attachments }</code></td></tr>
+<tr><td>GET</td><td><code>/config</code></td><td><code>{ path, raw }</code>. An absent settings file is <code>raw: ""</code>, not a <code>404</code></td></tr>
+<tr><td>PUT</td><td><code>/config</code></td><td><code>{ raw }</code>. Written only if it parses; <code>422 invalid_toml</code> carries <code>line</code> and <code>column</code></td></tr>
+<tr><td>GET</td><td><code>/themes</code></td><td><code>{ dir, presets: [{ path, name, builtin }] }</code>. Seeds the shipped presets</td></tr>
+<tr><td>GET</td><td><code>/theme?path=</code></td><td><code>{ path, raw }</code>. <code>path</code> is relative to the config dir; a missing file is a <code>404</code>. Seeds too</td></tr>
+<tr><td>PUT</td><td><code>/theme</code></td><td><code>{ path, raw }</code>. Same <code>422 invalid_toml</code> as <code>/config</code></td></tr>
+<tr><td>GET</td><td><code>/events</code></td><td>SSE. Accepts <code>?access_token=</code> because EventSource cannot set headers</td></tr>
+</tbody></table>
+<p><code>path</code> on the theme routes is user input from <code>settings.toml</code>, so it is resolved
+through <code>MailPaths::resolve_relative</code>: absolute paths, any <code>..</code> component and
+anything that is not a <code>.toml</code> file are <code>400</code>, never clamped. A theme therefore
+cannot name a file outside <code>~/.config/ecr/</code>.</p>
+<p>Both theme routes seed the shipped presets into <code>~/.config/ecr/themes/</code>, and
+neither overwrites a file that is already there. The read seeds as well as the
+listing because a client asks for the theme its default setting names —
+<code>themes/ecr-dark.toml</code> — long before anything asks for the listing: seeding on
+the listing alone left a fresh install answering <code>404</code> for the palette ecr ships
+with, until the settings page had been opened once.</p>
+<h2 id="server-sent-events"><a class="zola-anchor" href="#server-sent-events" aria-label="Anchor link for: server-sent-events">🔗</a>Server-sent events</h2>
+<p>Event names and payloads:</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>mail:changed    { revision }</span></span>
+<span class="giallo-l"><span>tags:changed    { revision, ids }</span></span>
+<span class="giallo-l"><span>sync:started    { accounts }</span></span>
+<span class="giallo-l"><span>sync:progress   { line }</span></span>
+<span class="giallo-l"><span>sync:finished   { new_messages, revision }</span></span>
+<span class="giallo-l"><span>error           { detail }</span></span></code></pre><h2 id="errors"><a class="zola-anchor" href="#errors" aria-label="Anchor link for: errors">🔗</a>Errors</h2>
+<pre class="giallo z-code"><code data-lang="json"><span class="giallo-l"><span>{</span><span class="z-support"> &quot;</span><span class="z-support">error</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">not_found</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-support"> &quot;</span><span class="z-support">detail</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">no message with id x@y.z</span><span class="z-punctuation z-definition z-string">&quot;</span><span> }</span></span></code></pre><table><thead><tr><th>Status</th><th>When</th></tr></thead><tbody>
+<tr><td>400</td><td>Invalid tag, unsendable draft, unknown send account, write attempted in <code>--read-only</code></td></tr>
+<tr><td>401</td><td>Missing or wrong bearer token</td></tr>
+<tr><td>404</td><td>No such message, thread or part</td></tr>
+<tr><td>503</td><td>A required binary is missing or the mail config cannot be resolved — an environment problem, not a bug</td></tr>
+<tr><td>500</td><td>Anything else</td></tr>
+</tbody></table>
+<h2 id="examples"><a class="zola-anchor" href="#examples" aria-label="Anchor link for: examples">🔗</a>Examples</h2>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-variable z-other">TOKEN</span><span class="z-keyword">=</span><span>$(</span><span class="z-entity z-name">cargo</span><span class="z-string"> run</span><span class="z-constant"> -</span><span class="z-constant">q</span><span class="z-constant"> -</span><span class="z-constant">p</span><span class="z-string"> ecr-cli</span><span class="z-constant"> -</span><span class="z-constant">-</span><span class="z-string"> token</span><span class="z-string"> new</span><span class="z-string"> laptop</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-entity z-name">curl</span><span class="z-constant"> -</span><span class="z-constant">s</span><span class="z-string"> localhost:8383/api/v1/health</span><span class="z-keyword"> |</span><span class="z-entity z-name"> jq</span><span class="z-punctuation z-definition z-string"> &#39;</span><span class="z-string">.checks[] | select(.status != &quot;ok&quot;)</span><span class="z-punctuation z-definition z-string">&#39;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-entity z-name">curl</span><span class="z-constant"> -</span><span class="z-constant">s</span><span class="z-constant"> -</span><span class="z-constant">H</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">Authorization: Bearer </span><span class="z-variable z-other">$</span><span class="z-variable z-other">TOKEN</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-constant"> \</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">  &#39;</span><span class="z-string">localhost:8383/api/v1/threads?q=tag:inbox&amp;limit=20</span><span class="z-punctuation z-definition z-string">&#39;</span><span class="z-keyword"> |</span><span class="z-entity z-name"> jq</span><span class="z-punctuation z-definition z-string"> &#39;</span><span class="z-string">.total</span><span class="z-punctuation z-definition z-string">&#39;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-entity z-name">curl</span><span class="z-constant"> -</span><span class="z-constant">s</span><span class="z-constant"> -</span><span class="z-constant">H</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">Authorization: Bearer </span><span class="z-variable z-other">$</span><span class="z-variable z-other">TOKEN</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-constant"> -</span><span class="z-constant">X</span><span class="z-string"> POST</span><span class="z-constant"> \</span></span>
+<span class="giallo-l"><span class="z-constant">  -</span><span class="z-constant">H</span><span class="z-punctuation z-definition z-string"> &#39;</span><span class="z-string">content-type: application/json</span><span class="z-punctuation z-definition z-string">&#39;</span><span class="z-constant"> \</span></span>
+<span class="giallo-l"><span class="z-constant">  -</span><span class="z-constant">d</span><span class="z-punctuation z-definition z-string"> &#39;</span><span class="z-string">{&quot;ops&quot;:[{&quot;id&quot;:&quot;x@y.z&quot;,&quot;add&quot;:[&quot;flagged&quot;],&quot;remove&quot;:[&quot;unread&quot;]}]}</span><span class="z-punctuation z-definition z-string">&#39;</span><span class="z-constant"> \</span></span>
+<span class="giallo-l"><span class="z-string">  localhost:8383/api/v1/tags</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-entity z-name">curl</span><span class="z-constant"> -</span><span class="z-constant">N</span><span class="z-constant"> -</span><span class="z-constant">H</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">Authorization: Bearer </span><span class="z-variable z-other">$</span><span class="z-variable z-other">TOKEN</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string"> localhost:8383/api/v1/events</span></span></code></pre>
+    </div>
+
+    
+    
+    
+</article>
+
+
+
+<nav class="page-nav" aria-label="Page navigation">
+    
+
+    
+</nav>
+
+
+
+                </main>
+
+                
+                
+                
+
+
+
+
+<aside id="page-toc-panel" class="page-toc-panel" aria-hidden="true" aria-label="On this page">
+    <div class="page-toc-panel__content">
+        <div class="page-toc-panel__header">
+            <span class="page-toc-panel__title">On this page</span>
+            <button class="page-toc-panel__close" type="button" aria-label="Close table of contents">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 6 6 18"/>
+                    <path d="m6 6 12 12"/>
+                </svg>
+            </button>
+        </div>
+        <nav class="page-toc-panel__nav" aria-label="Page sections">
+            <ul class="page-toc-panel__list">
+                
+                <li class="page-toc-panel__item">
+                    <a href="#routes" class="page-toc-panel__link">
+                        Routes
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#server-sent-events" class="page-toc-panel__link">
+                        Server-sent events
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#errors" class="page-toc-panel__link">
+                        Errors
+                    </a>
+                    
+                </li>
+                
+                <li class="page-toc-panel__item">
+                    <a href="#examples" class="page-toc-panel__link">
+                        Examples
+                    </a>
+                    
+                </li>
+                
+            </ul>
+        </nav>
+    </div>
+</aside>
+
+
+                
+            </div>
+
+            
+            
+            
+        </div>
+    </div>
+
+    
+    <div class="sidebar-overlay" aria-hidden="true"></div>
+
+    
+    
+    
+<div class="search-overlay" role="dialog" aria-modal="true" aria-labelledby="search-title" aria-describedby="search-description">
+    <div class="search">
+        <h2 id="search-title" class="sr-only">Search documentation</h2>
+        <p id="search-description" class="sr-only">Type to search. Use arrow keys to navigate results, Enter to select, Escape to close.</p>
+
+        <div class="search__input-wrapper">
+            <span class="search__icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.3-4.3"/>
+                </svg>
+            </span>
+            <input
+                type="search"
+                class="search__input"
+                placeholder="Search documentation..."
+                autocomplete="off"
+                autofocus
+                aria-label="Search query"
+                aria-controls="search-results"
+                aria-autocomplete="list"
+            >
+            <span class="search__shortcut" aria-hidden="true">/</span>
+            <button class="search__close" type="button" aria-label="Close search dialog" title="Close (Esc)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 6 6 18"/>
+                    <path d="m6 6 12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <div id="search-results" class="search__results" role="listbox" aria-label="Search results">
+            
+        </div>
+
+        <footer class="search__footer">
+            <nav class="search__hints" aria-label="Keyboard shortcuts">
+                <span class="search__hint">
+                    <kbd aria-label="Up and down arrows">↑</kbd><kbd aria-hidden="true">↓</kbd> <span>Navigate</span>
+                </span>
+                <span class="search__hint">
+                    <kbd aria-label="Enter">↵</kbd> <span>Select</span>
+                </span>
+                <span class="search__hint">
+                    <kbd aria-label="Escape">esc</kbd> <span>Close</span>
+                </span>
+            </nav>
+            <span class="search__powered-by">Powered by <a href="https://github.com/weixsong/elasticlunr.js" target="_blank" rel="noopener noreferrer" aria-label="elasticlunr.js on GitHub (opens in new tab)">elasticlunr</a></span>
+        </footer>
+    </div>
+</div>
+
+    
+
+    
+    
+
+    
+    
+
+    
+    
+    
+    <button class="page-toc-toggle" type="button" aria-label="Toggle table of contents" aria-expanded="false" aria-controls="page-toc-panel" title="On this page">
+        <svg class="page-toc-toggle__icon page-toc-toggle__icon--list" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M16 5H3"/>
+            <path d="M16 12H3"/>
+            <path d="M16 19H3"/>
+            <path d="M21 5h.01"/>
+            <path d="M21 12h.01"/>
+            <path d="M21 19h.01"/>
+        </svg>
+        <svg class="page-toc-toggle__icon page-toc-toggle__icon--close" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 6 6 18"/>
+            <path d="m6 6 12 12"/>
+        </svg>
+    </button>
+    
+
+    
+    
+    <button class="fab scroll-to-top" aria-label="Scroll to top" title="Scroll to top">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m18 15-6-6-6 6"/>
+        </svg>
+    </button>
+    
+
+    
+    
+    
+    <script src="https://www.lokeshmohanty.in/ecr/js/theme.js" defer></script>
+    <script src="https://www.lokeshmohanty.in/ecr/js/navigation.js" defer></script>
+    <script src="https://www.lokeshmohanty.in/ecr/js/code.js" defer></script>
+
+    
+    <script src="https://www.lokeshmohanty.in/ecr/elasticlunr.min.js"></script>
+    <script src="https://www.lokeshmohanty.in/ecr/search_index.en.js"></script>
+    <script src="https://www.lokeshmohanty.in/ecr/js/search.js" defer></script>
+    
+    
+
+    
+</body>
+</html>
