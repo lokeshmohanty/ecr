@@ -20,11 +20,36 @@ Everything is driven by an annotated tag matching `v*`. There is no manual
 artifact building.
 
 ```bash
-just check                              # the gate — must be green
-$EDITOR CHANGELOG.md                    # move Unreleased into a dated section
+just release            # asks major/minor/patch and does all of it
+just release patch      # the same, with the question answered
+just release patch dry  # the plan and the notes, changing nothing
+```
+
+It refuses to start unless the tree is clean, on `main`, level with
+`origin/main`, and the tag is free both locally and on the remote. Then it
+shows the `## [Unreleased]` section — that text *is* the release body, so it is
+read before anything runs, and an empty one is a hard stop. A `patch` carrying
+an `Added`, `Changed` or `Removed` section asks again: the number is the only
+warning a consumer gets before `nix flake update` moves them onto it.
+
+After a confirmation it runs the gate, writes the release, and asks once more
+before the push, because the push is the publication. Say no and it tells you
+both how to finish and how to abandon; nothing has left the machine yet.
+
+`ECR_RELEASE_SKIP_CHECK=1` skips `just check` and `just deny`. It says so
+loudly, and it is a bad idea for the reason below: the tag is the gate.
+
+What the recipe does, if you would rather do it by hand:
+
+```bash
+just check && just deny                 # the gate — must be green
+$EDITOR CHANGELOG.md                    # move Unreleased into a dated section,
+                                        # and point the link refs at the new tag
 just release-version 0.2.0              # bumps Cargo.toml, tauri.conf.json, package.json
 git commit -am "Release 0.2.0"
 git tag -a v0.2.0 -m "Release 0.2.0"
+$EDITOR CHANGELOG.md                    # reopen an empty ## [Unreleased], after the tag
+git commit -am "Open the changelog for the next release"
 git push origin main v0.2.0
 ```
 
@@ -244,16 +269,15 @@ has never been run is a recipe that does not work.
 
 ## Checklist
 
-Before tagging:
+`just release` covers the mechanical half of this — the gate, the version in
+all three manifests, the changelog section and its link refs. What is left is
+what only a person can answer:
 
-- [ ] `just check` green on a clean tree
 - [ ] `just check-all` run against real mail at least once since the last release
-- [ ] `CHANGELOG.md` has a section for this version, and it names user-visible
-      changes rather than commits
+- [ ] The `## [Unreleased]` notes name user-visible changes rather than commits
 - [ ] Roadmap markers in `README.md` reflect what actually shipped
-- [ ] `just deny` clean — no new licence entered the tree unnoticed
-- [ ] Version bumped in all three manifests
 - [ ] The migration path is documented if the settings file or API changed
+- [ ] The number matches the change: a patch fixes, a minor adds or alters
 
 After the workflow finishes — the release is already public by then:
 

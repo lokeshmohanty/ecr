@@ -9,6 +9,15 @@ release; both are frozen at v1.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- **`just release`** — asks major/minor/patch and cuts the release: the
+  preconditions, the gate, the version in all three manifests, the changelog
+  section and its link refs, the tag, and the push that publishes it. It shows
+  the notes that will become the release body before anything runs, refuses an
+  empty set of them, and asks again before the push, which is the irreversible
+  half. `just release patch dry` prints the plan and changes nothing.
+
 ### Fixed
 
 - **Every OAuth account failed to sync under the Nix package, from a

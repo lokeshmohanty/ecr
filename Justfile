@@ -516,6 +516,123 @@ demo dir="/tmp/ecr-demo":
 
 # --------------------------------------------------------------- release ----
 
+# Cut a release: asks major/minor/patch, runs the gate, tags, pushes. `just release patch dry` shows the plan.
+release bump="" dry="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    repo=https://github.com/lokeshmohanty/ecr
+    dry={{ if dry != "" { "yes" } else { "no" } }}
+
+    say() { printf '\n\033[1m%s\033[0m\n' "$1"; }
+    die() { printf '\033[31m%s\033[0m\n' "$1" >&2; exit 1; }
+    # Every question here guards something that cannot be taken back, so a
+    # closed stdin is the pipe going away rather than consent to the rest.
+    ask() { local a; read -r -p "$1" a || die "stdin closed — nothing was done."; echo "$a"; }
+    confirm() { case "$(ask "$1" | tr '[:upper:]' '[:lower:]')" in y | yes) return 0 ;; *) return 1 ;; esac; }
+
+    [ -t 0 ] || die "\`just release\` asks questions; run it from a terminal."
+
+    # -- the tree has to be exactly what is about to be tagged ---------------
+    branch=$(git rev-parse --abbrev-ref HEAD)
+    [ "$branch" = main ] || die "on $branch; releases are cut from main."
+    [ -z "$(git status --porcelain)" ] || die "working tree is dirty; commit or stash first."
+    git fetch --quiet origin main
+    behind=$(git rev-list --count HEAD..origin/main)
+    [ "$behind" = 0 ] || die "$behind commit(s) behind origin/main; pull first."
+
+    # -- what version this is ------------------------------------------------
+    current=$(sed -n '0,/^version = "\(.*\)"$/s//\1/p' Cargo.toml)
+    IFS=. read -r ma mi pa <<<"$current"
+    next_major="$((ma + 1)).0.0"
+    next_minor="$ma.$((mi + 1)).0"
+    next_patch="$ma.$mi.$((pa + 1))"
+
+    kind="{{ bump }}"
+    if [ -z "$kind" ]; then
+      say "Releasing from $current"
+      echo "  patch   $current → $next_patch   fixes only"
+      echo "  minor   $current → $next_minor   new features, or behaviour that changes under someone"
+      echo "  major   $current → $next_major   the HTTP API and the settings format freeze at 1.0.0"
+      kind=$(ask $'\nmajor / minor / patch: ')
+    fi
+    case "$kind" in
+      major) version=$next_major ;;
+      minor) version=$next_minor ;;
+      patch) version=$next_patch ;;
+      *) die "expected major, minor or patch; got '$kind'." ;;
+    esac
+    tag="v$version"
+
+    if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+      die "$tag already exists locally."
+    fi
+    [ -z "$(git ls-remote --tags origin "$tag")" ] || die "$tag is already on origin — that release is public."
+
+    # -- the notes are the release, so they are read before anything runs -----
+    notes=$(awk '/^## \[Unreleased\]/ {f=1; next} f && /^## / {exit} f' CHANGELOG.md)
+    [ -n "$(echo "$notes" | tr -d '[:space:]')" ] ||
+      die "CHANGELOG.md has nothing under ## [Unreleased]; that section becomes the release body."
+
+    say "$tag will be published with these notes"
+    echo "$notes"
+
+    # A patch that adds or changes something is a minor release wearing the
+    # wrong number, and that number is the only warning a consumer gets before
+    # `nix flake update` moves them onto it.
+    if [ "$kind" = patch ] && echo "$notes" | grep -qE '^### (Added|Changed|Removed)'; then
+      say "This is a patch, but the notes carry an Added/Changed/Removed section."
+      confirm "Release it as a patch anyway? [y/N] " || die "Nothing was done."
+    fi
+
+    # -- the plan, then the gate ---------------------------------------------
+    say "Plan"
+    echo "  1. just check && just deny"
+    echo "  2. CHANGELOG.md: ## [Unreleased] → ## [$version] — $(date +%F), and the link refs"
+    echo "  3. just release-version $version   (Cargo.toml, tauri.conf.json, package.json, Cargo.lock)"
+    echo "  4. commit \"Release $version\", tag $tag, reopen ## [Unreleased]"
+    echo "  5. push main and $tag — which publishes the release, with nothing left to press"
+    [ "$dry" = no ] || { say "Dry run; nothing was changed."; exit 0; }
+    confirm $'\nGo? [y/N] ' || die "Nothing was done."
+
+    if [ -n "${ECR_RELEASE_SKIP_CHECK:-}" ]; then
+      say "ECR_RELEASE_SKIP_CHECK is set — skipping the gate. The tag is what publishes; nothing behind it checks this again."
+    else
+      say "Running the gate"
+      just check
+      just deny
+    fi
+
+    # -- the release commit --------------------------------------------------
+    say "Writing $version"
+    sed -i "0,/^## \[Unreleased\]$/s//## [$version] — $(date +%F)/" CHANGELOG.md
+    sed -i "s#^\[Unreleased\]: .*#[Unreleased]: $repo/compare/$tag...HEAD\n[$version]: $repo/releases/tag/$tag#" CHANGELOG.md
+    just release-version "$version"
+
+    git commit --quiet -am "Release $version"
+    git tag -a "$tag" -m "Release $version"
+
+    # After the tag, so the tagged tree carries the dated section that becomes
+    # the release body rather than an empty heading above it.
+    sed -i "0,/^## \[$version\] — /s//## [Unreleased]\n\n&/" CHANGELOG.md
+    git commit --quiet -am "Open the changelog for the next release"
+
+    say "Ready to publish"
+    git --no-pager log --oneline -2
+    echo
+    echo "Pushing $tag starts .github/workflows/release.yml, which re-runs the suites,"
+    echo "builds every artifact, publishes the GitHub release, pushes the crates and"
+    echo "moves the release channel. It cannot be taken back."
+    if confirm $'\nPush main and '"$tag"$'? [y/N] '; then
+      git push origin main "$tag"
+      say "Pushed. Watch it with: gh run watch"
+      echo "When it lands: download one artifact per platform, run it, and check"
+      echo "them all with \`sha256sum -c SHA256SUMS\`."
+    else
+      say "Left local. To finish:  git push origin main $tag"
+      echo "To abandon:  git tag -d $tag && git reset --hard origin/main"
+    fi
+
 # Set the version in all three manifests. See docs/releasing.md.
 release-version version:
     #!/usr/bin/env bash
