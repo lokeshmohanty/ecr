@@ -2,12 +2,51 @@
  * The author/date collision in the egui client came from computing widths by
  * hand. Here the date is a fixed track and the author cell is allowed to
  * shrink, which is what `min-width: 0` unlocks inside a grid or flex child.
+ *
+ * `.row-grid` is a *thread row*, and stays so: every verify script and the e2e
+ * fixtures select rows by this class, so renaming it is renaming a public
+ * interface that fourteen files depend on. The tracks are the tape, the sender
+ * chip, the text and the date.
+ *
+ * The gap is tight because the tape is a margin on the row and has to read as
+ * attached to it — at the wider gap it floated in the gutter between the pane
+ * edge and the chip, looking like something left behind rather than the row's
+ * own status.
  */
 .row-grid {
   display: grid;
-  grid-template-columns: 3px 1fr var(--date-column);
+  grid-template-columns: 3px auto 1fr var(--date-column);
+  column-gap: 0.625rem;
+  align-items: center;
+}
+
+/* The list's own header, which has no tape and no sender. */
+.list-header-grid {
+  display: grid;
+  grid-template-columns: 1fr var(--date-column);
   column-gap: 0.75rem;
   align-items: baseline;
+}
+
+/*
+ * The sender chip. Deliberately monochrome: the palette's three accents mean
+ * proved, owed and blocking, and a colour wheel of avatars would be decoration
+ * wearing the clothes of a status. One initial, one surface, and the row stays
+ * readable as a status board rather than a fruit salad.
+ */
+.sender-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  background: var(--color-neutral-bg);
+  color: var(--color-ink-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  user-select: none;
 }
 
 .truncate-cell {

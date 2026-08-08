@@ -65,8 +65,7 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
       /* On capture, so a row opening a thread has the last word. */
       oncapture:click={() => props.store.setPane("list")}
     >
-      <header class="row-grid shrink-0 border-b border-rule bg-paper-2 px-3 py-2 text-xs uppercase tracking-wide text-ink-3">
-        <span />
+      <header class="list-header-grid shrink-0 border-b border-rule bg-paper-2 px-3 py-2 text-xs uppercase tracking-wide text-ink-3">
         <span class="truncate-cell mono">{props.store.query()}</span>
         <span class="mono text-right">
           {items().length}/{props.store.threads()?.total ?? 0}
@@ -221,6 +220,20 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
   const flagged = () => props.thread.tags.includes("flagged");
   const attachment = () => props.thread.tags.includes("attachment");
 
+  /**
+   * The first letter of the sender worth showing.
+   *
+   * A display name beats an address — `A` for Alice reads, `a` for
+   * `alice@example.com` is the same letter for half the internet — and anything
+   * that is neither is a dot rather than a blank, so the column never has a
+   * hole in it.
+   */
+  const initial = () => {
+    const who = props.thread.authors[0]?.trim() ?? "";
+    const letter = [...who].find((c) => /\p{L}|\p{N}/u.test(c));
+    return letter ?? "·";
+  };
+
   const badges = () => {
     const id = props.thread.newest_message;
     return id ? badgesFor(props.store.marks[id]) : "";
@@ -345,7 +358,7 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
 
   return (
     <div
-      class="row-grid touch-target relative cursor-pointer border-b border-rule-soft px-3 py-2"
+      class="row-grid touch-target relative mx-1.5 cursor-pointer rounded-lg py-2 pl-2 pr-2.5"
       style={{
         height: `${ROW_HEIGHT}px`,
         transform: offset() === 0 ? undefined : `translateX(${offset()}px)`,
@@ -422,6 +435,17 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
       <Show when={badges()}>
         <span class="mono absolute left-6 text-[10px] text-blocking">{badges()}</span>
       </Show>
+
+      {/*
+        The sender, as one letter. A list is scanned before it is read, and a
+        shape is quicker to recognise than a string — but the shape here is the
+        *initial*, not a colour: the three accents in the palette mean something,
+        and spending them on decoration would make every row look like a status
+        it does not have.
+      */}
+      <span class="sender-chip shrink-0" aria-hidden="true">
+        {initial()}
+      </span>
 
       <div class="flex min-w-0 items-center gap-2">
         <Show when={props.store.selectionMode()}>

@@ -95,14 +95,14 @@ export function Sidebar(props: {
 			<div class="shrink-0 space-y-2 border-t border-rule p-2">
 				<button
 					type="button"
-					class="touch-target w-full rounded bg-obligation px-3 py-2 font-semibold text-paper hover:opacity-90"
+					class="touch-target flex w-full items-center justify-center gap-2 rounded-full bg-obligation px-3 py-2.5 font-semibold text-paper shadow-sm hover:opacity-90"
 					onClick={props.onCompose}
 				>
 					Compose
 				</button>
 				<button
 					type="button"
-					class="touch-target flex w-full items-center justify-center gap-2 rounded border border-rule px-3 py-1.5 text-ink-2 hover:bg-neutral-bg"
+					class="touch-target flex w-full items-center justify-center gap-2 rounded-full border border-rule px-3 py-2 text-ink-2 hover:bg-neutral-bg"
 					onClick={props.onSettings}
 					title="Settings (,)"
 				>
@@ -148,14 +148,14 @@ function Row(props: {
 			type="button"
 			data-row={props.index}
 			data-kind={row().kind}
-			class="flex w-full items-baseline gap-2 rounded py-1 pr-2 text-left"
+			class="flex w-full items-baseline gap-2 rounded-full py-1.5 pr-3 text-left"
 			classList={{
 				"mt-2 first:mt-0 tracking-widest": row().kind === "group",
 				"mt-1 tracking-wide": row().kind === "section",
 				"text-xs tracking-wide": row().kind === "view",
-				"pl-1": row().indent === 0,
-				"pl-3": row().indent === 1,
-				"pl-6": row().indent === 2,
+				"pl-2.5": row().indent === 0,
+				"pl-4": row().indent === 1,
+				"pl-7": row().indent === 2,
 				"bg-obligation-bg text-ink": active(),
 				"text-ink": !active() && foldable() && open(),
 				"text-ink-3 hover:bg-neutral-bg": !active() && foldable() && !open(),
