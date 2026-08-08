@@ -6,7 +6,7 @@ import {
 	createSignal,
 	onCleanup,
 } from "solid-js";
-import type { Invite, Message } from "../api/types";
+import type { Invite, Message, RsvpAnswer } from "../api/types";
 import type { AppStore } from "../state/store";
 import { absolutizePartUrls } from "./body-urls";
 import { toggleLabel } from "../state/format";
@@ -242,7 +242,13 @@ function MessageView(props: {
 						meeting is.
 					*/}
 					<Show when={body()?.invite}>
-						{(invite) => <InviteCard invite={invite()} />}
+						{(invite) => (
+							<InviteCard
+								invite={invite()}
+								store={props.store}
+								messageId={props.message.id}
+							/>
+						)}
 					</Show>
 
 					<Show
@@ -520,8 +526,47 @@ function formatSize(bytes: number): string {
  * in somebody's day at the wrong hour — which is worse than showing them
  * exactly what arrived.
  */
-function InviteCard(props: { invite: Invite }) {
+function InviteCard(props: {
+	invite: Invite;
+	store: AppStore;
+	messageId: string;
+}) {
 	const cancelled = () => props.invite.method?.toUpperCase() === "CANCEL";
+	const [answered, setAnswered] = createSignal<RsvpAnswer | null>(null);
+	const [busy, setBusy] = createSignal(false);
+
+	/*
+	 * A reply to one occurrence of a repeating meeting needs a RECURRENCE-ID
+	 * saying which one; without it the reply answers the whole series. The
+	 * server refuses that, and offering buttons that will be refused is worse
+	 * than saying so here.
+	 */
+	const answerable = () =>
+		!cancelled() &&
+		props.invite.method?.toUpperCase() !== "REPLY" &&
+		!!props.invite.uid &&
+		!!props.invite.organizer &&
+		(!props.invite.recurring || !!props.invite.recurrence_id);
+
+	const answer = async (choice: RsvpAnswer) => {
+		const account = props.store.sendingAccount();
+		if (!account) {
+			props.store.setStatus("no account available to answer from");
+			return;
+		}
+		setBusy(true);
+		try {
+			await props.store.api.rsvp(props.messageId, account.id, choice);
+			setAnswered(choice);
+			props.store.setStatus(`replied: ${choice}`);
+		} catch (error) {
+			props.store.setStatus(
+				error instanceof Error ? error.message : "the reply was not sent",
+			);
+		} finally {
+			setBusy(false);
+		}
+	};
 
 	return (
 		<section
@@ -588,15 +633,54 @@ function InviteCard(props: { invite: Invite }) {
 				</Show>
 			</dl>
 
+			<Show when={answerable()}>
+				<div class="mt-2 flex flex-wrap gap-2">
+					<For
+						each={
+							[
+								["accept", "Yes"],
+								["tentative", "Maybe"],
+								["decline", "No"],
+							] as [RsvpAnswer, string][]
+						}
+					>
+						{([choice, label]) => (
+							<button
+								type="button"
+								disabled={busy()}
+								class="touch-target rounded-full border px-3 py-1 text-xs disabled:opacity-50"
+								classList={{
+									"border-obligation bg-obligation text-paper":
+										answered() === choice,
+									"border-rule text-ink-2 hover:bg-neutral-bg":
+										answered() !== choice,
+								}}
+								onClick={() => answer(choice)}
+							>
+								{label}
+							</button>
+						)}
+					</For>
+				</div>
+			</Show>
+
 			{/*
-				No RSVP button. Replying writes to somebody else's calendar and
-				has to be right about time zones, recurrence and delegation;
-				saying so is better than a control that half works.
+				A repeating meeting whose invitation does not say which occurrence
+				this is cannot be answered without answering the series — so the
+				reason is on screen rather than a button that will be refused.
 			*/}
-			<p class="mt-2 text-ink-3">
-				Replying to invitations is not wired up yet — answer from your
-				calendar.
-			</p>
+			<Show
+				when={
+					!cancelled() &&
+					props.invite.recurring &&
+					!props.invite.recurrence_id
+				}
+			>
+				<p class="mt-2 text-ink-3">
+					This repeats, and the invitation does not say which occurrence —
+					answering it here would answer every one. Reply from your calendar.
+				</p>
+			</Show>
 		</section>
 	);
 }

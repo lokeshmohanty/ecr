@@ -77,6 +77,7 @@ pub fn router_with_cors(state: AppState, allowed_origins: Option<Vec<String>>) -
             // surfaced as an unintelligible parse error rather than a refusal.
             post(routes::send).layer(DefaultBodyLimit::max(36 * 1024 * 1024)),
         )
+        .route("/api/v1/messages/{id}/rsvp", post(routes::rsvp))
         .route("/api/v1/events", get(routes::events))
         .route("/api/v1/config", get(routes::config))
         .route("/api/v1/config", put(routes::save_config))

@@ -1077,6 +1077,30 @@ export function createAppStore() {
 		const preferences = settings().preferences;
 		const sections = preferences.sidebarSections;
 
+		/*
+		 * One row for everything that has arrived, pinned above the accounts.
+		 *
+		 * The unscoped `tag:inbox` under "All Accounts" has always been a unified
+		 * inbox, but only while that group was the expanded one — so a reader
+		 * looking at their work account had no way back to everything without
+		 * collapsing it first. This is the row every other client opens on.
+		 *
+		 * Only with more than one account: with one, it is the same query as the
+		 * Inbox directly below it, and two rows that do the same thing is worse
+		 * than one.
+		 */
+		if ((accounts() ?? []).length > 1) {
+			rows.push({
+				kind: "view",
+				name: "All inboxes",
+				group: ALL_ACCOUNTS,
+				query: "tag:inbox",
+				icon: "▤",
+				indent: 0,
+				counted: true,
+			});
+		}
+
 		for (const group of tree()) {
 			rows.push({
 				kind: "group",

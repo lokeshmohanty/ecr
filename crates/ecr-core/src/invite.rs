@@ -6,10 +6,13 @@
 //! parity list renders it in place, and that is most of the value — knowing
 //! what and when, without leaving the message.
 //!
-//! Replying (`METHOD:REPLY`) is a different thing and is not here. It writes to
-//! somebody else's calendar and has to be right about time zones, recurrence
-//! and delegation; showing the invitation is worth having on its own and cannot
-//! be wrong about anything.
+//! Replying is [`reply`], which builds the `METHOD:REPLY` calendar an organiser's
+//! software reads to move somebody from *invited* to *going*. It is deliberately
+//! a narrow thing: it echoes the event's identity back unchanged and changes one
+//! `PARTSTAT`. It does not touch recurrence — answering a single occurrence of a
+//! repeating meeting needs a `RECURRENCE-ID` that says which one, and sending a
+//! reply without it answers the *series*, so a reply to one occurrence is
+//! refused rather than sent as something it is not.
 
 use serde::{Deserialize, Serialize};
 
@@ -29,6 +32,45 @@ pub struct Invite {
     /// event, which is the difference between an invitation and a cancellation.
     pub method: Option<String>,
     pub recurring: bool,
+    /// The event's identity, which a reply has to echo back unchanged or the
+    /// organiser's software cannot match it to anything.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uid: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sequence: Option<String>,
+    /// Set when this is one occurrence of a repeating event.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recurrence_id: Option<String>,
+}
+
+/// What somebody is saying about an invitation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Answer {
+    Accept,
+    Decline,
+    Tentative,
+}
+
+impl Answer {
+    /// The `PARTSTAT` an organiser's software reads.
+    pub fn partstat(&self) -> &'static str {
+        match self {
+            Answer::Accept => "ACCEPTED",
+            Answer::Decline => "DECLINED",
+            Answer::Tentative => "TENTATIVE",
+        }
+    }
+
+    /// What the subject line of the reply says, which is the part a human reads
+    /// when their client does not understand the calendar part.
+    pub fn prefix(&self) -> &'static str {
+        match self {
+            Answer::Accept => "Accepted",
+            Answer::Decline => "Declined",
+            Answer::Tentative => "Tentative",
+        }
+    }
 }
 
 impl Invite {
@@ -92,6 +134,9 @@ pub fn parse(ics: &str) -> Option<Invite> {
             // not worth a parameter parser here.
             "ORGANIZER" => invite.organizer = Some(strip_mailto(&value)),
             "ATTENDEE" => invite.attendees.push(strip_mailto(&value)),
+            "UID" => invite.uid = Some(value),
+            "SEQUENCE" => invite.sequence = Some(value),
+            "RECURRENCE-ID" => invite.recurrence_id = Some(value),
             "DTSTART" => invite.starts = Some(value),
             "DTEND" => invite.ends = Some(value),
             "RRULE" => invite.recurring = true,
@@ -100,6 +145,87 @@ pub fn parse(ics: &str) -> Option<Invite> {
     }
 
     invite.is_useful().then_some(invite)
+}
+
+/// Builds the `METHOD:REPLY` calendar that answers an invitation.
+///
+/// `attendee` is the address answering — it has to be one the invitation was
+/// actually sent to, or the organiser's software has nobody to move.
+///
+/// Refused for one occurrence of a repeating event: answering that needs a
+/// `RECURRENCE-ID` on the reply saying *which* occurrence, and a reply without
+/// one answers the whole series. Silently changing every future Monday because
+/// somebody declined one of them is the kind of wrong that is only discovered
+/// weeks later.
+pub fn reply(invite: &Invite, attendee: &str, answer: Answer) -> Result<String, &'static str> {
+    let uid = invite.uid.as_deref().ok_or(
+        "this invitation carries no UID, so there is nothing for the organiser to match a \
+         reply to",
+    )?;
+    if invite.recurring && invite.recurrence_id.is_none() {
+        return Err(
+            "this is a repeating event, and answering one occurrence of it is not something \
+             ecr does yet — a reply without a RECURRENCE-ID answers the whole series",
+        );
+    }
+    let organizer = invite
+        .organizer
+        .as_deref()
+        .ok_or("this invitation names no organiser to reply to")?;
+
+    // CRLF throughout, because RFC 5545 says so and a calendar with bare LFs is
+    // one some servers accept and others reject outright — a failure that looks
+    // like the invitation rather than the reply.
+    let mut out = String::new();
+    let mut line = |text: String| {
+        out.push_str(&text);
+        out.push_str("\r\n");
+    };
+
+    line("BEGIN:VCALENDAR".into());
+    line("VERSION:2.0".into());
+    line("PRODID:-//ecr//EN".into());
+    line("METHOD:REPLY".into());
+    line("BEGIN:VEVENT".into());
+    line(format!("UID:{}", escape(uid)));
+
+    // Echoed back unchanged. SEQUENCE is how an organiser tells a reply to the
+    // invitation they sent from a reply to one they have since revised, and
+    // answering with the wrong one answers a meeting that has moved.
+    if let Some(sequence) = &invite.sequence {
+        line(format!("SEQUENCE:{}", escape(sequence)));
+    }
+    if let Some(recurrence) = &invite.recurrence_id {
+        line(format!("RECURRENCE-ID:{}", escape(recurrence)));
+    }
+    if let Some(starts) = &invite.starts {
+        line(format!("DTSTART:{}", escape(starts)));
+    }
+    if let Some(summary) = &invite.summary {
+        line(format!("SUMMARY:{}", escape(summary)));
+    }
+
+    line(format!("ORGANIZER:mailto:{}", escape(organizer)));
+    line(format!(
+        "ATTENDEE;PARTSTAT={}:mailto:{}",
+        answer.partstat(),
+        escape(attendee)
+    ));
+    line("END:VEVENT".into());
+    line("END:VCALENDAR".into());
+    Ok(out)
+}
+
+/// iCalendar's own escaping, which is not the same as anybody else's: a comma
+/// or a semicolon left raw ends the value early, and a newline inside one turns
+/// the rest of it into a property nobody meant to send.
+fn escape(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace(';', "\\;")
+        .replace(',', "\\,")
+        .replace('\n', " ")
+        .replace('\r', "")
 }
 
 fn strip_mailto(value: &str) -> String {
@@ -198,6 +324,89 @@ END:VEVENT\r\nEND:VCALENDAR\r\n";
     fn the_method_is_read_from_outside_the_event() {
         let ics = "BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nBEGIN:VEVENT\r\nSUMMARY:x\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
         assert_eq!(parse(ics).unwrap().method.as_deref(), Some("REPLY"));
+    }
+
+    const SINGLE: &str = "BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\n\
+UID:abc-123\r\nSEQUENCE:2\r\nSUMMARY:One-off\r\nDTSTART:20260410T090000\r\n\
+ORGANIZER;CN=Alice:mailto:alice@example.com\r\n\
+ATTENDEE:mailto:bob@example.com\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+
+    #[test]
+    fn a_reply_echoes_the_events_identity_and_changes_one_partstat() {
+        let invite = parse(SINGLE).unwrap();
+        let ics = reply(&invite, "bob@example.com", Answer::Accept).unwrap();
+
+        // RFC 5545 says CRLF, and a calendar with bare LFs is one some servers
+        // take and others refuse — a failure that reads as the invitation being
+        // broken rather than the reply.
+        assert!(ics.contains("\r\n"), "not CRLF: {ics:?}");
+        assert!(!ics.contains("\n\n"), "a bare LF got in: {ics:?}");
+        assert!(ics.contains("METHOD:REPLY"), "{ics}");
+        assert!(ics.contains("UID:abc-123"), "{ics}");
+        // SEQUENCE is how an organiser tells a reply to the invitation they sent
+        // from one to an invitation they have since revised.
+        assert!(ics.contains("SEQUENCE:2"), "{ics}");
+        assert!(
+            ics.contains("ATTENDEE;PARTSTAT=ACCEPTED:mailto:bob@example.com"),
+            "{ics}"
+        );
+        assert!(ics.contains("ORGANIZER:mailto:alice@example.com"), "{ics}");
+    }
+
+    #[test]
+    fn declining_and_tentative_are_the_same_reply_with_another_partstat() {
+        let invite = parse(SINGLE).unwrap();
+        assert!(reply(&invite, "bob@example.com", Answer::Decline)
+            .unwrap()
+            .contains("PARTSTAT=DECLINED"));
+        assert!(reply(&invite, "bob@example.com", Answer::Tentative)
+            .unwrap()
+            .contains("PARTSTAT=TENTATIVE"));
+    }
+
+    /// A reply with no RECURRENCE-ID answers the *series*. Declining one Monday
+    /// and silently clearing every future Monday is a wrong that is discovered
+    /// weeks later, so it is refused rather than sent as something else.
+    #[test]
+    fn one_occurrence_of_a_repeating_event_is_refused_rather_than_answered_for_the_series() {
+        let ics = SINGLE.replace("SEQUENCE:2", "SEQUENCE:2\r\nRRULE:FREQ=WEEKLY");
+        let invite = parse(&ics).unwrap();
+
+        let err = reply(&invite, "bob@example.com", Answer::Decline).unwrap_err();
+        assert!(err.contains("RECURRENCE-ID"), "{err}");
+    }
+
+    #[test]
+    fn a_named_occurrence_of_a_repeating_event_can_be_answered() {
+        let ics = SINGLE.replace(
+            "SEQUENCE:2",
+            "SEQUENCE:2\r\nRRULE:FREQ=WEEKLY\r\nRECURRENCE-ID:20260417T090000",
+        );
+        let invite = parse(&ics).unwrap();
+
+        let reply = reply(&invite, "bob@example.com", Answer::Accept).unwrap();
+        assert!(reply.contains("RECURRENCE-ID:20260417T090000"), "{reply}");
+    }
+
+    #[test]
+    fn an_invitation_with_no_uid_cannot_be_replied_to() {
+        let ics = SINGLE.replace("UID:abc-123\r\n", "");
+        let invite = parse(&ics).unwrap();
+        assert!(reply(&invite, "bob@example.com", Answer::Accept).is_err());
+    }
+
+    /// A comma or semicolon left raw ends an iCalendar value early, and the rest
+    /// of the summary becomes a property nobody meant to send.
+    #[test]
+    fn a_summary_with_punctuation_in_it_is_escaped() {
+        let ics = SINGLE.replace("SUMMARY:One-off", "SUMMARY:Review; then lunch, maybe");
+        let invite = parse(&ics).unwrap();
+
+        let reply = reply(&invite, "bob@example.com", Answer::Accept).unwrap();
+        assert!(
+            reply.contains("SUMMARY:Review\\; then lunch\\, maybe"),
+            "{reply}"
+        );
     }
 
     #[test]

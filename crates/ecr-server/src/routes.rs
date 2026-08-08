@@ -381,6 +381,71 @@ pub async fn send(
     }))
 }
 
+#[derive(Deserialize)]
+pub struct RsvpRequest {
+    pub account: String,
+    pub answer: ecr_core::invite::Answer,
+}
+
+/// Answers an invitation.
+///
+/// The calendar is rebuilt from the message being answered rather than taken
+/// from the client: an organiser's software matches a reply by UID and
+/// SEQUENCE, and letting a client name those would let it answer on behalf of
+/// an event it was never sent.
+pub async fn rsvp(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(request): Json<RsvpRequest>,
+) -> ApiResult<Json<SendResponse>> {
+    reject_if_read_only(&state)?;
+
+    let message_id = MessageId(id);
+    let body = state
+        .store
+        .body(&message_id, ecr_store::BodyOptions::default())
+        .await?;
+
+    let invite = body
+        .invite
+        .ok_or_else(|| ApiError::BadRequest("this message carries no invitation".into()))?;
+
+    let accounts = state.store.accounts().await?;
+    let account = accounts
+        .iter()
+        .find(|a| a.id.as_str() == request.account)
+        .ok_or_else(|| ApiError::BadRequest(format!("no account named {}", request.account)))?;
+
+    let attendee = account
+        .address
+        .clone()
+        .ok_or_else(|| ApiError::BadRequest("that account has no address to answer as".into()))?;
+
+    let calendar = ecr_core::invite::reply(&invite, &attendee, request.answer)
+        .map_err(|reason| ApiError::BadRequest(reason.to_string()))?;
+
+    let organizer = invite
+        .organizer
+        .clone()
+        .ok_or_else(|| ApiError::BadRequest("this invitation names no organiser".into()))?;
+
+    let summary = invite.summary.clone().unwrap_or_else(|| "meeting".into());
+    let raw = ecr_store::compose::build_invite_reply(
+        account,
+        &organizer,
+        &format!("{}: {summary}", request.answer.prefix()),
+        &calendar,
+    )
+    .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+
+    state.store.send(&account.id, &raw).await?;
+
+    Ok(Json(SendResponse {
+        bytes: raw.len(),
+        account: account.id.to_string(),
+    }))
+}
+
 #[derive(Serialize)]
 pub struct SendResponse {
     pub bytes: usize,

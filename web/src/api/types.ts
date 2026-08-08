@@ -95,7 +95,13 @@ export interface Invite {
   /** REQUEST, REPLY or CANCEL — an invitation and a cancellation look alike. */
   method?: string;
   recurring: boolean;
+  /** The event's identity. Without a uid there is nothing to answer. */
+  uid?: string;
+  sequence?: string;
+  recurrence_id?: string;
 }
+
+export type RsvpAnswer = "accept" | "decline" | "tentative";
 
 export interface Body {
   format: "text" | "html";

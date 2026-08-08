@@ -219,6 +219,58 @@ pub fn vdir_root(state_dir: &Path) -> PathBuf {
     state_dir.to_path_buf()
 }
 
+/// The `Authorization` header for an account.
+///
+/// A password account gets Basic, which is what every DAV server that is not
+/// Google or Microsoft expects — and it is safe here for the same reason it is
+/// safe in IMAP: the connection is TLS, and a header is the only place these
+/// protocols carry a credential at all.
+pub async fn authorization(
+    profiles: &crate::oauth::Profiles,
+    account: &ecr_core::managed::ManagedAccount,
+) -> Result<String> {
+    use base64::Engine;
+
+    match &account.auth {
+        ecr_core::managed::Auth::Oauth { profile } => Ok(format!(
+            "Bearer {}",
+            crate::oauth::access_token(profiles, profile).await?
+        )),
+        ecr_core::managed::Auth::Command { command } => {
+            let (program, args) = command
+                .split_first()
+                .ok_or_else(|| Error::Managed("the password command is empty".into()))?;
+
+            let output = tokio::process::Command::new(program)
+                .args(args)
+                .output()
+                .await
+                .map_err(|err| {
+                    Error::Managed(format!("the password command could not be run: {err}"))
+                })?;
+
+            if !output.status.success() {
+                return Err(Error::Managed(format!(
+                    "the password command exited with {}",
+                    output.status
+                )));
+            }
+
+            // The first line only. A password manager that prints the password
+            // and then a block of metadata is the normal case, and sending the
+            // metadata as part of the credential fails as a bad password.
+            let text = String::from_utf8_lossy(&output.stdout);
+            let password = text.lines().next().unwrap_or_default();
+
+            Ok(format!(
+                "Basic {}",
+                base64::engine::general_purpose::STANDARD
+                    .encode(format!("{}:{password}", account.address))
+            ))
+        }
+    }
+}
+
 /// The `PROPFIND` that asks a server who we are.
 const PRINCIPAL_BODY: &str = r#"<?xml version="1.0" encoding="utf-8" ?>
 <d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/></d:prop></d:propfind>"#;

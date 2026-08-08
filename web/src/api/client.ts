@@ -16,6 +16,7 @@ import type {
   ManagedAccount,
   ManagedRule,
   ManagedView,
+  RsvpAnswer,
 } from "./types";
 import { isTauri } from "./platform";
 
@@ -246,6 +247,24 @@ export class Api {
       body: JSON.stringify({ queries }),
     });
     return body.counts;
+  }
+
+  /**
+   * Answers an invitation.
+   *
+   * The calendar is rebuilt on the server from the message being answered: an
+   * organiser matches a reply by its UID and SEQUENCE, and letting a client
+   * name those would let it answer for an event it was never sent.
+   */
+  async rsvp(
+    messageId: string,
+    account: string,
+    answer: RsvpAnswer,
+  ): Promise<void> {
+    await this.request(
+      `/api/v1/messages/${encodeURIComponent(messageId)}/rsvp`,
+      { method: "POST", body: JSON.stringify({ account, answer }) },
+    );
   }
 
   async managed(): Promise<ManagedView> {

@@ -696,17 +696,12 @@ pub async fn sync_dav(id: Option<&str>) -> anyhow::Result<()> {
             }
         };
 
-        // The same credential as the mail. A provider that speaks CardDAV over
-        // the token ecr already holds needs nothing else asked of the reader.
-        let auth = match &account.auth {
-            ecr_core::managed::Auth::Oauth { profile } => {
-                format!(
-                    "Bearer {}",
-                    ecr_store::oauth::access_token(&profiles, profile).await?
-                )
-            }
-            ecr_core::managed::Auth::Command { .. } => {
-                println!("  {name:<12} password accounts are not wired up for DAV yet");
+        // The same credential as the mail, whichever kind it is: a token for
+        // the providers that serve DAV on one, Basic for everybody else.
+        let auth = match ecr_store::dav::authorization(&profiles, account).await {
+            Ok(auth) => auth,
+            Err(err) => {
+                println!("  {name:<12} {err}");
                 continue;
             }
         };

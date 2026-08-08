@@ -98,6 +98,40 @@ fn references(list: &[String]) -> Vec<String> {
         .collect()
 }
 
+/// The message that carries an answer to an invitation.
+///
+/// The calendar goes in as a `text/calendar; method=REPLY` part, which is what
+/// an organiser's software looks for — an `.ics` attachment is a file a person
+/// opens, and nothing automated reads it. A plain-text part rides alongside so
+/// that a client which does not understand calendars still shows a sentence
+/// rather than an empty message.
+pub fn build_invite_reply(
+    account: &Account,
+    to: &str,
+    subject: &str,
+    calendar: &str,
+) -> Result<Vec<u8>> {
+    let from = account.address.clone().ok_or_else(|| Error::InvalidDraft {
+        reason: format!("account {} has no address to send from", account.id),
+    })?;
+
+    let raw = MessageBuilder::new()
+        .from(from.as_str())
+        .to(to)
+        .subject(subject)
+        .text_body(subject)
+        .body(mail_builder::mime::MimePart::new(
+            "text/calendar; method=REPLY; charset=utf-8",
+            calendar,
+        ))
+        .write_to_vec()
+        .map_err(|err| Error::InvalidDraft {
+            reason: err.to_string(),
+        })?;
+
+    Ok(raw)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
