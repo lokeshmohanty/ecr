@@ -77,11 +77,37 @@ release; both are frozen at v1.0.0.
   the outage rather than the browser's error page. It caches the application
   and deliberately no mail: a cached thread list looks current and is not, and
   every API response is somebody's mail written to disk in the browser profile.
+- **Archiving and deleting reach the server.** A generated `pre-new` hook keeps
+  folders in step with tags — `deleted` into Trash, `spam` into Junk, and out of
+  the inbox folder when `inbox` is gone — so filing in ecr is no longer a local
+  tag the server never hears about. Driven by tags rather than by what ecr did,
+  so `notmuch tag` at a shell files the same way. New accounts get
+  `expunge = "far"`; existing ones are never rewritten.
+- **`ecr doctor` says what actually crosses on sync**, including for a
+  self-managed setup — `synchronize_flags` is where "nothing crosses at all"
+  hides, and it was not being read.
 - [Parity](https://www.lokeshmohanty.in/ecr/parity/) — what ecr has and does not
   have against Thunderbird, Gmail and Outlook, and what is deliberately absent.
 
 ### Fixed
 
+- **The status bar painted over itself.** Key hints and the settings message
+  were drawn on top of each other, unreadable, whenever both were on screen at
+  a desktop width. No suite could catch it — every visual state has a healthy
+  settings file, so the two cells never competed.
+- **A retired package read as a typo.** `[packages.vdirsyncer]` and
+  `[packages.imapnotify]` — sections an earlier ecr told you to write — were
+  reported as *unknown*, so the complaint never went away and the fix was to
+  check the spelling of a correctly spelled word. They now name what replaced
+  them and say to delete the section.
+- **Moving a message between maildirs kept its `,U=` infix**, which encodes an
+  IMAP UID belonging to the folder it came *from*. The isync manual requires
+  an MUA to rename on move; carrying it across corrupts the sync state for
+  both folders.
+- **`just android` blamed the cable for a signature mismatch.** An
+  `INSTALL_FAILED_UPDATE_INCOMPATIBLE` — what a phone carrying a release build
+  answers to a debug one — was retried five times and reported as "the device
+  is not staying connected", with the real reason four screens up the log.
 - `ServerSettings` resolves through the same `Env` as everything else rather
   than `dirs::config_dir()`, which answered the real `~/.config` however `HOME`
   was pointed.

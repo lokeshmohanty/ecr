@@ -222,6 +222,33 @@ it goes and can be taken back. Who has been told is recorded in
 `~/.local/state/ecr/vacation-sent.json`; `ecr account vacation forget` clears
 it, which answers everybody again.
 
+### What reaches the server when you file something
+
+Three of the five marks cross by themselves. notmuch keeps `unread`, `flagged`
+and `replied` as **maildir flags** — `S`, `F` and `R` on the filename — and
+mbsync sends those as `\Seen`, `\Flagged` and `\Answered`.
+
+`inbox` and `deleted` have no flag to live in, so until something moves the
+file they stop at a local tag: the message stays in the server's inbox and
+comes back on every other device. A generated **`pre-new` hook** closes that.
+It files `deleted` into Trash and `spam` into Junk, and moves anything no
+longer tagged `inbox` out of the inbox folder, before `notmuch new` scans — so
+the same run reindexes everything at its new path.
+
+It is driven by **tags**, not by what ecr did, so a `notmuch tag` typed at a
+shell files exactly the same way the client does.
+
+New accounts are created with `expunge = "far"`, which is what makes the move
+take effect on the far side. Existing accounts are never rewritten: nobody's
+setup starts removing mail from a server because they upgraded. `ecr doctor`
+reports which of the two states each account is in, and
+`ecr account file --dry-run` shows what would move without moving it.
+
+**Gmail is the exception.** Its archive is `[Gmail]/All Mail`, which holds a
+copy of every message in the account and which ecr deliberately does not sync —
+so there is nowhere to file an archived message *to*, and archiving on Gmail
+stays local. Deleting still files into `[Gmail]/Trash`.
+
 ## Signed and encrypted mail
 
 ecr **keeps no keys**. Signatures are checked and encrypted mail is opened by
