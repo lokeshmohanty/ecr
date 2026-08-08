@@ -204,13 +204,13 @@ const STATES = [
   {
     name: "16-mobile-list",
     description: "the list at phone width",
-    viewport: { width: 390, height: 844 },
+    viewport: PHONE,
     async setup() {},
   },
   {
     name: "17-mobile-detail",
     description: "a thread at phone width",
-    viewport: { width: 390, height: 844 },
+    viewport: PHONE,
     async setup(page) {
       await press(page, "Enter");
       await page.waitForTimeout(1800);
