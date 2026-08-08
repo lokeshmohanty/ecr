@@ -259,6 +259,23 @@ fn subject_for(vacation: &Vacation, original: &str) -> String {
     }
 }
 
+/// The address inside a `From:` or `To:` value, without the display name.
+///
+/// One copy, deliberately. It is the rule that decides whether a message came
+/// from us, whether we were addressed on it, and which ledger entry a reply is
+/// recorded under — and getting it wrong is invisible on any fixture written
+/// by hand, because those carry bare addresses. Real mail carries a display
+/// name far more often than not, and a second implementation that forgot that
+/// would disagree with this one only in production.
+pub fn bare(address: &str) -> String {
+    let text = address.trim();
+    let inner = match (text.rfind('<'), text.rfind('>')) {
+        (Some(open), Some(close)) if close > open => &text[open + 1..close],
+        _ => text,
+    };
+    inner.trim().to_ascii_lowercase()
+}
+
 /// Whether two addresses are the same one.
 ///
 /// Compares the address inside angle brackets when there is one, so
@@ -268,15 +285,6 @@ fn subject_for(vacation: &Vacation, original: &str) -> String {
 /// does not.
 fn same_address(a: &str, b: &str) -> bool {
     bare(a).eq_ignore_ascii_case(&bare(b))
-}
-
-fn bare(address: &str) -> String {
-    let text = address.trim();
-    let inner = match (text.rfind('<'), text.rfind('>')) {
-        (Some(open), Some(close)) if close > open => &text[open + 1..close],
-        _ => text,
-    };
-    inner.trim().to_ascii_lowercase()
 }
 
 #[cfg(test)]

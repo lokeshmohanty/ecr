@@ -22,7 +22,7 @@
 
 use crate::state::AppState;
 use ecr_core::message::Query;
-use ecr_core::vacation::{Arrived, Decision, Skip, Vacation};
+use ecr_core::vacation::{bare, Arrived, Decision, Skip, Vacation};
 use ecr_store::MailStore;
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -313,15 +313,6 @@ async fn queue(
     )?;
 
     Ok(())
-}
-
-fn bare(address: &str) -> String {
-    let text = address.trim();
-    let inner = match (text.rfind('<'), text.rfind('>')) {
-        (Some(open), Some(close)) if close > open => &text[open + 1..close],
-        _ => text,
-    };
-    inner.trim().to_ascii_lowercase()
 }
 
 #[cfg(test)]
