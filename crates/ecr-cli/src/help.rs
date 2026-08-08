@@ -23,8 +23,9 @@ ecr — a mail client
 const START: &str = "\
 A first run
 
-  ecr needs notmuch, mbsync and msmtp configured, plus whatever your config
-  invokes to authenticate. It reads their configuration rather than owning it.
+  ecr needs notmuch, mbsync and msmtp installed, plus whatever your config
+  invokes to authenticate. It reads their configuration rather than owning it —
+  unless you ask it to, with `ecr account add`. See `ecr help accounts`.
 
     1. ecr init
        Adopts whatever is already there. With nothing there, it offers to write
@@ -76,8 +77,21 @@ Where accounts come from
   `ecr doctor` prints the channel next to each account: no channel means no
   address, and no address means replies cannot pick the right identity.
 
-  Nothing about accounts is configured in ecr. Fix the mail tools' config and
-  ecr follows.
+  By default nothing about accounts is configured in ecr: fix the mail tools'
+  config and ecr follows.
+
+  ecr can instead own that configuration. `ecr account add` writes the accounts
+  and generates the isyncrc, the msmtp config, the notmuch config and its
+  post-new hook into ~/.config/ecr/managed/. Your own files stay where they are
+  and are what it goes back to.
+
+    ecr account import          reads the setup you have, and shows the diff
+    ecr account import --write  saves it, without switching anything
+    ecr account apply           hands the files to ecr
+    ecr account list            every account, and the state of every file
+
+  Deletions never propagate by default, the maildir is never deleted, and a
+  generated file you edit is backed up rather than overwritten.
 
   Gmail and Outlook will not take a password. `ecr oauth` is the exception to
   the paragraph above — it holds the OAuth profile itself:

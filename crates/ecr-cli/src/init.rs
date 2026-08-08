@@ -36,9 +36,15 @@ pub struct Plan {
 
 pub async fn run(force: bool) -> anyhow::Result<()> {
     let env = Env::from_process();
-    let settings = ServerSettings::load();
+    let settings = ServerSettings::load_from_env(&env);
 
     require_a_terminal()?;
+
+    // Offered before anything is written, because the two paths write different
+    // files in different places, and the answer is not one to discover halfway.
+    if !force && offer_managed(&env, &settings)? {
+        return Ok(());
+    }
 
     let resolved = env.resolve(ConfigKind::Notmuch, &settings);
     if let Some(existing) = &resolved.path {
@@ -61,7 +67,7 @@ pub async fn run(force: bool) -> anyhow::Result<()> {
 /// the configuration is missing. Answers whether anything was written.
 pub async fn ensure() -> anyhow::Result<bool> {
     let env = Env::from_process();
-    let settings = ServerSettings::load();
+    let settings = ServerSettings::load_from_env(&env);
 
     if env.resolve(ConfigKind::Notmuch, &settings).path.is_some() {
         return Ok(false);
@@ -73,6 +79,52 @@ pub async fn ensure() -> anyhow::Result<bool> {
     require_a_terminal()?;
     let plan = plan(&env, None, false)?;
     apply(&plan)?;
+    Ok(true)
+}
+
+/// Asks whether ecr should own the mail configuration, and points at the way in.
+///
+/// Answers whether init is finished. It deliberately does not *do* the managed
+/// setup: adding an account needs an address, a provider and an OAuth flow, and
+/// putting that behind a question inside `init` would be a second, worse copy of
+/// `ecr account add`. What it does is stop init from writing a notmuch config
+/// that managed mode would immediately outrank — two configurations for one
+/// mailbox, one of them dead, and no sign of which.
+fn offer_managed(env: &Env, settings: &ServerSettings) -> anyhow::Result<bool> {
+    let packages = ecr_store::packages::Packages::load(env);
+    if packages.any_managed() {
+        println!("ecr already manages your mail configuration. `ecr account list` shows it.\n");
+        return Ok(true);
+    }
+
+    let existing = env.resolve(ConfigKind::Notmuch, settings).path.is_some();
+
+    println!("There are two ways to run ecr.\n");
+    println!("  self-managed  You keep notmuch, mbsync and msmtp configured yourself,");
+    println!("                and ecr reads what you have. This is the original way and");
+    println!("                nothing about it has changed.");
+    println!("  ecr-managed   ecr generates those files from accounts you give it, into");
+    println!("                its own directory. Your files stay where they are and are");
+    println!("                what it goes back to if you change your mind.\n");
+
+    if !confirm("Should ecr manage the configuration?")? {
+        println!();
+        return Ok(false);
+    }
+
+    println!();
+    if existing {
+        println!("You already have a working setup, so the way in is to import it:\n");
+        println!("    ecr account import           # shows what ecr would generate");
+        println!("    ecr account import --write   # saves it, still without switching");
+        println!("    ecr account apply            # hands the files to ecr\n");
+        println!("Nothing is switched until that last step.");
+    } else {
+        println!("Add an account and ecr will generate everything from it:\n");
+        println!("    ecr account add personal --address you@gmail.com --provider gmail\n");
+        println!("Providers with a preset: gmail, outlook, fastmail. Anything else is");
+        println!("`generic`, which takes --imap and --smtp.");
+    }
     Ok(true)
 }
 

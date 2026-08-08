@@ -1,3 +1,5 @@
+mod account;
+mod diff;
 mod doctor;
 mod help;
 mod init;
@@ -101,6 +103,24 @@ enum Command {
         name: String,
     },
 
+    #[command(about = "add and edit the accounts ecr manages")]
+    Account {
+        #[command(subcommand)]
+        command: AccountCommand,
+    },
+
+    #[command(
+        about = "run notmuch against the configuration ecr resolved",
+        // Everything after the subcommand belongs to notmuch, including its own
+        // flags — `ecr notmuch search --output=files x` must not be parsed here.
+        trailing_var_arg = true,
+        allow_hyphen_values = true
+    )]
+    Notmuch {
+        #[arg(help = "the notmuch command and its arguments")]
+        args: Vec<String>,
+    },
+
     #[command(about = "authorize and refresh OAuth tokens for Gmail and Outlook")]
     Oauth {
         #[command(subcommand)]
@@ -132,6 +152,70 @@ enum Command {
 
     #[command(about = "print this manual page in roff", hide = true)]
     Man,
+}
+
+#[derive(Subcommand)]
+enum AccountCommand {
+    #[command(about = "list the managed accounts and the files they generate")]
+    List,
+
+    #[command(about = "add an account and generate the configuration for it")]
+    Add {
+        #[arg(help = "the directory name under the maildir root, and the account tag")]
+        id: String,
+
+        #[arg(long, help = "the email address")]
+        address: String,
+
+        #[arg(long, help = "gmail, outlook, fastmail or generic")]
+        provider: String,
+
+        #[arg(long, help = "the display name on the From: line")]
+        name: Option<String>,
+
+        #[arg(long, help = "the `ecr oauth` profile to authenticate with")]
+        oauth_profile: Option<String>,
+
+        #[arg(
+            long,
+            help = "a command that prints the password, for a provider with no OAuth"
+        )]
+        password_command: Option<String>,
+
+        #[arg(long, help = "host[:port][/starttls|tls|none], for a generic provider")]
+        imap: Option<String>,
+
+        #[arg(long, help = "host[:port][/starttls|tls|none], for a generic provider")]
+        smtp: Option<String>,
+
+        #[arg(
+            long,
+            help = "where mail lives; only read when the first account is added"
+        )]
+        maildir: Option<PathBuf>,
+
+        #[arg(long, help = "make this the identity replies default to")]
+        primary: bool,
+    },
+
+    #[command(about = "forget an account. Never deletes its mail")]
+    Remove {
+        id: String,
+
+        #[arg(long, help = "do not mention the maildir that is left behind")]
+        keep_mail: bool,
+    },
+
+    #[command(about = "regenerate every managed file from the accounts")]
+    Apply,
+
+    #[command(
+        about = "read the setup you already have into accounts.toml, showing what would change"
+    )]
+    Import {
+        #[arg(long, help = "save it. Without this, nothing is written at all")]
+        write: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -328,6 +412,38 @@ async fn dispatch() -> anyhow::Result<()> {
             TokenCommand::List => token::list(&token_path),
             TokenCommand::Revoke { name } => token::revoke(&token_path, &name),
         },
+
+        Command::Account { command } => match command {
+            AccountCommand::List => account::list(),
+            AccountCommand::Add {
+                id,
+                address,
+                provider,
+                name,
+                oauth_profile,
+                password_command,
+                imap,
+                smtp,
+                maildir,
+                primary,
+            } => account::add(account::AddOptions {
+                id,
+                address,
+                provider,
+                name,
+                oauth_profile,
+                password_command,
+                imap,
+                smtp,
+                maildir,
+                primary,
+            }),
+            AccountCommand::Remove { id, keep_mail } => account::remove(&id, keep_mail),
+            AccountCommand::Apply => account::apply(),
+            AccountCommand::Import { write } => account::import(write),
+        },
+
+        Command::Notmuch { args } => account::notmuch_passthrough(&args),
 
         Command::Help { topic } => help::run(topic.as_deref()),
 
