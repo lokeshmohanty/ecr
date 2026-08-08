@@ -150,11 +150,38 @@ android-run *args: build-web
     # the APK is already built.
     adb start-server >/dev/null
 
+    # The retry exists for a dropped connection, so it must not claim one for
+    # every other failure. `INSTALL_FAILED_UPDATE_INCOMPATIBLE` is the one that
+    # actually happens: a phone carrying a *release* build — anything sideloaded
+    # from a GitHub release — is signed with a different key, and Android
+    # refuses the swap. Retrying it five times and then reporting "the device is
+    # not staying connected" sends somebody to their cable for a signature
+    # mismatch, with the real reason four screens up the log.
     on_device() {
+        local output status
         for _ in 1 2 3 4 5; do
-            if timeout 20 adb wait-for-device 2>/dev/null && adb "$@"; then
-                return 0
+            if ! timeout 20 adb wait-for-device 2>/dev/null; then
+                sleep 3
+                continue
             fi
+            output="$(adb "$@" 2>&1)"
+            status=$?
+            printf '%s\n' "$output"
+            [ $status -eq 0 ] && return 0
+
+            case "$output" in
+                *INSTALL_FAILED_UPDATE_INCOMPATIBLE*|*signatures\ do\ not\ match*)
+                    echo >&2
+                    echo "this phone already has ecr installed, signed with a different key." >&2
+                    echo "That is what a release APK looks like next to a debug build, and" >&2
+                    echo "Android will not swap one for the other." >&2
+                    echo >&2
+                    echo "Uninstalling loses that app's data — the server it is paired with" >&2
+                    echo "and its token — so it is left for you to do deliberately:" >&2
+                    echo "    adb uninstall $(jq -r .identifier shell/tauri.conf.json)" >&2
+                    return 1
+                    ;;
+            esac
             sleep 3
         done
         echo "the device is not staying connected: adb $1 kept failing" >&2
