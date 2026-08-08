@@ -11,6 +11,17 @@ itself, instead of only reading a setup somebody else wrote. Opt-in per tool.
 e2e tests, all five browser suites, and 33 of 33 visual states unchanged against
 approved baselines.
 
+The client had a visual pass. Each row carries a **sender chip** — the sender's
+initial on one neutral surface, deliberately not a colour, because the palette's
+three accents mean proved, owed and blocking and spending them on decoration
+makes every row look like a status it does not have. Rows are separated by space
+rather than rules, with a rounded fill on hover and selection; sidebar rows,
+Compose and Settings are pills. `.row-grid` stayed the thread row's class
+through all of it: fourteen verify scripts and the e2e fixtures select rows by
+it, and renaming it is what made `verify-ux` time out waiting for a row that no
+longer had the class it looked for. The list header, which has no tape and no
+sender, took the new name instead.
+
 Verified read-only against the live four-account setup: `ecr account import`
 reproduces it, and `ecr account test main` reaches Gmail over IMAP,
 authenticates, lists 40 folders, then reaches SMTP on 465 and authenticates.
