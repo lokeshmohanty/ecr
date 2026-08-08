@@ -477,14 +477,26 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
       </div>
 
       <div class="mono flex shrink-0 flex-col items-end gap-0.5 text-right text-xs text-ink-3">
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-1.5 whitespace-nowrap">
           {/* notmuch tags these itself, so it costs no extra read. */}
           <Show when={attachment()}>
-            <span aria-label="has an attachment" title="has an attachment">
+            <span
+              class="shrink-0"
+              aria-label="has an attachment"
+              title="has an attachment"
+            >
               ◆
             </span>
           </Show>
-          <span title={props.thread.date_relative}>{when()}</span>
+          {/*
+            The date never wraps. The column is sized for it, and a marker
+            beside it on a phone was enough to push `01 Apr 14:30` onto two
+            lines — which makes one row taller than the fixed height the
+            virtual scroller is built on.
+          */}
+          <span class="shrink-0" title={props.thread.date_relative}>
+            {when()}
+          </span>
         </div>
         <Show when={props.thread.total > 1}>
           <div class="text-proved">({props.thread.total})</div>
