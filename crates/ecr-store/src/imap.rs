@@ -53,7 +53,7 @@ pub struct Probe {
 }
 
 impl Probe {
-    fn failed(self, error: impl std::fmt::Display) -> Self {
+    pub(crate) fn failed(self, error: impl std::fmt::Display) -> Self {
         Self {
             error: Some(error.to_string()),
             ..self
@@ -65,7 +65,27 @@ impl Probe {
     }
 }
 
+/// Picks the TLS backend, once per process.
+///
+/// rustls refuses to choose when more than one provider is compiled in, and
+/// more than one is: reqwest brings its own for the OAuth endpoints and
+/// mail-send brings `ring`. What that refusal looks like is a **panic on the
+/// first TLS connection**, from inside a builder that has no idea it is being
+/// asked to make a policy decision — so it surfaces as ecr crashing while
+/// reading mail, naming a crate the reader has never heard of. Choosing here is
+/// cheap; being chosen for is not possible.
+pub fn ensure_crypto_provider() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        // Ignored deliberately: an `Err` means something else installed one
+        // first, which is the same outcome this is for.
+        let _ = tokio_rustls::rustls::crypto::ring::default_provider().install_default();
+    });
+}
+
 fn tls_config() -> Arc<ClientConfig> {
+    ensure_crypto_provider();
+
     // The same roots reqwest already uses for the OAuth endpoints, so a machine
     // that can refresh a token can reach the mail server the token is for.
     let roots = RootCertStore {

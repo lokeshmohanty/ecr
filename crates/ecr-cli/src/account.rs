@@ -653,6 +653,76 @@ fn endpoint(value: &str, default_port: u16) -> anyhow::Result<Endpoint> {
     })
 }
 
+/// Connects to an account's IMAP server and reports how far it got.
+///
+/// Read-only in the strictest sense: it authenticates, lists folders and hangs
+/// up. Nothing is stored, no flag is set, no message is fetched.
+pub async fn test(id: &str) -> anyhow::Result<()> {
+    let env = Env::from_process();
+    let accounts = Accounts::load(&env)?;
+
+    // Falling back to the setup that is already working is the point, not a
+    // convenience: the question "will ecr be able to reach this account" is one
+    // worth answering *before* handing it anything, and on a self-managed
+    // machine there is no accounts.toml to look in yet.
+    let derived;
+    let account = match accounts.accounts.accounts.get(id) {
+        Some(account) => account,
+        None => {
+            let settings = ecr_store::ServerSettings::load_from_env(&env);
+            let paths = ecr_store::MailPaths::with_packages(&env, &settings, &Packages::default())?;
+            derived = derive(&paths).0;
+            derived.accounts.get(id).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "there is no account named {id:?}, in accounts.toml or in your own config"
+                )
+            })?
+        }
+    };
+
+    let paths = ecr_store::MailPaths::discover()?;
+    let profiles = paths.oauth_profiles();
+    let mark = |ok: bool| if ok { "ok" } else { "--" };
+
+    let imap = ecr_store::imap::probe(&profiles, account).await;
+    println!(
+        "IMAP {}:{}",
+        account.imap().map(|e| e.host).unwrap_or_default(),
+        account.imap().map(|e| e.port).unwrap_or_default()
+    );
+    println!("  {} reached the server", mark(imap.reached));
+    println!("  {} TLS", mark(imap.tls));
+    println!("  {} authenticated", mark(imap.authenticated));
+    if let Some(error) = &imap.error {
+        println!("  -- {error}");
+    }
+    if !imap.folders.is_empty() {
+        println!("  {} folders, including:", imap.folders.len());
+        for folder in imap.folders.iter().take(8) {
+            println!("     {folder}");
+        }
+    }
+
+    // Sending is the half a reader finds out about at the worst moment, so it
+    // is checked here rather than the first time they write to somebody.
+    let smtp = ecr_store::smtp::probe(&profiles, account).await;
+    println!(
+        "\nSMTP {}:{}",
+        account.smtp().map(|e| e.host).unwrap_or_default(),
+        account.smtp().map(|e| e.port).unwrap_or_default()
+    );
+    println!("  {} connected and authenticated", mark(smtp.authenticated));
+    if let Some(error) = &smtp.error {
+        println!("  -- {error}");
+    }
+    println!("\nNothing was sent, and nothing was written.");
+
+    if !imap.ok() || !smtp.ok() {
+        anyhow::bail!("this account cannot be reached as configured");
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -748,55 +818,4 @@ mod tests {
         let some = Packages::parse("[packages.mbsync]\nmanagement = \"ecr\"\n");
         assert_eq!(managed_line(&some), "ecr manages: mbsync");
     }
-}
-
-/// Connects to an account's IMAP server and reports how far it got.
-///
-/// Read-only in the strictest sense: it authenticates, lists folders and hangs
-/// up. Nothing is stored, no flag is set, no message is fetched.
-pub async fn test(id: &str) -> anyhow::Result<()> {
-    let env = Env::from_process();
-    let accounts = Accounts::load(&env)?;
-
-    // Falling back to the setup that is already working is the point, not a
-    // convenience: the question "will ecr be able to reach this account" is one
-    // worth answering *before* handing it anything, and on a self-managed
-    // machine there is no accounts.toml to look in yet.
-    let derived;
-    let account = match accounts.accounts.accounts.get(id) {
-        Some(account) => account,
-        None => {
-            let settings = ecr_store::ServerSettings::load_from_env(&env);
-            let paths = ecr_store::MailPaths::with_packages(&env, &settings, &Packages::default())?;
-            derived = derive(&paths).0;
-            derived.accounts.get(id).ok_or_else(|| {
-                anyhow::anyhow!(
-                    "there is no account named {id:?}, in accounts.toml or in your own config"
-                )
-            })?
-        }
-    };
-
-    let paths = ecr_store::MailPaths::discover()?;
-    let probe = ecr_store::imap::probe(&paths.oauth_profiles(), account).await;
-
-    let mark = |ok: bool| if ok { "ok" } else { "--" };
-    println!("  {} reached the server", mark(probe.reached));
-    println!("  {} TLS", mark(probe.tls));
-    println!("  {} authenticated", mark(probe.authenticated));
-
-    if let Some(error) = &probe.error {
-        println!("\n  {error}");
-    }
-    if !probe.folders.is_empty() {
-        println!("\n  {} folders:", probe.folders.len());
-        for folder in probe.folders.iter().take(40) {
-            println!("    {folder}");
-        }
-    }
-
-    if !probe.ok() {
-        anyhow::bail!("this account cannot be reached as configured");
-    }
-    Ok(())
 }

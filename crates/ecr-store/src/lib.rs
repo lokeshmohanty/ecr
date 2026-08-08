@@ -17,6 +17,7 @@ pub mod packages;
 pub mod parse;
 pub mod paths;
 pub mod settings;
+pub mod smtp;
 pub mod store;
 pub mod themes;
 pub mod tools;

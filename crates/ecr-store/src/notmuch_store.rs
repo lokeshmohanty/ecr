@@ -27,6 +27,23 @@ impl NotmuchStore {
         Ok(Self::new(Arc::new(MailPaths::discover()?)))
     }
 
+    /// The managed definition of an account, if ecr has one.
+    ///
+    /// Read from the file each time rather than held: `ecr account` is a
+    /// different process, and a server holding the copy it read at startup would
+    /// send from an address the reader had already corrected — the same trap the
+    /// token store was fixed for.
+    fn managed_account(&self, id: &AccountId) -> Option<ecr_core::managed::ManagedAccount> {
+        let accounts =
+            crate::managed::accounts::Accounts::load_from(&self.paths.accounts_file()).ok()?;
+        accounts
+            .accounts
+            .accounts
+            .get(id.as_str())
+            .filter(|account| account.enabled && account.smtp().is_some())
+            .cloned()
+    }
+
     pub fn new(paths: Arc<MailPaths>) -> Self {
         let index = paths.use_index.then(|| MessageIndex::open(&paths)).and_then(
             |opened| match opened {
@@ -240,6 +257,19 @@ impl MailStore for NotmuchStore {
     }
 
     async fn send(&self, account: &AccountId, raw: &[u8]) -> Result<()> {
+        // An account ecr manages is sent by ecr. Every setting msmtp would have
+        // read for it came out of accounts.toml in the first place, so there is
+        // nothing msmtp knows that this does not — and one fewer process, one
+        // fewer config file, and an error that names the account rather than
+        // arriving as an exit code with opaque stderr.
+        //
+        // A self-managed account still goes through msmtp, because its
+        // configuration is the reader's and may say things ecr has never been
+        // told: a relay, a From rewrite, a TLS certificate of their own.
+        if let Some(managed) = self.managed_account(account) {
+            return crate::smtp::send(&self.paths.oauth_profiles(), &managed, raw).await;
+        }
+
         let accounts = discovery::accounts(&self.paths);
         let found = accounts.iter().find(|a| &a.id == account);
         let msmtp_account = found
