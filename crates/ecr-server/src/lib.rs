@@ -7,6 +7,7 @@ pub mod idle;
 pub mod managed;
 pub mod routes;
 pub mod state;
+pub mod vacation;
 pub mod watcher;
 pub mod web;
 

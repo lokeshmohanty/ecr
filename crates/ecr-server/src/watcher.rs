@@ -76,6 +76,18 @@ async fn debounce_loop(state: AppState, mut rx: mpsc::UnboundedReceiver<()>) {
 
                 tracing::info!(%revision, "indexed newly delivered mail");
                 state.events.publish(ServerEvent::MailChanged { revision });
+
+                // After the event, not before it. Nothing about an autoreply
+                // changes what the clients this just woke are asking for, and
+                // putting a pass over the new mail — a search, a file read per
+                // message and a queue write — in front of the announcement
+                // would delay every arrival for a feature almost nobody has
+                // switched on.
+                let replied = crate::vacation::run(&state).await;
+                if replied > 0 {
+                    tracing::info!(replied, "vacation replies queued");
+                    state.events.publish(ServerEvent::OutboxChanged);
+                }
             }
             Err(err) => {
                 tracing::warn!(%err, "could not index delivered mail");

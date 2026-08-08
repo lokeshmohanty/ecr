@@ -220,6 +220,12 @@ enum AccountCommand {
         id: Option<String>,
     },
 
+    #[command(about = "switch the vacation responder on or off, and show what it will do")]
+    Vacation {
+        #[command(subcommand)]
+        command: VacationCommand,
+    },
+
     #[command(
         about = "read the setup you already have into accounts.toml, showing what would change"
     )]
@@ -227,6 +233,43 @@ enum AccountCommand {
         #[arg(long, help = "save it. Without this, nothing is written at all")]
         write: bool,
     },
+}
+
+#[derive(Subcommand)]
+enum VacationCommand {
+    #[command(about = "show whether it is on, what it says, and who has been told")]
+    Show,
+
+    #[command(about = "switch it on")]
+    On {
+        #[arg(
+            long,
+            help = "the message to send. Read from stdin when this is a dash"
+        )]
+        body: String,
+
+        #[arg(long, help = "the subject. The original's, prefixed, when unset")]
+        subject: Option<String>,
+
+        #[arg(long, help = "stop by itself on this date, as YYYY-MM-DD")]
+        until: Option<String>,
+
+        #[arg(long, help = "start on this date, as YYYY-MM-DD")]
+        from: Option<String>,
+
+        #[arg(
+            long,
+            help = "days before the same person is told again",
+            default_value_t = ecr_core::vacation::DEFAULT_INTERVAL_DAYS
+        )]
+        every: u32,
+    },
+
+    #[command(about = "switch it off. Leaves the message, so it can be switched on again")]
+    Off,
+
+    #[command(about = "forget who has been told, so everyone is answered again")]
+    Forget,
 }
 
 #[derive(Subcommand)]
@@ -453,6 +496,18 @@ async fn dispatch() -> anyhow::Result<()> {
             AccountCommand::Apply => account::apply(),
             AccountCommand::Test { id } => account::test(&id).await,
             AccountCommand::SyncDav { id } => account::sync_dav(id.as_deref()).await,
+            AccountCommand::Vacation { command } => match command {
+                VacationCommand::Show => account::vacation_show(),
+                VacationCommand::On {
+                    body,
+                    subject,
+                    until,
+                    from,
+                    every,
+                } => account::vacation_on(&body, subject, from, until, every),
+                VacationCommand::Off => account::vacation_off(),
+                VacationCommand::Forget => account::vacation_forget(),
+            },
             AccountCommand::Import { write } => account::import(write),
         },
 

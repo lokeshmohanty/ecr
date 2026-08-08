@@ -49,6 +49,14 @@ pub struct ManagedAccounts {
     /// in the inbox, so a rule that files mail elsewhere keeps it out of there.
     #[serde(default, rename = "rule", skip_serializing_if = "Vec::is_empty")]
     pub rules: Vec<Rule>,
+    /// The vacation responder, off unless it is written down and enabled.
+    ///
+    /// One responder for the whole installation rather than one per account,
+    /// because a reply goes out as the address the message was *delivered to*
+    /// — `identity_for` already answers that — and being away is a fact about
+    /// the person, not about one of their mailboxes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vacation: Option<crate::vacation::Vacation>,
 }
 
 /// One tagging rule.
@@ -116,6 +124,7 @@ impl Default for ManagedAccounts {
             exclude_tags: default_exclude_tags(),
             accounts: BTreeMap::new(),
             rules: Vec::new(),
+            vacation: None,
         }
     }
 }

@@ -7,6 +7,7 @@ pub mod message;
 pub mod pairing;
 pub mod pgp;
 pub mod revision;
+pub mod vacation;
 
 pub use account::{Account, AccountId, Folder};
 pub use compose::Draft;
