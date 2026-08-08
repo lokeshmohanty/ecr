@@ -750,6 +750,34 @@ export function createAppStore() {
 	}
 
 	/** Refetches the settings file after a managed route edits it server-side. */
+	/**
+	 * The accounts ecr manages, which is where aliases live.
+	 *
+	 * A *discovered* account knows only the one address its mbsync channel
+	 * names, so send-as has to come from here. Empty when ecr manages nothing,
+	 * which is when there is nothing to choose between.
+	 */
+	const [managed] = createResource(endpoint, async (server) => {
+		if (!server) return null;
+		try {
+			return await api.managed();
+		} catch {
+			return null;
+		}
+	});
+
+	/** Every address the given account may send as, its own first. */
+	function identitiesFor(address: string | undefined) {
+		if (!address) return [];
+		const accounts = managed()?.accounts.account ?? {};
+		const owner = Object.values(accounts).find((a) => a.address === address);
+		if (!owner) return [];
+		return [
+			{ address: owner.address, name: owner.name },
+			...(owner.aliases ?? []),
+		];
+	}
+
 	async function refetchSettings() {
 		const file = await api.config();
 		applyServerConfig(file.raw, file.path);
@@ -1532,6 +1560,32 @@ export function createAppStore() {
 		return accountForTags(openTags ?? current()?.tags);
 	}
 
+	/**
+	 * Which of the sending account's addresses this goes out as.
+	 *
+	 * Cleared whenever the account changes, so an alias chosen for one reply is
+	 * never carried into a message from a different account — the server would
+	 * refuse it, but only after the reader had written the whole thing.
+	 */
+	const [sendingIdentity, setSendingIdentityRaw] = createSignal<string | null>(
+		null,
+	);
+
+	createEffect(() => {
+		const address = sendingAccount()?.address ?? undefined;
+		const chosen = sendingIdentity();
+		if (
+			chosen &&
+			!identitiesFor(address).some((i) => i.address === chosen)
+		) {
+			setSendingIdentityRaw(null);
+		}
+	});
+
+	function setSendingIdentity(address: string) {
+		setSendingIdentityRaw(address);
+	}
+
 	async function send(draft: Draft, account?: Account): Promise<boolean> {
 		const from = account ?? sendingAccount();
 		if (!from) {
@@ -1539,7 +1593,11 @@ export function createAppStore() {
 			return false;
 		}
 		try {
-			await api.send(from.id, draft);
+			// The chosen identity travels with the draft: the address in the
+			// header the reader saw and the one the server sends as have to be
+			// the same answer, not two.
+			const chosen = sendingIdentity();
+			await api.send(from.id, chosen ? { ...draft, from: chosen } : draft);
 			setStatus(`sent from ${from.address ?? from.id}`);
 			return true;
 		} catch (error) {
@@ -1863,7 +1921,10 @@ export function createAppStore() {
 		applyNow,
 		sync,
 		send,
+		identitiesFor,
 		sendingAccount,
+		sendingIdentity,
+		setSendingIdentity,
 		accountForTags,
 		collapsed,
 		detailScroller,

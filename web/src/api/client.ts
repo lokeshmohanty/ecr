@@ -14,6 +14,7 @@ import type {
   ThemeListing,
   MailingLists,
   ManagedAccount,
+  ManagedRule,
   ManagedView,
 } from "./types";
 import { isTauri } from "./platform";
@@ -291,6 +292,20 @@ export class Api {
     return await this.request("/api/v1/managed/management", {
       method: "PUT",
       body: JSON.stringify({ package: pkg, management }),
+    });
+  }
+
+  /**
+   * Replaces the whole rule set.
+   *
+   * Whole rather than one at a time because order is part of what a rule set
+   * means — they run top to bottom, and an earlier one that files a message
+   * stops a later one from seeing it.
+   */
+  async setRules(rules: ManagedRule[]): Promise<ManagedView> {
+    return await this.request("/api/v1/managed/rules", {
+      method: "PUT",
+      body: JSON.stringify({ rules }),
     });
   }
 

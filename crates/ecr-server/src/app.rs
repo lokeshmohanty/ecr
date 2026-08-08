@@ -82,6 +82,7 @@ pub fn router_with_cors(state: AppState, allowed_origins: Option<Vec<String>>) -
         .route("/api/v1/config", put(routes::save_config))
         .route("/api/v1/managed", get(crate::managed::view))
         .route("/api/v1/managed/apply", post(crate::managed::apply))
+        .route("/api/v1/managed/rules", put(crate::managed::set_rules))
         .route(
             "/api/v1/managed/management",
             put(crate::managed::set_management),

@@ -89,6 +89,7 @@ export function ComposePane(props: {
   let picker: HTMLInputElement | undefined;
 
   const account = () => props.store.sendingAccount();
+  const identities = () => props.store.identitiesFor(account()?.address ?? undefined);
 
   const set = (field: Field, value: string) =>
     setValues((current) => ({ ...current, [field]: value }));
@@ -206,9 +207,37 @@ export function ComposePane(props: {
             from
           </span>
           <div class="min-w-0 flex-1 h-7 flex items-center px-2 py-0.5">
-            <span class="truncate-cell text-sm text-ink-3">
-              {account()?.address ?? "no account"}
-            </span>
+            {/*
+              A picker only where there is a choice. An account with no aliases
+              has exactly one answer, and a select with one option is a control
+              that looks like a decision and is not one.
+            */}
+            <Show
+              when={identities().length > 1}
+              fallback={
+                <span class="truncate-cell text-sm text-ink-3">
+                  {account()?.address ?? "no account"}
+                </span>
+              }
+            >
+              <select
+                class="min-w-0 max-w-full bg-transparent text-sm text-ink-2"
+                value={props.store.sendingIdentity() ?? account()?.address ?? ""}
+                onChange={(e) =>
+                  props.store.setSendingIdentity(e.currentTarget.value)
+                }
+              >
+                <For each={identities()}>
+                  {(identity) => (
+                    <option value={identity.address}>
+                      {identity.name
+                        ? `${identity.name} <${identity.address}>`
+                        : identity.address}
+                    </option>
+                  )}
+                </For>
+              </select>
+            </Show>
           </div>
         </div>
         <For each={FIELDS}>

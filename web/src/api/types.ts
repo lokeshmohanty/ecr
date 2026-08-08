@@ -134,6 +134,8 @@ export interface Attachment {
 }
 
 export interface Draft {
+  /** Which of the account's addresses to send as. Absent means its own. */
+  from?: string;
   to: string[];
   cc: string[];
   bcc: string[];
@@ -242,6 +244,9 @@ export interface ManagedAccount {
   expunge: ManagedSides;
   remove: ManagedSides;
   certificate_file?: string;
+  /** Other addresses that deliver here and can be sent as. */
+  aliases?: { address: string; name?: string; signature?: string }[];
+  signature?: string;
   primary: boolean;
   enabled: boolean;
 }
@@ -251,6 +256,17 @@ export interface ManagedFile {
   path: string;
   /** `stale` means accounts.toml moved on; `edited` means somebody edited the file. */
   state: "current" | "missing" | "stale" | "edited";
+}
+
+/** A tagging rule, applied to new mail in the order rules are written. */
+export interface ManagedRule {
+  name?: string;
+  /** A notmuch query. Combined with `tag:new`, so it only sees new mail. */
+  query: string;
+  add: string[];
+  remove: string[];
+  /** Whether matched mail also lands in the inbox. Default is no. */
+  keep_in_inbox: boolean;
 }
 
 export interface ManagedView {
@@ -263,6 +279,7 @@ export interface ManagedView {
     name?: string;
     exclude_tags: string[];
     account: Record<string, ManagedAccount>;
+    rule?: ManagedRule[];
   };
   files: ManagedFile[];
   problems: string[];

@@ -237,6 +237,39 @@ pub async fn apply(State(state): State<AppState>) -> ApiResult<Json<ManagedView>
 }
 
 #[derive(Deserialize)]
+pub struct RulesUpdate {
+    pub rules: Vec<ecr_core::managed::Rule>,
+}
+
+/// Replaces the whole set of tagging rules.
+///
+/// Whole rather than one at a time, because order is part of what a rule set
+/// means: they run top to bottom and an earlier one that files a message stops
+/// a later one seeing it. Editing them individually would make reordering the
+/// one operation the API could not express.
+pub async fn set_rules(
+    State(state): State<AppState>,
+    Json(update): Json<RulesUpdate>,
+) -> ApiResult<Json<ManagedView>> {
+    reject_if_read_only(&state)?;
+
+    let problems: Vec<String> = update
+        .rules
+        .iter()
+        .flat_map(|rule| rule.problems())
+        .collect();
+    if !problems.is_empty() {
+        return Err(ApiError::BadRequest(problems.join("; ")));
+    }
+
+    let (mut accounts, packages) = load(&state)?;
+    accounts.accounts.rules = update.rules;
+    accounts.save().map_err(ApiError::from)?;
+    apply_now(&state, &accounts, &packages)?;
+    view(State(state)).await
+}
+
+#[derive(Deserialize)]
 pub struct ManagementUpdate {
     pub package: String,
     pub management: String,
