@@ -1,5 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import type { ThreadSummary } from "../api/types";
+import { isOffline } from "../state/offline";
 import type { AppStore } from "../state/store";
 import { badgesFor } from "../state/store";
 import { formatListDate } from "../state/datetime";
@@ -145,6 +146,18 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
                           }
                         >
                           <p class="mb-2 text-blocking">cannot reach the server</p>
+                          {/*
+                            Above the HTTP error, and only when the browser is
+                            certain there is no network. "Failed to fetch"
+                            beside a perfectly good address sends a reader to
+                            their server settings for a problem that is their
+                            train going into a tunnel.
+                          */}
+                          <Show when={isOffline()}>
+                            <p class="mb-2 text-xs text-ink-2">
+                              this device has no network connection
+                            </p>
+                          </Show>
                           <p class="mb-3 text-xs break-words text-ink-3">{error()}</p>
                           <p class="mono mb-3 text-xs break-words text-ink-3">
                             {props.store.connection().baseUrl || "no server url configured"}
