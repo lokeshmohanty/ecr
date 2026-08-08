@@ -49,11 +49,25 @@ impl ServerSettings {
         dirs::config_dir().map(|d| d.join("ecr").join("server.toml"))
     }
 
+    pub fn path_in(env: &crate::paths::Env) -> PathBuf {
+        env.config_dir.join("ecr").join("server.toml")
+    }
+
+    /// Reads the settings anchored to an `Env` rather than to the process.
+    ///
+    /// `dirs::config_dir()` answers the real `~/.config` however `HOME` is
+    /// pointed — the same gap that let a rooted test read the developer's own
+    /// OAuth profiles, written up on
+    /// [`crate::paths::MailPaths::oauth_profiles`]. It cost nothing while these
+    /// settings only named paths that a rooted test overrode anyway; managed
+    /// mode reads which packages ecr owns out of the same directory and then
+    /// *writes* them, so the hole has to be closed before anything is generated.
+    pub fn load_from_env(env: &crate::paths::Env) -> Self {
+        Self::load_from(&Self::path_in(env))
+    }
+
     pub fn load() -> Self {
-        match Self::default_path() {
-            Some(path) => Self::load_from(&path),
-            None => Self::default(),
-        }
+        Self::load_from_env(&crate::paths::Env::from_process())
     }
 
     pub fn load_from(path: &Path) -> Self {

@@ -49,6 +49,9 @@ pub enum Error {
     #[error("{0}")]
     Oauth(String),
 
+    #[error("{0}")]
+    Managed(String),
+
     #[error("mail index: {0}")]
     Index(String),
 

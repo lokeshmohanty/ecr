@@ -1,4 +1,5 @@
 use crate::error::{Error, Result};
+use crate::packages::Packages;
 use crate::parse::{MbsyncConfig, MsmtpConfig, NotmuchConfig};
 use crate::settings::ServerSettings;
 use ecr_core::doctor::{ConfigKind, ConfigSource, ResolvedConfig};
@@ -44,8 +45,30 @@ impl Env {
         }
     }
 
-    fn candidates(&self, kind: ConfigKind, settings: &ServerSettings) -> Vec<Candidate> {
+    fn candidates(
+        &self,
+        kind: ConfigKind,
+        settings: &ServerSettings,
+        packages: &Packages,
+    ) -> Vec<Candidate> {
         let mut out = Vec::new();
+
+        // Ahead of everything, and only for a package the reader set to `ecr`.
+        // A managed config that lost to `$NOTMUCH_CONFIG` or to a file in
+        // ~/.config would be ecr generating one setup and reading another, which
+        // presents as every account being missing from a configuration that is
+        // visibly right there.
+        if packages.is_managed(kind) {
+            let managed = crate::managed::accounts::managed_dir(self);
+            out.push(Candidate {
+                path: match kind {
+                    ConfigKind::Notmuch => crate::managed::render::notmuch_config(&managed),
+                    ConfigKind::Mbsync => crate::managed::render::isyncrc(&managed),
+                    ConfigKind::Msmtp => crate::managed::render::msmtp_config(&managed),
+                },
+                source: ConfigSource::Managed,
+            });
+        }
 
         let explicit = match kind {
             ConfigKind::Notmuch => settings.notmuch_config.as_ref(),
@@ -112,7 +135,16 @@ impl Env {
     }
 
     pub fn resolve(&self, kind: ConfigKind, settings: &ServerSettings) -> ResolvedConfig {
-        let candidates = self.candidates(kind, settings);
+        self.resolve_with(kind, settings, &Packages::load(self))
+    }
+
+    pub fn resolve_with(
+        &self,
+        kind: ConfigKind,
+        settings: &ServerSettings,
+        packages: &Packages,
+    ) -> ResolvedConfig {
+        let candidates = self.candidates(kind, settings, packages);
         let mut chosen: Option<Candidate> = None;
         let mut shadowed = Vec::new();
         // Canonical paths already accounted for. Two candidates can name the
@@ -176,18 +208,31 @@ pub struct MailPaths {
 
 impl MailPaths {
     pub fn discover() -> Result<Self> {
-        Self::with(&Env::from_process(), &ServerSettings::load())
+        let env = Env::from_process();
+        let settings = ServerSettings::load_from_env(&env);
+        Self::with(&env, &settings)
     }
 
     pub fn with(env: &Env, settings: &ServerSettings) -> Result<Self> {
-        let notmuch = env.resolve(ConfigKind::Notmuch, settings);
-        let mbsync = env.resolve(ConfigKind::Mbsync, settings);
-        let msmtp = env.resolve(ConfigKind::Msmtp, settings);
+        Self::with_packages(env, settings, &Packages::load(env))
+    }
+
+    /// The same, for a caller that has already read which packages ecr owns —
+    /// `ecr account apply` has, and a test wants to say so rather than write a
+    /// settings file to be read back.
+    pub fn with_packages(
+        env: &Env,
+        settings: &ServerSettings,
+        packages: &Packages,
+    ) -> Result<Self> {
+        let notmuch = env.resolve_with(ConfigKind::Notmuch, settings, packages);
+        let mbsync = env.resolve_with(ConfigKind::Mbsync, settings, packages);
+        let msmtp = env.resolve_with(ConfigKind::Msmtp, settings, packages);
 
         let notmuch_path = notmuch.path.clone().ok_or_else(|| Error::ConfigNotFound {
             kind: "notmuch",
             searched: env
-                .candidates(ConfigKind::Notmuch, settings)
+                .candidates(ConfigKind::Notmuch, settings, packages)
                 .into_iter()
                 .map(|c| c.path)
                 .collect(),
@@ -234,6 +279,18 @@ impl MailPaths {
     /// The user-facing settings file, shared by every client.
     pub fn settings_file(&self) -> PathBuf {
         self.ecr_config_dir.join("settings.toml")
+    }
+
+    /// The accounts ecr manages, when it is managing any.
+    pub fn accounts_file(&self) -> PathBuf {
+        self.ecr_config_dir.join("accounts.toml")
+    }
+
+    /// Where the generated configuration goes. Everything ecr writes for another
+    /// tool is under here, which is what makes managed mode reversible by
+    /// changing one line rather than by undoing anything.
+    pub fn managed_dir(&self) -> PathBuf {
+        self.ecr_config_dir.join("managed")
     }
 
     /// The OAuth profiles, anchored to this `Env` rather than to the process.

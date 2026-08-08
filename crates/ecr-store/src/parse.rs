@@ -64,6 +64,11 @@ pub struct ImapAccount {
     pub user: Option<String>,
     pub host: Option<String>,
     pub pass_cmd: Option<String>,
+    /// Read for `ecr account import` only. ecr never dials IMAP itself with
+    /// these; mbsync does, out of the same file.
+    pub port: Option<u16>,
+    pub tls_type: Option<String>,
+    pub certificate_file: Option<PathBuf>,
 }
 
 impl ImapAccount {
@@ -99,6 +104,13 @@ pub struct MaildirStore {
 pub struct Channel {
     pub far: Option<String>,
     pub near: Option<String>,
+    /// Also for `ecr account import`. What a channel syncs, and how far a
+    /// creation or a deletion travels, is exactly what a reader will have tuned
+    /// — and exactly what must not be replaced by a preset behind their back.
+    pub patterns: Vec<String>,
+    pub create: Option<String>,
+    pub expunge: Option<String>,
+    pub remove: Option<String>,
 }
 
 impl Channel {
@@ -186,6 +198,46 @@ impl MbsyncConfig {
                         }
                     }
                 }
+                "port" => {
+                    if let Block::ImapAccount(name) = &block {
+                        if let Some(account) = cfg.imap_accounts.get_mut(name) {
+                            account.port = rest.parse().ok();
+                        }
+                    }
+                }
+                "tlstype" => {
+                    if let Block::ImapAccount(name) = &block {
+                        if let Some(account) = cfg.imap_accounts.get_mut(name) {
+                            account.tls_type = non_empty(rest);
+                        }
+                    }
+                }
+                "certificatefile" => {
+                    if let Block::ImapAccount(name) = &block {
+                        if let Some(account) = cfg.imap_accounts.get_mut(name) {
+                            account.certificate_file = Some(PathBuf::from(rest));
+                        }
+                    }
+                }
+                "patterns" => {
+                    if let Block::Channel(name) = &block {
+                        if let Some(channel) = cfg.channels.get_mut(name) {
+                            channel.patterns = split_patterns(rest);
+                        }
+                    }
+                }
+                "create" | "expunge" | "remove" => {
+                    if let Block::Channel(name) = &block {
+                        if let Some(channel) = cfg.channels.get_mut(name) {
+                            let value = non_empty(rest);
+                            match keyword.to_ascii_lowercase().as_str() {
+                                "create" => channel.create = value,
+                                "expunge" => channel.expunge = value,
+                                _ => channel.remove = value,
+                            }
+                        }
+                    }
+                }
                 "path" => {
                     if let Block::MaildirStore(name) = &block {
                         if let Some(store) = cfg.maildir_stores.get_mut(name) {
@@ -242,6 +294,11 @@ pub struct MsmtpConfig {
 pub struct MsmtpAccount {
     pub from: Option<String>,
     pub user: Option<String>,
+    /// As with `ImapAccount`, read only so `ecr account import` can describe a
+    /// setup faithfully rather than assuming a provider's defaults for it.
+    pub host: Option<String>,
+    pub port: Option<u16>,
+    pub tls_starttls: Option<bool>,
 }
 
 impl MsmtpConfig {
@@ -283,6 +340,22 @@ impl MsmtpConfig {
                         cfg.accounts.entry(name.clone()).or_default().user = non_empty(rest);
                     }
                 }
+                "host" => {
+                    if let Some(name) = &current {
+                        cfg.accounts.entry(name.clone()).or_default().host = non_empty(rest);
+                    }
+                }
+                "port" => {
+                    if let Some(name) = &current {
+                        cfg.accounts.entry(name.clone()).or_default().port = rest.parse().ok();
+                    }
+                }
+                "tls_starttls" => {
+                    if let Some(name) = &current {
+                        cfg.accounts.entry(name.clone()).or_default().tls_starttls =
+                            Some(matches!(rest, "on" | "yes" | "true"));
+                    }
+                }
                 _ => {}
             }
         }
@@ -295,6 +368,30 @@ impl MsmtpConfig {
             .find(|(_, a)| a.from.as_deref() == Some(address) || a.user.as_deref() == Some(address))
             .map(|(name, _)| name.as_str())
     }
+}
+
+/// `Patterns * !"[Gmail]/All Mail" INBOX` — space separated, with quotes around
+/// anything containing a space or a bracket, and the negation outside them.
+fn split_patterns(value: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut current = String::new();
+    let mut quoted = false;
+
+    for ch in value.chars() {
+        match ch {
+            '"' => quoted = !quoted,
+            c if c.is_whitespace() && !quoted => {
+                if !current.is_empty() {
+                    out.push(std::mem::take(&mut current));
+                }
+            }
+            c => current.push(c),
+        }
+    }
+    if !current.is_empty() {
+        out.push(current);
+    }
+    out
 }
 
 fn non_empty(value: &str) -> Option<String> {

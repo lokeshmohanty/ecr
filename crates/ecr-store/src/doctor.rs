@@ -6,7 +6,9 @@ use crate::tools;
 use ecr_core::doctor::{Check, ConfigKind, ConfigSource, Doctor, ResolvedConfig, ToolInfo};
 
 pub async fn run() -> Doctor {
-    run_with(&Env::from_process(), &ServerSettings::load()).await
+    let env = Env::from_process();
+    let settings = ServerSettings::load_from_env(&env);
+    run_with(&env, &settings).await
 }
 
 pub async fn run_with(env: &Env, settings: &ServerSettings) -> Doctor {
@@ -48,6 +50,7 @@ pub async fn run_with_paths(paths: &MailPaths) -> Doctor {
     ];
     checks.extend(configs.iter().map(config_check));
     checks.extend(configs.iter().filter_map(shadow_check));
+    checks.extend(managed_checks(paths));
 
     checks.push(if paths.maildir_root.is_dir() {
         Check::ok("maildir root", format!("{}", paths.maildir_root.display()))
@@ -151,6 +154,95 @@ pub async fn run_with_paths(paths: &MailPaths) -> Doctor {
         accounts,
         checks,
     }
+}
+
+/// What managed mode is doing, if anything.
+///
+/// Reported even when nothing is managed, because "ecr writes none of this" is
+/// the first thing worth knowing about a setup that is behaving unexpectedly —
+/// and the answer that tells a reader their switch did not take.
+fn managed_checks(paths: &MailPaths) -> Vec<Check> {
+    use crate::managed::accounts::{plan, Accounts, State};
+    use crate::packages::Packages;
+
+    let packages = Packages::load_from(&paths.settings_file());
+
+    let managed: Vec<String> = [ConfigKind::Notmuch, ConfigKind::Mbsync, ConfigKind::Msmtp]
+        .into_iter()
+        .filter(|kind| packages.is_managed(*kind))
+        .map(|kind| kind.to_string())
+        .collect();
+
+    if managed.is_empty() {
+        return vec![Check::ok(
+            "managed config",
+            "off; every tool is configured by you",
+        )];
+    }
+
+    let mut checks = vec![Check::ok("managed config", managed.join(", "))];
+
+    let accounts = match Accounts::load_from(&paths.accounts_file()) {
+        Ok(accounts) => accounts,
+        Err(err) => {
+            return {
+                checks.push(
+                    Check::fail("managed accounts", err.to_string())
+                        .with_hint("nothing can be regenerated until it parses"),
+                );
+                checks
+            }
+        }
+    };
+
+    let problems = accounts.problems();
+    if !problems.is_empty() {
+        checks.push(Check::fail("managed accounts", problems.join("; ")));
+    }
+
+    let Ok(layout) = accounts.layout_at(&paths.managed_dir()) else {
+        checks.push(
+            Check::fail("managed accounts", "no maildir is named")
+                .with_hint("add `maildir = \"…\"` to accounts.toml, or run `ecr account add`"),
+        );
+        return checks;
+    };
+
+    // Drift is the failure this whole check exists for: the reader edited
+    // accounts.toml, or added one on another machine, and the files the tools
+    // actually read are still the old ones. Nothing else in the system notices.
+    for rendered in plan(&accounts.accounts, &layout, &packages) {
+        // notmuch generates two files, so the package name alone would label
+        // both of them the same and leave the reader unable to tell which one a
+        // warning is about.
+        let name = match rendered.path.file_name().and_then(|n| n.to_str()) {
+            Some("post-new") => "managed post-new".to_string(),
+            _ => format!("managed {}", rendered.kind),
+        };
+        checks.push(match rendered.state() {
+            State::Current => Check::ok(name, format!("{}", rendered.path.display())),
+            State::Stale => Check::warn(
+                name,
+                format!("{} is behind accounts.toml", rendered.path.display()),
+            )
+            .with_hint("run `ecr account apply`"),
+            State::Missing => Check::fail(
+                name,
+                format!("{} has not been generated", rendered.path.display()),
+            )
+            .with_hint("run `ecr account apply`"),
+            State::EditedByHand => Check::warn(
+                name,
+                format!("{} was edited by hand", rendered.path.display()),
+            )
+            .with_hint(
+                "`ecr account apply` will back that edit up and replace it; put the change in \
+                 accounts.toml instead",
+            ),
+        });
+    }
+
+    checks
 }
 
 /// Never a failure. The index is a cache of what notmuch holds: without it
@@ -300,6 +392,20 @@ fn shadow_check(config: &ResolvedConfig) -> Option<Check> {
         .map(|p| p.display().to_string())
         .collect::<Vec<_>>()
         .join(", ");
+
+    // A file shadowed by a *managed* config is not a stale copy — it is the
+    // reader's own configuration, untouched, and the thing they go back to the
+    // moment they set this package to `self`. Telling them to delete it would be
+    // telling them to burn the way back.
+    if config.source == ConfigSource::Managed {
+        return Some(
+            Check::ok(
+                format!("{} config yours", config.kind),
+                format!("{shadowed} (unused while ecr manages this)"),
+            )
+            .with_hint("it is what ecr goes back to if you set this package to self-managed"),
+        );
+    }
 
     Some(
         Check::warn(

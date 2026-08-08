@@ -1,0 +1,82 @@
+# ──────────────────────────────────────────────────────────────────────────
+# ecr settings
+#
+# ZZ applies this file, ZQ discards it. Delete any line to fall back to its
+# default — the default is written above every option, so nothing here is
+# load-bearing and you can always start again from an empty file.
+#
+# This is the half every client shares, because it is about the mail. The
+# rest — theme, sidebar, dates, keybindings, page size — belongs to the
+# device you are reading on and is set on its own settings page, so a phone
+# and a desktop can differ without arguing. Anything of that kind left in
+# this file is still read once, and adopted by a device that has none yet.
+# ──────────────────────────────────────────────────────────────────────────
+
+# General — Where ecr starts, and how moving around behaves.
+[general]
+
+# The notmuch query ecr opens on. Any query works: tag:inbox, tag:unread
+# and date:today are the usual choices.
+# default: "tag:inbox"
+start_query = "tag:inbox"
+
+# Reading — How messages are shown, and when they count as read.
+[reading]
+
+# Load images hosted elsewhere without asking. Leaving this off is what
+# stops a sender learning that you opened their mail; i loads them once.
+# default: false
+load_remote_images = false
+
+# Open a thread with its newest message expanded and the rest folded.
+# default: true
+expand_newest = true
+
+# Drop the unread tag once a message has actually been on screen.
+# default: true
+mark_read_on_open = true
+
+# How long it must stay on screen first, in milliseconds. Raise this if
+# scrolling past a message is marking it read.
+# default: 1000
+mark_read_delay = 1000
+
+# Composing — Replying, and how the editor opens.
+[composing]
+
+# Make r reply to everyone. R always replies to everyone regardless.
+# default: false
+reply_all = false
+
+# ──────────────────────────────────────────────────────────────────────────
+# Packages
+#
+# How ecr treats each tool it drives. "self" means the machine already has a
+# working setup — ecr reads it and never writes it, and the config below is
+# ignored. "ecr" means ecr owns that file and this is where you edit it.
+# ──────────────────────────────────────────────────────────────────────────
+
+# notmuch — indexes and tags mail (notmuch/default/config)
+[packages.notmuch]
+management = "self"
+config = ""
+
+# mbsync (isync) — syncs IMAP to the maildir (isyncrc)
+[packages.mbsync]
+management = "self"
+config = ""
+
+# msmtp — sends mail (msmtp/config)
+[packages.msmtp]
+management = "self"
+config = ""
+
+# vdirsyncer — syncs contacts and calendars (vdirsyncer/config)
+[packages.vdirsyncer]
+management = "self"
+config = ""
+
+# imapnotify — push notification of new mail (imapnotify/config.json)
+[packages.imapnotify]
+management = "self"
+config = ""
