@@ -27,6 +27,7 @@ import type {
 	Draft,
 	ServerEvent,
 	ThreadSummary,
+	MailFolder,
 } from "../api/types";
 import type { Mode, Pane } from "../keymap/engine";
 import {
@@ -766,6 +767,38 @@ export function createAppStore() {
 			return null;
 		}
 	});
+
+	/**
+	 * Folders a message can be filed into.
+	 *
+	 * Answers empty on a failure rather than throwing: this is read while a pane
+	 * renders, and a resource that lets one out takes the whole client down.
+	 */
+	const [folders] = createResource(endpoint, async (server) => {
+		if (!server) return [] as MailFolder[];
+		try {
+			return await api.folders();
+		} catch {
+			return [] as MailFolder[];
+		}
+	});
+
+	/**
+	 * Files the open message into a folder.
+	 *
+	 * A move is a maildir rename, so the list it was read from no longer matches
+	 * it — the row is released rather than held, the way a sync releases held
+	 * rows, because the reason it was being held has just stopped being true.
+	 */
+	async function moveMessage(id: string, folder: string) {
+		try {
+			await api.moveMessage(id, folder);
+			releaseHeld();
+			setStatus(`moved to ${folder}`);
+		} catch (error) {
+			setStatus(error instanceof Error ? error.message : "the move failed");
+		}
+	}
 
 	/** Every address the given account may send as, its own first. */
 	function identitiesFor(address: string | undefined) {
@@ -2008,6 +2041,8 @@ export function createAppStore() {
 		applyNow,
 		sync,
 		send,
+		folders,
+		moveMessage,
 		identitiesFor,
 		unsendable,
 		unsend,

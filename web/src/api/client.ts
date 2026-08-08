@@ -15,6 +15,7 @@ import type {
   MailingLists,
   ManagedAccount,
   ManagedRule,
+  MailFolder,
   ManagedView,
   OutboxEntry,
   RsvpAnswer,
@@ -257,6 +258,24 @@ export class Api {
    * organiser matches a reply by its UID and SEQUENCE, and letting a client
    * name those would let it answer for an event it was never sent.
    */
+  async folders(): Promise<MailFolder[]> {
+    return await this.request("/api/v1/folders");
+  }
+
+  /**
+   * Moves a message into a folder.
+   *
+   * A move is a maildir rename, so this is the one client call that relocates
+   * the only copy of something — the server refuses a destination that is not
+   * already a folder rather than creating one from a typo.
+   */
+  async moveMessage(id: string, folder: string): Promise<void> {
+    await this.request(`/api/v1/messages/${encodeURIComponent(id)}/move`, {
+      method: "POST",
+      body: JSON.stringify({ folder }),
+    });
+  }
+
   async outbox(): Promise<OutboxEntry[]> {
     return await this.request("/api/v1/outbox");
   }

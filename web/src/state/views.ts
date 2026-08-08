@@ -20,6 +20,19 @@ export const VIEW_TEMPLATES: ViewTemplate[] = [
   { name: "All Mail", query: "*", icon: "∗" },
 ];
 
+/**
+ * A canned message.
+ *
+ * Inserting one appends rather than replaces: a reader who has already typed
+ * something and then picks a template meant to add to it, and losing what they
+ * wrote is not recoverable from inside a composer.
+ */
+export interface Template {
+  name: string;
+  subject: string;
+  body: string;
+}
+
 /** The foldable groups of rows below the mailboxes, in their default order. */
 export type SectionId = "mailboxes" | "tags" | "lists" | "queries";
 

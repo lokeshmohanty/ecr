@@ -415,6 +415,54 @@ pub async fn send(
     }))
 }
 
+/// Every folder a message can be moved into.
+pub async fn folders(
+    State(state): State<AppState>,
+) -> ApiResult<Json<Vec<ecr_store::folders::Folder>>> {
+    Ok(Json(ecr_store::folders::list(state.store.paths())))
+}
+
+#[derive(Deserialize)]
+pub struct MoveRequest {
+    /// A folder under the maildir root, named the way the listing names it.
+    pub folder: String,
+}
+
+/// Moves a message into a folder.
+pub async fn move_message(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(request): Json<MoveRequest>,
+) -> ApiResult<Json<serde_json::Value>> {
+    reject_if_read_only(&state)?;
+
+    let landed = ecr_store::folders::move_message(
+        state.store.paths(),
+        state.store.notmuch(),
+        &MessageId(id),
+        &request.folder,
+    )
+    .await?;
+
+    // A move is a file appearing and disappearing under `cur/`, which is
+    // exactly what the delivery watcher watches for — so the revision it leaves
+    // behind is recorded the same way a tag write's is, or the watcher
+    // announces somebody's own filing as new mail.
+    let revision = state.store.notmuch().revision().await?;
+    state.note_own_write(&revision).await;
+
+    state
+        .events
+        .publish(crate::events::ServerEvent::MailChanged {
+            revision: revision.clone(),
+        });
+
+    Ok(Json(serde_json::json!({
+        "moved": landed.display().to_string(),
+        "revision": revision,
+    })))
+}
+
 #[derive(Serialize)]
 pub struct OutboxEntry {
     pub id: String,

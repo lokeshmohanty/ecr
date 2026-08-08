@@ -89,7 +89,33 @@ export function ComposePane(props: {
   let picker: HTMLInputElement | undefined;
 
   const account = () => props.store.sendingAccount();
-  const identities = () => props.store.identitiesFor(account()?.address ?? undefined);
+  const identities = () =>
+    props.store.identitiesFor(account()?.address ?? undefined);
+  const templates = () => props.store.settings().preferences.templates;
+
+  /**
+   * Inserts a canned message.
+   *
+   * Appends to the body rather than replacing it, and only fills the subject
+   * when there is not one already: somebody who has typed half a reply and then
+   * reaches for a template means to add to it, and what they wrote is not
+   * recoverable from inside a composer.
+   */
+  const insertTemplate = (name: string) => {
+    const template = templates().find((t) => t.name === name);
+    if (!template) return;
+
+    setValues((current) => ({
+      ...current,
+      subject:
+        current.subject.trim() === "" ? template.subject : current.subject,
+      body:
+        current.body.trim() === ""
+          ? template.body
+          : `${current.body.replace(/\s*$/, "")}\n\n${template.body}`,
+    }));
+    props.store.setStatus(`inserted ${name}`);
+  };
 
   const set = (field: Field, value: string) =>
     setValues((current) => ({ ...current, [field]: value }));
@@ -240,6 +266,31 @@ export function ComposePane(props: {
             </Show>
           </div>
         </div>
+        {/*
+          Only when there are templates. An empty picker is a control that
+          looks like a feature and is not one.
+        */}
+        <Show when={templates().length > 0}>
+          <div class="flex items-center gap-2 border-b border-rule-soft px-3">
+            <span class="w-14 shrink-0 text-xs uppercase tracking-wide text-ink-3">
+              insert
+            </span>
+            <div class="flex min-w-0 flex-1 flex-wrap gap-2 py-1">
+              <For each={templates()}>
+                {(template) => (
+                  <button
+                    type="button"
+                    class="touch-target rounded-full border border-rule px-2 py-0.5 text-xs text-ink-2 hover:bg-neutral-bg"
+                    onClick={() => insertTemplate(template.name)}
+                  >
+                    {template.name}
+                  </button>
+                )}
+              </For>
+            </div>
+          </div>
+        </Show>
+
         <For each={FIELDS}>
           {(field) => (
             <div

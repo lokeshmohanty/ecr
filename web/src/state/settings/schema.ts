@@ -4,7 +4,12 @@
  */
 import { DEFAULT_BINDINGS, type Binding } from "../../keymap/engine";
 import type { DateFormat } from "../datetime";
-import { SECTION_IDS, type CustomView, type SectionId } from "../views";
+import {
+	SECTION_IDS,
+	type CustomView,
+	type SectionId,
+	type Template,
+} from "../views";
 import { DEFAULT_PACKAGES, type PackageSettings } from "../packages";
 
 export interface Preferences {
@@ -50,6 +55,7 @@ export interface Preferences {
 	sidebarSections: SectionId[];
 	/** Extra sidebar rows the user defined, appended after the sections. */
 	sidebarCustom: CustomView[];
+	templates: Template[];
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -74,6 +80,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
 	sidebarMinWidth: 1024,
 	sidebarSections: [...SECTION_IDS],
 	sidebarCustom: [],
+		templates: [],
 };
 
 export interface Settings {
@@ -217,6 +224,12 @@ export const PREFERENCE_DOCS: Record<keyof Preferences, PreferenceDoc> = {
 		scope: "client",
 		doc: 'Your own entries, shown under Queries. Each is a name, a notmuch query\nand an optional glyph, and each is narrowed to the account it appears\nunder. S saves whatever the list is showing as one of these:\ncustom = [ { name = "Patches", query = "subject:PATCH", icon = "◆" } ]',
 		values: "a list of { name, query, icon } tables",
+	},
+	templates: {
+		section: "composing",
+		scope: "client",
+		doc: 'Canned messages, offered when you compose. Each is a name, an optional\nsubject and a body; inserting one leaves everything you have already\ntyped alone and appends to it:\ntemplates = [ { name = "Out today", subject = "Away", body = "Back tomorrow." } ]',
+		values: "a list of { name, subject, body } tables",
 	},
 	preferHtml: {
 		section: "reading",

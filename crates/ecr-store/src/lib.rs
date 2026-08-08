@@ -6,6 +6,7 @@ pub mod dav;
 pub mod discovery;
 pub mod doctor;
 pub mod error;
+pub mod folders;
 pub mod imap;
 pub mod index;
 pub mod managed;

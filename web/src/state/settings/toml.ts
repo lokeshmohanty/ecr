@@ -16,6 +16,7 @@ import {
 	isRetiredSection,
 	isSectionId,
 	type CustomView,
+	type Template,
 	type SectionId,
 } from "../views";
 import {
@@ -46,13 +47,25 @@ function camel(key: string): string {
 }
 
 function literal(
-	value: string | number | boolean | readonly string[] | readonly CustomView[],
+	value:
+		| string
+		| number
+		| boolean
+		| readonly string[]
+		| readonly CustomView[]
+		| readonly Template[],
 ): string {
 	if (Array.isArray(value)) {
-		const items = (value as readonly (string | CustomView)[]).map((v) =>
-			typeof v === "string"
-				? JSON.stringify(v)
-				: `{ name = ${JSON.stringify(v.name)}, query = ${JSON.stringify(v.query)}, icon = ${JSON.stringify(v.icon)} }`,
+		const items = (value as readonly (string | CustomView | Template)[]).map(
+			(v) => {
+				if (typeof v === "string") return JSON.stringify(v);
+				// A saved query and a template are both a named table; which one
+				// it is, is which fields it has.
+				if ("query" in v) {
+					return `{ name = ${JSON.stringify(v.name)}, query = ${JSON.stringify(v.query)}, icon = ${JSON.stringify(v.icon)} }`;
+				}
+				return `{ name = ${JSON.stringify(v.name)}, subject = ${JSON.stringify(v.subject)}, body = ${JSON.stringify(v.body)} }`;
+			},
 		);
 		return `[${items.join(", ")}]`;
 	}
@@ -384,6 +397,37 @@ function assign(
 			});
 		}
 		preferences.sidebarCustom = rows;
+		return;
+	}
+	if (key === "templates") {
+		if (!Array.isArray(value)) {
+			errors.push(`${at}: ${name} expects a list of tables`);
+			return;
+		}
+		const rows: Template[] = [];
+		for (const entry of value) {
+			if (typeof entry !== "object" || entry === null) {
+				errors.push(`${at}: every ${name} entry is a table`);
+				continue;
+			}
+			const row = entry as Record<string, unknown>;
+			if (typeof row.name !== "string" || row.name.trim() === "") {
+				errors.push(`${at}: every ${name} entry needs a name`);
+				continue;
+			}
+			// A template with neither a subject nor a body inserts nothing, and a
+			// menu entry that does nothing reads as broken rather than empty.
+			const subject = typeof row.subject === "string" ? row.subject : "";
+			const body = typeof row.body === "string" ? row.body : "";
+			if (subject === "" && body === "") {
+				errors.push(
+					`${at}: ${JSON.stringify(row.name)} has neither a subject nor a body, so it would insert nothing`,
+				);
+				continue;
+			}
+			rows.push({ name: row.name, subject, body });
+		}
+		preferences.templates = rows;
 		return;
 	}
 	if (typeof current === "boolean") {

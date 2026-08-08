@@ -103,6 +103,14 @@ export interface Invite {
 
 export type RsvpAnswer = "accept" | "decline" | "tentative";
 
+/** A folder a message can be moved into. */
+export interface MailFolder {
+  /** Relative to the maildir root, e.g. `main/Archive`. */
+  path: string;
+  account: string;
+  name: string;
+}
+
 /** A message written but not yet gone. */
 export interface OutboxEntry {
   id: string;
