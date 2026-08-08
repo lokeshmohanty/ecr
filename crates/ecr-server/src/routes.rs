@@ -339,6 +339,16 @@ pub struct SendRequest {
     pub account: String,
     #[serde(flatten)]
     pub draft: ecr_core::compose::Draft,
+    /// Seconds to hold before sending, or a time to send at.
+    ///
+    /// Absent takes the default hold, which is what makes undo-send work
+    /// without anybody asking for it. Zero sends immediately, which is a
+    /// legitimate choice and not a broken one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hold: Option<u64>,
+    /// Unix seconds. Send later, in the reader's words.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at: Option<i64>,
 }
 
 pub async fn send(
@@ -373,12 +383,84 @@ pub async fn send(
     let raw = ecr_store::compose::build_as(account, &request.draft, &identities)
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
-    state.store.send(&account.id, &raw).await?;
+    // Everything goes through the queue, including an immediate send. One path
+    // means a message that fails is *always* recoverable from the outbox rather
+    // than only when somebody happened to schedule it — and it is what makes
+    // undo the default rather than a feature somebody has to find.
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+
+    let due = match (request.at, request.hold) {
+        (Some(at), _) => at,
+        (None, Some(hold)) => now + hold as i64,
+        (None, None) => now + ecr_store::outbox::DEFAULT_HOLD as i64,
+    };
+
+    let id = ecr_store::outbox::enqueue(
+        &state.store.paths().ecr_state_dir,
+        account.id.as_str(),
+        &raw,
+        due,
+        &request.draft.subject,
+        &request.draft.to,
+    )?;
 
     Ok(Json(SendResponse {
         bytes: raw.len(),
         account: account.id.to_string(),
+        queued: Some(id),
+        due: Some(due),
     }))
+}
+
+#[derive(Serialize)]
+pub struct OutboxEntry {
+    pub id: String,
+    pub account: String,
+    pub due: i64,
+    pub subject: String,
+    pub to: Vec<String>,
+    pub attempts: u32,
+    pub last_error: Option<String>,
+}
+
+/// What is written but not yet gone.
+pub async fn outbox(State(state): State<AppState>) -> ApiResult<Json<Vec<OutboxEntry>>> {
+    let dir = &state.store.paths().ecr_state_dir;
+    Ok(Json(
+        ecr_store::outbox::list(dir)
+            .into_iter()
+            .map(|q| OutboxEntry {
+                id: q.id,
+                account: q.account,
+                due: q.due,
+                subject: q.subject,
+                to: q.to,
+                attempts: q.attempts,
+                last_error: q.last_error,
+            })
+            .collect(),
+    ))
+}
+
+/// Takes a message back before it goes. This is undo-send.
+pub async fn unsend(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> ApiResult<Json<serde_json::Value>> {
+    reject_if_read_only(&state)?;
+
+    let taken = ecr_store::outbox::cancel(&state.store.paths().ecr_state_dir, &id);
+    if !taken {
+        // Already gone means already sent, and saying "cancelled" about a
+        // message somebody has received is the one answer this must never give.
+        return Err(ApiError::BadRequest(
+            "that message is no longer waiting — it has already been sent".into(),
+        ));
+    }
+    Ok(Json(serde_json::json!({ "cancelled": id })))
 }
 
 #[derive(Deserialize)]
@@ -438,11 +520,16 @@ pub async fn rsvp(
     )
     .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
+    // Sent rather than queued: an answer to an invitation is not something
+    // anybody wants to take back ten seconds later, and an organiser waiting on
+    // a reply is waiting on it now.
     state.store.send(&account.id, &raw).await?;
 
     Ok(Json(SendResponse {
         bytes: raw.len(),
         account: account.id.to_string(),
+        queued: None,
+        due: None,
     }))
 }
 
@@ -450,6 +537,12 @@ pub async fn rsvp(
 pub struct SendResponse {
     pub bytes: usize,
     pub account: String,
+    /// The outbox id, which is what takes the message back.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub queued: Option<String>,
+    /// When it goes, so the client can count down.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub due: Option<i64>,
 }
 
 pub async fn events(

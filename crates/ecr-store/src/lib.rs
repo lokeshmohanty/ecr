@@ -15,6 +15,7 @@ pub mod msmtp;
 pub mod notmuch;
 pub mod notmuch_store;
 pub mod oauth;
+pub mod outbox;
 pub mod packages;
 pub mod parse;
 pub mod paths;

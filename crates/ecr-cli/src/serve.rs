@@ -89,6 +89,11 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
         }
     };
 
+    // The only thing that puts mail on the wire. Everything a reader sends goes
+    // into the outbox first, so this runs even under --no-watch: not watching
+    // for *incoming* mail is not a reason to stop sending.
+    let _drain = ecr_server::drain::spawn(state.clone());
+
     // Held for as long as the server runs; dropping the set aborts the watches.
     // It is layered *above* the maildir watcher rather than replacing it: this
     // says "go and look", the sync fetches, and the watcher is what notices what

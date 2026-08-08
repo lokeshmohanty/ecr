@@ -166,6 +166,23 @@ export function StatusBar(props: { store: AppStore }) {
         wrong until someone edits the file, so it stays put rather than being
         overwritten by the next thing that happened.
       */}
+      {/*
+        Undo sits beside the status that says a message is sending, because
+        that sentence and this button are about the same thing and for the same
+        few seconds. It disappears when the moment passes rather than staying
+        on screen — a button that no longer undoes anything is worse than none,
+        because somebody will press it and believe it worked.
+      */}
+      <Show when={props.store.unsendable()}>
+        <button
+          type="button"
+          class="touch-target shrink-0 rounded-full border border-obligation px-2 py-0.5 text-xs text-obligation hover:bg-neutral-bg"
+          onClick={() => void props.store.unsend()}
+        >
+          undo
+        </button>
+      </Show>
+
       <Show
         when={props.store.settingsProblem()}
         fallback={

@@ -219,6 +219,34 @@ impl Server {
         .expect("accounts.toml");
     }
 
+    /// Sends whatever the outbox holds that is due, the way the drain does.
+    ///
+    /// The real drain is a loop on a timer; a test that slept for it would be
+    /// slow and flaky, so this performs exactly one pass. `hold: 0` on the send
+    /// is what makes a message due immediately.
+    pub async fn drain_outbox(&self) {
+        use ecr_store::MailStore;
+
+        let dir = &self.paths.ecr_state_dir;
+        while let Some((entry, raw)) = ecr_store::outbox::claim(dir) {
+            match self
+                .state
+                .store
+                .send(
+                    &ecr_core::account::AccountId::from(entry.account.as_str()),
+                    &raw,
+                )
+                .await
+            {
+                Ok(()) => ecr_store::outbox::complete(dir, &entry.id),
+                Err(err) => {
+                    ecr_store::outbox::defer(dir, entry, &err.to_string(), 60).unwrap();
+                    break;
+                }
+            }
+        }
+    }
+
     pub fn settings_path(&self) -> PathBuf {
         self.home.path().join(".config/ecr/settings.toml")
     }

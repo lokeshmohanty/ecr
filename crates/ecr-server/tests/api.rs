@@ -427,17 +427,101 @@ async fn sending_delivers_the_message_to_msmtp() {
                 "account": "main",
                 "to": ["someone@example.com"],
                 "subject": "Hello from ecr",
-                "body": "Body text"
+                "body": "Body text",
+                // Due immediately. The default hold is what makes undo work,
+                // and a test that waited it out would be ten seconds slower for
+                // nothing.
+                "hold": 0
             }),
         )
         .await;
 
     assert_eq!(response.status(), 200, "{:?}", response.text().await);
 
+    // Sending queues rather than delivering: that is what makes undo the
+    // default. The response names the message so it can be taken back.
+    let body: Value = response.json().await.unwrap();
+    assert!(body["queued"].is_string(), "{body}");
+    assert!(!captured.exists(), "it went out before it could be undone");
+
+    // Nothing is delivered until it is due, and the drain is what delivers it.
+    server.drain_outbox().await;
+
     let sent = std::fs::read_to_string(&captured).unwrap();
     assert!(sent.contains("Subject: Hello from ecr"), "{sent}");
     assert!(sent.contains("someone@example.com"), "{sent}");
     assert!(sent.contains("--account main"), "{sent}");
+}
+
+/// The whole of undo-send: a message taken back before the hold elapses never
+/// reaches the wire at all.
+#[tokio::test]
+async fn a_message_can_be_taken_back_before_it_is_sent() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+    let captured = server.stub_msmtp();
+
+    let response = server
+        .post(
+            "/api/v1/send",
+            serde_json::json!({
+                "account": "main",
+                "to": ["someone@example.com"],
+                "subject": "Regrettable",
+                "body": "Body text"
+            }),
+        )
+        .await;
+    let body: Value = response.json().await.unwrap();
+    let id = body["queued"].as_str().unwrap().to_string();
+
+    assert_eq!(server.get("/api/v1/outbox").await.status(), 200);
+
+    let cancelled = server.delete(&format!("/api/v1/outbox/{id}")).await;
+    assert_eq!(cancelled.status(), 200);
+
+    server.drain_outbox().await;
+    assert!(!captured.exists(), "a cancelled message was still sent");
+
+    // And taking back something already gone must never answer "cancelled".
+    let again = server.delete(&format!("/api/v1/outbox/{id}")).await;
+    assert_eq!(again.status(), 400);
+}
+
+/// Send later is the same queue with a time somebody chose, so a message due in
+/// an hour is not sent by a drain running now.
+#[tokio::test]
+async fn a_message_scheduled_for_later_is_not_sent_yet() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+    let captured = server.stub_msmtp();
+
+    let later = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64
+        + 3600;
+
+    server
+        .post(
+            "/api/v1/send",
+            serde_json::json!({
+                "account": "main",
+                "to": ["someone@example.com"],
+                "subject": "Tomorrow",
+                "body": "Body text",
+                "at": later
+            }),
+        )
+        .await;
+
+    server.drain_outbox().await;
+    assert!(!captured.exists(), "a scheduled message went early");
+
+    let outbox: Value = server.get("/api/v1/outbox").await.json().await.unwrap();
+    assert_eq!(outbox.as_array().unwrap().len(), 1);
 }
 
 #[tokio::test]

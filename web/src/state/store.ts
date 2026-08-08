@@ -4,6 +4,7 @@ import {
 	createMemo,
 	createResource,
 	createSignal,
+	onCleanup,
 } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import {
@@ -1610,7 +1611,11 @@ export function createAppStore() {
 		setSendingIdentityRaw(address);
 	}
 
-	async function send(draft: Draft, account?: Account): Promise<boolean> {
+	async function send(
+		draft: Draft,
+		account?: Account,
+		at?: number,
+	): Promise<boolean> {
 		const from = account ?? sendingAccount();
 		if (!from) {
 			setStatus("no account available to send from");
@@ -1621,12 +1626,70 @@ export function createAppStore() {
 			// header the reader saw and the one the server sends as have to be
 			// the same answer, not two.
 			const chosen = sendingIdentity();
-			await api.send(from.id, chosen ? { ...draft, from: chosen } : draft);
-			setStatus(`sent from ${from.address ?? from.id}`);
+			const queued = await api.send(
+				from.id,
+				chosen ? { ...draft, from: chosen } : draft,
+				at ? { at } : {},
+			);
+
+			if (at) {
+				setStatus(`scheduled from ${from.address ?? from.id}`);
+				setUnsendable(null);
+			} else {
+				// "Sending" rather than "sent", because it has not been. The
+				// difference matters for exactly as long as it can be taken
+				// back, which is what the undo below is counting down.
+				setStatus(`sending from ${from.address ?? from.id}`);
+				setUnsendable(
+					queued.queued
+						? { id: queued.queued, due: queued.due ?? 0 }
+						: null,
+				);
+			}
 			return true;
 		} catch (error) {
 			setStatus(error instanceof Error ? error.message : "send failed");
 			return false;
+		}
+	}
+
+	/**
+	 * The message that can still be taken back, if there is one.
+	 *
+	 * Cleared when its moment passes rather than left on screen: an undo button
+	 * that no longer undoes anything is worse than none, because somebody will
+	 * press it and believe it worked.
+	 */
+	const [unsendable, setUnsendable] = createSignal<{
+		id: string;
+		due: number;
+	} | null>(null);
+
+	createEffect(() => {
+		const pending = unsendable();
+		if (!pending) return;
+
+		const remaining = pending.due * 1000 - Date.now();
+		if (remaining <= 0) {
+			setUnsendable(null);
+			return;
+		}
+		const timer = setTimeout(() => setUnsendable(null), remaining);
+		onCleanup(() => clearTimeout(timer));
+	});
+
+	async function unsend() {
+		const pending = unsendable();
+		if (!pending) return;
+		try {
+			await api.unsend(pending.id);
+			setUnsendable(null);
+			setStatus("taken back");
+		} catch (error) {
+			// The window closed while the button was being pressed. Saying it
+			// was taken back would be saying so about a message somebody has.
+			setUnsendable(null);
+			setStatus(error instanceof Error ? error.message : "already sent");
 		}
 	}
 
@@ -1946,6 +2009,8 @@ export function createAppStore() {
 		sync,
 		send,
 		identitiesFor,
+		unsendable,
+		unsend,
 		sendingAccount,
 		sendingIdentity,
 		setSendingIdentity,

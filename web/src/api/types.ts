@@ -103,6 +103,19 @@ export interface Invite {
 
 export type RsvpAnswer = "accept" | "decline" | "tentative";
 
+/** A message written but not yet gone. */
+export interface OutboxEntry {
+  id: string;
+  account: string;
+  /** Unix seconds. It is not sent before this. */
+  due: number;
+  subject: string;
+  to: string[];
+  attempts: number;
+  /** Why it is still sitting there, when it is. */
+  last_error: string | null;
+}
+
 export interface Body {
   format: "text" | "html";
   content: string;

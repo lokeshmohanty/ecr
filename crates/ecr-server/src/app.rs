@@ -78,6 +78,8 @@ pub fn router_with_cors(state: AppState, allowed_origins: Option<Vec<String>>) -
             post(routes::send).layer(DefaultBodyLimit::max(36 * 1024 * 1024)),
         )
         .route("/api/v1/messages/{id}/rsvp", post(routes::rsvp))
+        .route("/api/v1/outbox", get(routes::outbox))
+        .route("/api/v1/outbox/{id}", axum::routing::delete(routes::unsend))
         .route("/api/v1/events", get(routes::events))
         .route("/api/v1/config", get(routes::config))
         .route("/api/v1/config", put(routes::save_config))

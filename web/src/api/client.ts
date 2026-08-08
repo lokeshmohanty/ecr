@@ -16,6 +16,7 @@ import type {
   ManagedAccount,
   ManagedRule,
   ManagedView,
+  OutboxEntry,
   RsvpAnswer,
 } from "./types";
 import { isTauri } from "./platform";
@@ -256,6 +257,17 @@ export class Api {
    * organiser matches a reply by its UID and SEQUENCE, and letting a client
    * name those would let it answer for an event it was never sent.
    */
+  async outbox(): Promise<OutboxEntry[]> {
+    return await this.request("/api/v1/outbox");
+  }
+
+  /** Takes a message back before it goes. This is undo-send. */
+  async unsend(id: string): Promise<void> {
+    await this.request(`/api/v1/outbox/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  }
+
   async rsvp(
     messageId: string,
     account: string,
@@ -401,10 +413,27 @@ export class Api {
     });
   }
 
-  send(account: string, draft: Draft): Promise<{ bytes: number; account: string }> {
+  /**
+   * Queues a message.
+   *
+   * Nothing is delivered synchronously any more: every send waits a few seconds
+   * in the outbox first, which is what makes undo the default rather than a
+   * feature somebody has to find. `at` is send-later, in unix seconds; `hold: 0`
+   * skips the wait.
+   */
+  send(
+    account: string,
+    draft: Draft,
+    options: { hold?: number; at?: number } = {},
+  ): Promise<{
+    bytes: number;
+    account: string;
+    queued?: string;
+    due?: number;
+  }> {
     return this.request("/api/v1/send", {
       method: "POST",
-      body: JSON.stringify({ account, ...draft }),
+      body: JSON.stringify({ account, ...draft, ...options }),
     });
   }
 

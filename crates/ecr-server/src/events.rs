@@ -17,6 +17,9 @@ pub enum ServerEvent {
     SyncStarted {
         accounts: Vec<String>,
     },
+    /// Something left the outbox, or failed to. The client shows what is
+    /// waiting, and a countdown that never stops is worse than no countdown.
+    OutboxChanged,
     SyncProgress {
         line: String,
     },
@@ -37,6 +40,7 @@ impl ServerEvent {
             ServerEvent::SyncStarted { .. } => "sync:started",
             ServerEvent::SyncProgress { .. } => "sync:progress",
             ServerEvent::SyncFinished { .. } => "sync:finished",
+            ServerEvent::OutboxChanged => "outbox:changed",
             ServerEvent::Error { .. } => "error",
         }
     }
