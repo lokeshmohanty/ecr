@@ -169,8 +169,17 @@ function Row(props: {
 				<span class="shrink-0 text-ink-3">{open() ? "▾" : "▸"}</span>
 			</Show>
 
+			{/*
+        A fixed slot, centred. The glyphs are the reader's — a saved query
+        carries its own in settings.toml — so they cannot be replaced with a
+        drawn icon set, and left to size themselves they are a column of
+        different widths: `∗` is narrow, `▣` is wide, and every label after them
+        started at a different place.
+      */}
 			<Show when={props.icons && row().icon !== ""}>
-				<span class="shrink-0 text-ink-3">{row().icon}</span>
+				<span class="flex w-4 shrink-0 justify-center text-ink-3">
+					{row().icon}
+				</span>
 			</Show>
 
 			<span class="truncate-cell shrink-0 max-w-full">{label()}</span>

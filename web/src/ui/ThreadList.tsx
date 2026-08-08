@@ -214,6 +214,7 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
   const selected = () => props.store.selected() === props.index;
   const unread = () => props.thread.tags.includes("unread");
   const flagged = () => props.thread.tags.includes("flagged");
+  const attachment = () => props.thread.tags.includes("attachment");
 
   const badges = () => {
     const id = props.thread.newest_message;
@@ -432,23 +433,44 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
         </Show>
 
         <div class="min-w-0 flex-1">
-        <div
-          class="truncate-cell"
-          classList={{
-            "text-ink font-semibold": unread(),
-            "text-ink-2": !unread(),
-          }}
-        >
-          {props.thread.authors.join(", ") || "(no sender)"}
-        </div>
-        <div class="truncate-cell text-ink-3">
-          {props.thread.subject || "(no subject)"}
-        </div>
+          <div
+            class="truncate-cell"
+            classList={{
+              "text-ink font-semibold": unread(),
+              "text-ink-2": !unread(),
+            }}
+          >
+            {props.thread.authors.join(", ") || "(no sender)"}
+          </div>
+          {/*
+            The subject carries `--ink-2`, not `--ink-3`. Three ink weights
+            exist and the third is for labels and furniture — a subject is the
+            thing being read, and dimming it below the sender inverted the
+            hierarchy every other mail client has: you scan a list for what a
+            message is about, not for who sent it.
+          */}
+          <div
+            class="truncate-cell"
+            classList={{
+              "text-ink font-medium": unread(),
+              "text-ink-2": !unread(),
+            }}
+          >
+            {props.thread.subject || "(no subject)"}
+          </div>
         </div>
       </div>
 
-      <div class="mono text-right text-xs text-ink-3">
-        <div title={props.thread.date_relative}>{when()}</div>
+      <div class="mono flex shrink-0 flex-col items-end gap-0.5 text-right text-xs text-ink-3">
+        <div class="flex items-center gap-1.5">
+          {/* notmuch tags these itself, so it costs no extra read. */}
+          <Show when={attachment()}>
+            <span aria-label="has an attachment" title="has an attachment">
+              ◆
+            </span>
+          </Show>
+          <span title={props.thread.date_relative}>{when()}</span>
+        </div>
         <Show when={props.thread.total > 1}>
           <div class="text-proved">({props.thread.total})</div>
         </Show>
