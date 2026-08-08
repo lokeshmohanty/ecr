@@ -55,6 +55,13 @@ export const test = base.extend<{ page: Page }, { server: Server }>({
         // HOME opened the developer's real index, found it built against
         // another database and rebuilt it from the fixtures. See demo-env.sh.
         XDG_STATE_HOME: `${dir}/.local/state`,
+        // The fixture's own bin first, for the stub gpg demo-env.sh writes.
+        // The composer's OpenPGP controls are shown only when doctor found a
+        // gpg, so without this a test that counts what is in the composer
+        // passes on a machine with GnuPG and fails on one without — a
+        // difference nobody made, pointing at the composer rather than at
+        // PATH.
+        PATH: `${dir}/bin:${process.env.PATH ?? ""}`,
         RUST_LOG: "warn",
       };
       // Deleted, not just overridden: `paths.rs` ranks NOTMUCH_CONFIG above the

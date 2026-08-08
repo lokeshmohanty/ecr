@@ -101,6 +101,32 @@ NOTMUCH_CONFIG="$DEMO/.config/notmuch/default/config" notmuch new --quiet
 # lands as a startup slow enough to make the fixed waits in the verify scripts
 # occasionally too short.
 
+# A stub gpg, on a PATH of this fixture's own.
+#
+# The composer's OpenPGP controls are shown only when doctor found a gpg, which
+# is correct for the product and makes the *suites* depend on whether the
+# machine running them happens to have GnuPG installed. A screenshot baseline
+# that renders one row more on a developer's laptop than on a CI runner is a
+# baseline that fails for a reason nobody changed, and the diff points at the
+# composer rather than at PATH.
+#
+# So the fixture supplies one, the same way sync and send are already tested
+# against stub binaries rather than the real tools. It answers nothing and is
+# never asked to: doctor only checks that the file is there.
+mkdir -p "$DEMO/bin"
+cat > "$DEMO/bin/gpg.staging" <<'STUB'
+#!/bin/sh
+# A gpg that exists and does nothing, so the fixture renders the same on every
+# machine. Nothing in the visual or verify suites signs or opens anything.
+exit 1
+STUB
+chmod +x "$DEMO/bin/gpg.staging"
+# Renamed into place, never written in place: a suite is many processes, and
+# exec refuses a file one of them still holds open for writing with ETXTBSY —
+# reported as "Text file busy" from whatever was being tested rather than as
+# anything resembling a race.
+mv "$DEMO/bin/gpg.staging" "$DEMO/bin/gpg"
+
 echo "demo mail root: $DEMO/Mail"
 echo "run the server with:"
-echo "  HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config XDG_STATE_HOME=$DEMO/.local/state cargo run -p ecr-cli -- serve --bind 127.0.0.1:8099"
+echo "  HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config XDG_STATE_HOME=$DEMO/.local/state PATH=$DEMO/bin:\$PATH cargo run -p ecr-cli -- serve --bind 127.0.0.1:8099"

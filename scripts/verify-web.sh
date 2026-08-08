@@ -38,8 +38,12 @@ TOKEN=$(env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
   HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config XDG_STATE_HOME=$DEMO/.local/state \
   ./target/debug/ecr --tokens "$DEMO/tokens.toml" token new verify 2>/dev/null)
 
+# The fixture's own bin first, for the stub gpg — see demo-env.sh. Without it
+# the composer renders one row more on a machine that has GnuPG than on one
+# that does not, and the baselines disagree for a reason nobody changed.
 env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
   HOME=$DEMO XDG_CONFIG_HOME=$DEMO/.config XDG_STATE_HOME=$DEMO/.local/state \
+  PATH="$DEMO/bin:$PATH" \
   ./target/debug/ecr --tokens "$DEMO/tokens.toml" \
   serve --bind "127.0.0.1:$API_PORT" > "$DEMO/server.log" 2>&1 &
 SRV=$!
