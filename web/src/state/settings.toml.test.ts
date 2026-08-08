@@ -338,3 +338,53 @@ describe("editing a value in place", () => {
 		expect(settings.packages.mbsync.management).toBe("self");
 	});
 });
+
+describe("packages ecr used to drive", () => {
+	/*
+	 * An upgrade must not leave a permanent error in the status bar for a
+	 * section an earlier ecr told somebody to write. Found on a real settings
+	 * file: `[packages.vdirsyncer]` reported as *unknown*, which reads as a
+	 * typo — so the reader checks the spelling of a word that is spelled
+	 * correctly, finds nothing wrong, and the complaint never goes away.
+	 */
+	it("names a retired package as retired rather than as a typo", () => {
+		const { errors } = fromToml(`[packages.vdirsyncer]
+management = "self"
+config = ""
+`);
+
+		expect(errors).toHaveLength(1);
+		expect(errors[0]).toContain("no longer uses vdirsyncer");
+		expect(errors[0]).not.toContain("unknown package");
+	});
+
+	/* What took over, so the reader knows nothing was lost. */
+	it("says what replaced it, and what to do about the section", () => {
+		const { errors } = fromToml(`[packages.imapnotify]\nmanagement = "self"\n`);
+
+		expect(errors[0]).toContain("IMAP IDLE");
+		expect(errors[0]).toContain("Delete this section");
+	});
+
+	/* A real typo is still a typo, and must not be dressed up as history. */
+	it("still calls an actual unknown package unknown", () => {
+		const { errors } = fromToml(`[packages.notmuchh]\nmanagement = "self"\n`);
+
+		expect(errors[0]).toContain(`unknown package "notmuchh"`);
+	});
+
+	/*
+	 * The line number is what makes it actionable. Reported against the wrong
+	 * line it sends somebody to a section that is fine.
+	 */
+	it("points at the section itself", () => {
+		const { errors } = fromToml(`[general]
+start_query = "tag:inbox"
+
+[packages.vdirsyncer]
+management = "self"
+`);
+
+		expect(errors[0]).toMatch(/^line 4:/);
+	});
+});

@@ -557,6 +557,25 @@ export function mergeBindings(custom: Binding[]): Binding[] {
 	return [...custom, ...kept];
 }
 
+/**
+ * Packages ecr used to drive, and what replaced each.
+ *
+ * An upgrade must not leave a permanent error in the status bar for a section
+ * an earlier ecr told somebody to write. Reported as *unknown*, a retired
+ * package reads as a typo — so the reader checks the spelling of a word that
+ * is spelled correctly, finds nothing wrong, and the complaint never goes
+ * away. Naming it as retired, with what took over and what to do, is a
+ * sentence somebody can act on once.
+ *
+ * They are still errors rather than silently ignored: a dead section that
+ * nothing mentions stays in the file for ever, and the next person to read it
+ * has no way to know it does nothing.
+ */
+const RETIRED_PACKAGES: Record<string, string> = {
+	vdirsyncer: "contacts and calendars sync over ecr's own CardDAV/CalDAV client",
+	imapnotify: "push is an IMAP IDLE connection ecr holds itself",
+};
+
 function readPackages(
 	table: unknown,
 	text: string,
@@ -567,8 +586,11 @@ function readPackages(
 
 	for (const [id, entry] of Object.entries(table)) {
 		if (!PACKAGE_IDS.includes(id as PackageId)) {
+			const retired = RETIRED_PACKAGES[id];
 			errors.push(
-				`line ${lineOfHeader(text, `packages.${id}`)}: unknown package "${id}"`,
+				retired
+					? `line ${lineOfHeader(text, `packages.${id}`)}: ecr no longer uses ${id} — ${retired}. Delete this section`
+					: `line ${lineOfHeader(text, `packages.${id}`)}: unknown package "${id}"`,
 			);
 			continue;
 		}
