@@ -71,6 +71,10 @@ impl From<ecr_store::Error> for ApiError {
             E::InvalidTag { .. } | E::UnknownSendAccount { .. } => {
                 ApiError::BadRequest(err.to_string())
             }
+            // Managed-mode failures are all about what the accounts say — a
+            // maildir that was never named, a file that will not parse — so they
+            // are the caller's to fix and name what to fix.
+            E::Managed(_) | E::UnsafePath { .. } => ApiError::BadRequest(err.to_string()),
             E::ToolMissing { .. }
             | E::ConfigNotFound { .. }
             | E::MaildirMissing { .. }

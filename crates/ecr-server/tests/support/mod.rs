@@ -19,13 +19,18 @@ pub struct Server {
 
 impl Server {
     pub async fn start() -> Option<Self> {
-        Self::build(false).await
+        Self::build(false, false).await
+    }
+
+    /// `ecr serve --read-only`, which every write route has to refuse.
+    pub async fn start_read_only() -> Option<Self> {
+        Self::build(false, true).await
     }
 
     /// With the maildir watcher running, the way `ecr serve` runs it. Only
     /// worth the cost for tests about delivery itself.
     pub async fn start_watched() -> Option<Self> {
-        Self::build(true).await
+        Self::build(true, false).await
     }
 
     pub fn events(&self) -> tokio::sync::broadcast::Receiver<ecr_server::ServerEvent> {
@@ -36,7 +41,7 @@ impl Server {
         self.home.path().join("Mail/main/Inbox/cur")
     }
 
-    async fn build(watch: bool) -> Option<Self> {
+    async fn build(watch: bool, read_only: bool) -> Option<Self> {
         if ecr_store::tools::find(ecr_store::tools::NOTMUCH).is_none() {
             eprintln!("skipping: notmuch is not on PATH");
             return None;
@@ -102,7 +107,7 @@ impl Server {
         let paths =
             Arc::new(MailPaths::with(&Env::rooted_at(home.path()), &settings).expect("paths"));
 
-        let (base, state) = spawn(Arc::clone(&paths), home.path()).await;
+        let (base, state) = spawn(Arc::clone(&paths), home.path(), read_only).await;
         let watcher = watch.then(|| {
             Box::new(ecr_server::watcher::spawn(state.clone()).expect("watcher")) as Box<dyn Send>
         });
@@ -189,6 +194,31 @@ impl Server {
             .expect("request")
     }
 
+    pub async fn delete(&self, path: &str) -> reqwest::Response {
+        self.client
+            .delete(self.url(path))
+            .bearer_auth(TOKEN)
+            .send()
+            .await
+            .expect("request")
+    }
+
+    /// Where mail is kept is the one thing the managed API refuses to invent,
+    /// so a test that exercises the routes has to have said it once — the same
+    /// way `ecr account add` does, at a terminal.
+    pub fn write_accounts_file(&self) {
+        let path = self.home.path().join(".config/ecr/accounts.toml");
+        std::fs::create_dir_all(path.parent().unwrap()).expect("config dir");
+        std::fs::write(
+            &path,
+            format!(
+                "maildir = \"{}\"\n",
+                self.home.path().join("Mail").display()
+            ),
+        )
+        .expect("accounts.toml");
+    }
+
     pub fn settings_path(&self) -> PathBuf {
         self.home.path().join(".config/ecr/settings.toml")
     }
@@ -225,7 +255,11 @@ impl Server {
     }
 }
 
-async fn spawn(paths: Arc<MailPaths>, home: &Path) -> (String, ecr_server::AppState) {
+async fn spawn(
+    paths: Arc<MailPaths>,
+    home: &Path,
+    read_only: bool,
+) -> (String, ecr_server::AppState) {
     let store = Arc::new(ecr_store::NotmuchStore::new(paths));
 
     let mut tokens = ecr_server::TokenStore::default();
@@ -237,7 +271,7 @@ async fn spawn(paths: Arc<MailPaths>, home: &Path) -> (String, ecr_server::AppSt
     let token_path = home.join("tokens.toml");
     tokens.save(&token_path).expect("tokens");
 
-    let state = ecr_server::AppState::new(store, tokens, false).with_token_file(token_path);
+    let state = ecr_server::AppState::new(store, tokens, read_only).with_token_file(token_path);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await

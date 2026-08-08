@@ -80,6 +80,17 @@ pub fn router_with_cors(state: AppState, allowed_origins: Option<Vec<String>>) -
         .route("/api/v1/events", get(routes::events))
         .route("/api/v1/config", get(routes::config))
         .route("/api/v1/config", put(routes::save_config))
+        .route("/api/v1/managed", get(crate::managed::view))
+        .route("/api/v1/managed/apply", post(crate::managed::apply))
+        .route(
+            "/api/v1/managed/management",
+            put(crate::managed::set_management),
+        )
+        .route("/api/v1/managed/accounts", post(crate::managed::create))
+        .route(
+            "/api/v1/managed/accounts/{id}",
+            put(crate::managed::update).delete(crate::managed::remove),
+        )
         .route("/api/v1/themes", get(routes::themes))
         .route("/api/v1/theme", get(routes::theme))
         .route("/api/v1/theme", put(routes::save_theme))
