@@ -35,6 +35,10 @@ impl Layout {
         post_new_hook(&self.managed_dir)
     }
 
+    pub fn pre_new(&self) -> std::path::PathBuf {
+        pre_new_hook(&self.managed_dir)
+    }
+
     pub fn account_dir(&self, id: &str) -> std::path::PathBuf {
         self.maildir_root.join(id)
     }
@@ -61,6 +65,10 @@ pub fn notmuch_config(managed_dir: &Path) -> std::path::PathBuf {
 /// config, so this is not a choice — it is where notmuch will look.
 pub fn post_new_hook(managed_dir: &Path) -> std::path::PathBuf {
     managed_dir.join("notmuch").join("hooks").join("post-new")
+}
+
+pub fn pre_new_hook(managed_dir: &Path) -> std::path::PathBuf {
+    managed_dir.join("notmuch").join("hooks").join("pre-new")
 }
 
 pub fn mbsync(accounts: &ManagedAccounts, layout: &Layout) -> String {
@@ -339,6 +347,46 @@ fn escape(value: &str) -> String {
 /// Whether a directory is a maildir ecr can already read.
 pub fn is_maildir(dir: &Path) -> bool {
     dir.join("cur").is_dir()
+}
+
+/// The `pre-new` hook: what keeps folders in step with tags.
+///
+/// ecr's model is tags and IMAP's is folders. `unread`, `flagged` and
+/// `replied` bridge that by themselves because notmuch keeps them as maildir
+/// flags, which mbsync sends. `deleted` and `spam` have no such bridge until
+/// something moves the file, and this is that something.
+///
+/// **`pre-new`, not `post-new`.** Files must move *before* `notmuch new`
+/// scans, so the same run reindexes them at their new paths. Moving afterwards
+/// leaves the database naming files that are no longer there until something
+/// else runs, and every query in between answers with messages that cannot be
+/// opened.
+///
+/// It calls `ecr` rather than doing the work in shell. A maildir path can
+/// contain spaces, brackets and — legally — a newline, and Gmail's `[Gmail]/…`
+/// folders already prove that real servers use whatever they like; a `while
+/// read` loop over `notmuch search --output=files` mangles all three. This is
+/// the same reason `PassCmd` calls `ecr oauth token`: ecr answering itself is
+/// the one thing the wrapper is allowed to put on PATH.
+pub fn pre_new(accounts: &ManagedAccounts) -> String {
+    let mut out = String::from("#!/bin/sh\n");
+    // Not `set -e`. A hook that exits non-zero stops the scan, so one file that
+    // could not be moved would cost the reader every message that arrived in
+    // that sync — to save them one misplaced one.
+    out.push_str("set -u\n\n");
+    out.push_str("# Keeps folders in step with tags, so archiving and deleting\n");
+    out.push_str("# in ecr reach the server on the next sync.\n");
+
+    if accounts.enabled().next().is_none() {
+        out.push_str("# No accounts are enabled, so there is nothing to file.\n");
+        return out;
+    }
+
+    // `|| true` for the same reason `set -e` is absent: a hook that fails
+    // stops the scan, and mail that did not arrive is a far worse outcome than
+    // mail that is in the wrong folder for one more sync.
+    out.push_str("ecr account file || true\n");
+    out
 }
 
 #[cfg(test)]
@@ -657,5 +705,32 @@ mod tests {
         let empty = ManagedAccounts::default();
         assert_eq!(mbsync(&empty, &layout()), "");
         assert!(!msmtp(&empty).contains("account default"));
+    }
+
+    /// Files must move *before* `notmuch new` scans, so the same run reindexes
+    /// them where they now are. In `post-new` the database names files that
+    /// have gone, and every query until something else runs answers with
+    /// messages that cannot be opened.
+    #[test]
+    fn filing_runs_from_pre_new_so_the_same_scan_picks_up_the_moves() {
+        let hook = pre_new(&accounts());
+        assert!(hook.contains("ecr account file"), "{hook}");
+    }
+
+    /// A hook that exits non-zero stops the scan. One file that could not be
+    /// moved would then cost the reader every message that arrived in that
+    /// sync — to save them one that is in the wrong folder.
+    #[test]
+    fn a_failed_filing_pass_never_stops_mail_arriving() {
+        let hook = pre_new(&accounts());
+
+        assert!(!hook.contains("set -e"), "{hook}");
+        assert!(hook.contains("|| true"), "{hook}");
+    }
+
+    #[test]
+    fn with_no_accounts_the_hook_files_nothing_rather_than_calling_out() {
+        let hook = pre_new(&ManagedAccounts::default());
+        assert!(!hook.contains("ecr account file"), "{hook}");
     }
 }

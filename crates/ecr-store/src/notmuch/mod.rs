@@ -415,6 +415,28 @@ impl Notmuch {
         Ok(path)
     }
 
+    /// Every file matching a query.
+    ///
+    /// `--format=text0` rather than `text`: a maildir filename may contain a
+    /// newline — it is a legal byte in a path, and `[Gmail]` folder names have
+    /// already proved that real servers use whatever they like — and the
+    /// line-based format would split one such path into two, so a filing pass
+    /// would try to move two files that do not exist and leave the one that
+    /// does where it was.
+    pub async fn files_matching(&self, query: &str) -> Result<Vec<PathBuf>> {
+        let stdout = self
+            .run(&["search", "--output=files", "--format=text0", query])
+            .await?;
+
+        Ok(stdout
+            .split('\0')
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(PathBuf::from)
+            .filter(|path| path.is_file())
+            .collect())
+    }
+
     pub async fn parsed(&self, id: &MessageId) -> Result<Arc<crate::mime::ParsedMessage>> {
         let path = self.message_file(id).await?;
         let modified = crate::cache::modified_at(&path);

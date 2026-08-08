@@ -232,16 +232,21 @@ fn tag_sync_check(paths: &MailPaths, accounts: Option<&ManagedAccounts>) -> Chec
         );
     }
 
-    let removals_propagate = accounts.is_some_and(|accounts| {
+    // `Expunge`, not `Remove`. Remove propagates *mailbox* deletions; message
+    // disappearance is already propagated, because ecr emits no `Sync` line
+    // and mbsync's default `Full` includes `Gone`. What `Expunge None` means
+    // is that the far copy is marked deleted and then never acted on, which is
+    // exactly a delete that looks done here and is not done there.
+    let filing_reaches_the_server = accounts.is_some_and(|accounts| {
         accounts
             .enabled()
-            .any(|(_, account)| matches!(account.remove, Sides::Far | Sides::Both))
+            .any(|(_, account)| matches!(account.expunge, Sides::Far | Sides::Both))
     });
 
-    if removals_propagate {
+    if filing_reaches_the_server {
         return Check::ok(
             NAME,
-            "read, flagged and replied cross as maildir flags; removals propagate",
+            "read and flagged cross as maildir flags; archiving and deleting file and expunge",
         );
     }
 
@@ -254,7 +259,8 @@ fn tag_sync_check(paths: &MailPaths, accounts: Option<&ManagedAccounts>) -> Chec
          no file, so the message stays in the server's inbox. `deleted` is the T \
          flag, sent as \\Deleted, which Gmail ignores unless it is expunged. This \
          is safe and it is local-only; ecr will not remove mail from a server \
-         you have not told it to",
+         you have not told it to. Set `expunge = \"far\"` on an account to let \
+         filing cross",
     )
 }
 
@@ -848,7 +854,7 @@ mod tests {
 
         let mut account =
             ManagedAccount::new("a@example.com", Provider::Gmail, Auth::oauth("main"));
-        account.remove = Sides::Far;
+        account.expunge = Sides::Far;
 
         let mut accounts = ManagedAccounts::default();
         accounts.accounts.insert("main".into(), account);

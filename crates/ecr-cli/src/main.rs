@@ -220,6 +220,14 @@ enum AccountCommand {
         id: Option<String>,
     },
 
+    #[command(
+        about = "move mail into folders to match its tags, so archiving and deleting reach the server"
+    )]
+    File {
+        #[arg(long, help = "show what would move, and move nothing")]
+        dry_run: bool,
+    },
+
     #[command(about = "switch the vacation responder on or off, and show what it will do")]
     Vacation {
         #[command(subcommand)]
@@ -496,6 +504,7 @@ async fn dispatch() -> anyhow::Result<()> {
             AccountCommand::Apply => account::apply(),
             AccountCommand::Test { id } => account::test(&id).await,
             AccountCommand::SyncDav { id } => account::sync_dav(id.as_deref()).await,
+            AccountCommand::File { dry_run } => account::file(dry_run).await,
             AccountCommand::Vacation { command } => match command {
                 VacationCommand::Show => account::vacation_show(),
                 VacationCommand::On {

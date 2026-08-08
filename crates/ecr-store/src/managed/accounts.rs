@@ -178,6 +178,14 @@ pub fn plan(accounts: &ManagedAccounts, layout: &Layout, packages: &Packages) ->
             body: render::post_new(accounts),
             mode: 0o700,
         });
+        // Before post-new in the list because it runs before it in life: files
+        // move, then `notmuch new` scans and finds them where they now are.
+        out.push(Rendered {
+            kind: ConfigKind::Notmuch,
+            path: layout.pre_new(),
+            body: render::pre_new(accounts),
+            mode: 0o700,
+        });
     }
     if packages.is_managed(ConfigKind::Mbsync) {
         out.push(Rendered {
@@ -326,11 +334,14 @@ mod tests {
 
         let applied = apply(&accounts.accounts, &layout, &all_managed()).unwrap();
 
-        assert_eq!(applied.len(), 4);
+        assert_eq!(applied.len(), 5);
         assert!(layout.isyncrc().is_file());
         assert!(layout.msmtp().is_file());
         assert!(layout.notmuch().is_file());
         assert!(layout.post_new().is_file());
+        // The hook that keeps folders in step with tags. Without it archiving
+        // and deleting stop at a local tag and never reach the server.
+        assert!(layout.pre_new().is_file());
         assert!(render::is_maildir(
             &layout.account_dir("main").join("Inbox")
         ));
