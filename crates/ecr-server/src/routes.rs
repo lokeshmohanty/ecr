@@ -60,23 +60,50 @@ pub struct AddressEntry {
 }
 
 /// The address book, for recipient completion in the composer.
+///
+/// Two sources, and the order matters. Addresses gathered from mail come first
+/// and are ranked by how often they were written to, which is the best guess at
+/// who is meant. Synced contacts follow: they are the people the reader keeps
+/// rather than the ones who happen to have written, so they are the only way to
+/// complete somebody who has never sent anything — but ranking them above
+/// somebody written to yesterday would be ranking an address book above a
+/// habit.
 pub async fn addresses(State(state): State<AppState>) -> ApiResult<Json<Vec<AddressEntry>>> {
     let book = state.store.notmuch().address_book(0).await?;
 
-    Ok(Json(
-        book.ranked()
+    let mut entries: Vec<AddressEntry> = book
+        .ranked()
+        .into_iter()
+        .map(|entry| AddressEntry {
+            name: entry.address.name,
+            email: entry.address.email,
+            source: match entry.source {
+                ecr_store::address::Source::Recipient => "recipient",
+                ecr_store::address::Source::Sender => "sender",
+            },
+            count: entry.count,
+        })
+        .collect();
+
+    let known: std::collections::HashSet<String> = entries
+        .iter()
+        .map(|e| e.email.to_ascii_lowercase())
+        .collect();
+
+    let vdir = ecr_store::dav::vdir_root(&state.store.paths().ecr_state_dir);
+    entries.extend(
+        ecr_store::contacts::read(&vdir)
             .into_iter()
-            .map(|entry| AddressEntry {
-                name: entry.address.name,
-                email: entry.address.email,
-                source: match entry.source {
-                    ecr_store::address::Source::Recipient => "recipient",
-                    ecr_store::address::Source::Sender => "sender",
-                },
-                count: entry.count,
-            })
-            .collect(),
-    ))
+            .filter(|contact| !known.contains(&contact.email.to_ascii_lowercase()))
+            .map(|contact| AddressEntry {
+                name: contact.name,
+                email: contact.email,
+                source: "contact",
+                count: 0,
+            }),
+    );
+
+    Ok(Json(entries))
 }
 
 /// Every tag in the database, for query completion.

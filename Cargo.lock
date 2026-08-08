@@ -1235,6 +1235,7 @@ dependencies = [
  "ecr-server",
  "ecr-store",
  "qrcode",
+ "reqwest",
  "serde_json",
  "tempfile",
  "tokio",

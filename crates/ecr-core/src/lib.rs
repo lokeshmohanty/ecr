@@ -1,6 +1,7 @@
 pub mod account;
 pub mod compose;
 pub mod doctor;
+pub mod invite;
 pub mod managed;
 pub mod message;
 pub mod pairing;

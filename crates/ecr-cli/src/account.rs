@@ -653,6 +653,99 @@ fn endpoint(value: &str, default_port: u16) -> anyhow::Result<Endpoint> {
     })
 }
 
+/// Fetches an account's contacts and calendars into the vdir.
+///
+/// Read-only against the server, and the vdir it writes is the layout khard and
+/// khal already read — so this replaces vdirsyncer without replacing anybody's
+/// data or putting it somewhere only ecr can reach.
+pub async fn sync_dav(id: Option<&str>) -> anyhow::Result<()> {
+    let env = Env::from_process();
+    let accounts = Accounts::load(&env)?;
+    let paths = ecr_store::MailPaths::discover()?;
+    let profiles = paths.oauth_profiles();
+    let root = ecr_store::dav::vdir_root(&paths.ecr_state_dir);
+
+    let chosen: Vec<(&String, &ecr_core::managed::ManagedAccount)> = accounts
+        .accounts
+        .enabled()
+        .filter(|(name, _)| id.is_none_or(|wanted| wanted == name.as_str()))
+        .collect();
+
+    if chosen.is_empty() {
+        anyhow::bail!("no matching account. `ecr account list` shows them");
+    }
+
+    let client = reqwest::Client::new();
+    let mut synced = 0;
+
+    for (name, account) in chosen {
+        let Some(dav) = &account.dav else {
+            println!("  {name:<12} no contacts or calendars configured");
+            continue;
+        };
+
+        let base = match dav
+            .url
+            .clone()
+            .or_else(|| account.provider.dav_url().map(str::to_string))
+        {
+            Some(base) => base,
+            None => {
+                println!("  {name:<12} no DAV url, and the provider has no default");
+                continue;
+            }
+        };
+
+        // The same credential as the mail. A provider that speaks CardDAV over
+        // the token ecr already holds needs nothing else asked of the reader.
+        let auth = match &account.auth {
+            ecr_core::managed::Auth::Oauth { profile } => {
+                format!(
+                    "Bearer {}",
+                    ecr_store::oauth::access_token(&profiles, profile).await?
+                )
+            }
+            ecr_core::managed::Auth::Command { .. } => {
+                println!("  {name:<12} password accounts are not wired up for DAV yet");
+                continue;
+            }
+        };
+
+        let collections = match ecr_store::dav::discover(&client, &base, &auth).await {
+            Ok(found) => found,
+            Err(err) => {
+                println!("  {name:<12} {err}");
+                continue;
+            }
+        };
+
+        for collection in collections {
+            let wanted = match collection.kind {
+                ecr_store::dav::Kind::Contacts => dav.contacts,
+                ecr_store::dav::Kind::Calendar => dav.calendars,
+            };
+            if !wanted {
+                continue;
+            }
+
+            match ecr_store::dav::sync_collection(&client, &collection, &auth, &root).await {
+                Ok(written) => {
+                    println!(
+                        "  {name:<12} {:<9} {} ({written} changed)",
+                        format!("{:?}", collection.kind).to_lowercase(),
+                        collection.name
+                    );
+                    synced += 1;
+                }
+                Err(err) => println!("  {name:<12} {}: {err}", collection.name),
+            }
+        }
+    }
+
+    println!("\n{} collection(s) into {}", synced, root.display());
+    Ok(())
+}
+
 /// Connects to an account's IMAP server and reports how far it got.
 ///
 /// Read-only in the strictest sense: it authenticates, lists folders and hangs

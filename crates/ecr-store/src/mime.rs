@@ -147,6 +147,7 @@ impl ParsedMessage {
             content: self.text.clone().unwrap_or_default(),
             remote_resources_blocked: 0,
             has_html: self.has_html_part,
+            invite: self.invite(),
         }
     }
 
@@ -159,6 +160,19 @@ impl ParsedMessage {
     /// parser's flattening of the HTML one.
     pub fn has_text_part(&self) -> bool {
         self.has_text_part
+    }
+
+    /// The meeting this message is about, if it carries one.
+    ///
+    /// A `text/calendar` part is shown *with* the message rather than as an
+    /// attachment called `invite.ics` — which is a file the reader has to
+    /// download and open somewhere else to find out when a meeting is.
+    pub fn invite(&self) -> Option<ecr_core::invite::Invite> {
+        self.parts
+            .iter()
+            .find(|p| p.meta.content_type.eq_ignore_ascii_case("text/calendar"))
+            .and_then(|part| std::str::from_utf8(&part.bytes).ok())
+            .and_then(ecr_core::invite::parse)
     }
 
     pub fn body(&self, format: BodyFormat, ctx: &SanitizeContext) -> Body {
@@ -264,6 +278,7 @@ fn sanitize(html: &str, message: &ParsedMessage, ctx: &SanitizeContext) -> Body 
         content: cleaned,
         remote_resources_blocked: blocked,
         has_html: true,
+        invite: message.invite(),
     }
 }
 

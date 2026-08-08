@@ -186,6 +186,13 @@ pub struct ManagedAccount {
     /// Appended to a new message from this account, below the usual `-- `.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signature: Option<String>,
+    /// Where this account's contacts and calendars live.
+    ///
+    /// Absent means ecr does not sync them, which is the default: an address
+    /// book is somebody's data and fetching it is not something to start doing
+    /// because an account happened to be added.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dav: Option<Dav>,
     /// A CA bundle for mbsync, where the system's own is not where it looks.
     /// Carried across on import rather than dropped: a missing one is a TLS
     /// failure on every channel, out of a config that reads as complete.
@@ -218,6 +225,7 @@ impl ManagedAccount {
             patterns: Vec::new(),
             aliases: Vec::new(),
             signature: None,
+            dav: None,
             create: create_near(),
             expunge: Sides::default(),
             remove: Sides::default(),
@@ -344,6 +352,29 @@ impl ManagedAccount {
     }
 }
 
+/// Where an account's contacts and calendars are served from.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Dav {
+    /// The server's base URL. Discovery starts here and finds the principal and
+    /// the collections; a provider preset supplies it when there is one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(default = "yes")]
+    pub contacts: bool,
+    #[serde(default = "yes")]
+    pub calendars: bool,
+}
+
+impl Default for Dav {
+    fn default() -> Self {
+        Self {
+            url: None,
+            contacts: true,
+            calendars: true,
+        }
+    }
+}
+
 /// One address a message can be sent as.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Identity {
@@ -441,6 +472,18 @@ impl Provider {
             Provider::Gmail => Some(Endpoint::starttls("smtp.gmail.com", 587)),
             Provider::Outlook => Some(Endpoint::starttls("smtp.office365.com", 587)),
             Provider::Fastmail => Some(Endpoint::implicit_tls("smtp.fastmail.com", 465)),
+            Provider::Generic => None,
+        }
+    }
+
+    /// Where this provider serves CardDAV and CalDAV, when it is somewhere
+    /// fixed. Gmail and Outlook both do, on the same OAuth token ecr already
+    /// holds for mail.
+    pub fn dav_url(&self) -> Option<&'static str> {
+        match self {
+            Provider::Gmail => Some("https://www.googleapis.com/carddav/v1/principals/"),
+            Provider::Outlook => Some("https://outlook.office365.com/"),
+            Provider::Fastmail => Some("https://carddav.fastmail.com/"),
             Provider::Generic => None,
         }
     }

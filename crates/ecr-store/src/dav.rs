@@ -161,7 +161,11 @@ pub fn write_vdir(root: &Path, collection: &Collection, items: &[Item]) -> Resul
 
     let mut written = 0;
     for item in items {
-        let name = format!("{}.{}", safe_name(&item_id(&item.href)), collection.kind.extension());
+        let name = format!(
+            "{}.{}",
+            safe_name(&item_id(&item.href)),
+            collection.kind.extension()
+        );
         let path = dir.join(name);
 
         // Only when it differs, so a resync does not rewrite an entire address
@@ -178,7 +182,11 @@ pub fn write_vdir(root: &Path, collection: &Collection, items: &[Item]) -> Resul
 
 /// The last path segment of an href, without its extension.
 fn item_id(href: &str) -> String {
-    let last = href.trim_end_matches('/').rsplit('/').next().unwrap_or(href);
+    let last = href
+        .trim_end_matches('/')
+        .rsplit('/')
+        .next()
+        .unwrap_or(href);
     match last.rsplit_once('.') {
         Some((stem, _)) if !stem.is_empty() => stem.to_string(),
         _ => last.to_string(),
@@ -211,6 +219,183 @@ pub fn vdir_root(state_dir: &Path) -> PathBuf {
     state_dir.to_path_buf()
 }
 
+/// The `PROPFIND` that asks a server who we are.
+const PRINCIPAL_BODY: &str = r#"<?xml version="1.0" encoding="utf-8" ?>
+<d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/></d:prop></d:propfind>"#;
+
+/// The one that asks where this principal's collections are kept.
+const HOMES_BODY: &str = r#"<?xml version="1.0" encoding="utf-8" ?>
+<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:carddav"
+            xmlns:l="urn:ietf:params:xml:ns:caldav">
+  <d:prop><c:addressbook-home-set/><l:calendar-home-set/></d:prop>
+</d:propfind>"#;
+
+/// The one that asks a home set what collections it holds, and their names.
+const COLLECTIONS_BODY: &str = r#"<?xml version="1.0" encoding="utf-8" ?>
+<d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:displayname/></d:prop></d:propfind>"#;
+
+const CARDDAV: &str = "urn:ietf:params:xml:ns:carddav";
+const CALDAV: &str = "urn:ietf:params:xml:ns:caldav";
+
+async fn propfind(
+    client: &reqwest::Client,
+    url: &str,
+    auth: &str,
+    depth: &str,
+    body: &'static str,
+) -> Result<String> {
+    let response = client
+        .request(reqwest::Method::from_bytes(b"PROPFIND").unwrap(), url)
+        .header("Depth", depth)
+        .header("Content-Type", "application/xml; charset=utf-8")
+        .header("Authorization", auth)
+        .body(body)
+        .send()
+        .await
+        .map_err(|err| Error::Managed(format!("could not reach {url}: {err}")))?;
+
+    let status = response.status();
+    let text = response
+        .text()
+        .await
+        .map_err(|err| Error::Managed(format!("{url} answered unreadably: {err}")))?;
+
+    if !status.is_success() {
+        return Err(Error::Managed(format!("{url} answered {status}")));
+    }
+    Ok(text)
+}
+
+/// Finds every collection an account has, starting from one URL.
+///
+/// Three round trips, which is what the protocol costs: who am I, where are my
+/// collections, and what is in there. Each step is separate because each fails
+/// differently — a wrong password stops at the first, and a server with no
+/// address book at all stops at the second with nothing wrong.
+pub async fn discover(client: &reqwest::Client, base: &str, auth: &str) -> Result<Vec<Collection>> {
+    let principal = {
+        let xml = propfind(client, base, auth, "0", PRINCIPAL_BODY).await?;
+        first_href(&xml, DAV, "current-user-principal")
+            .ok_or_else(|| Error::Managed(format!("{base} named no principal for this account")))?
+    };
+    let principal = absolute(base, &principal);
+
+    let homes = propfind(client, &principal, auth, "0", HOMES_BODY).await?;
+    let mut found = Vec::new();
+
+    for (kind, ns, tag) in [
+        (Kind::Contacts, CARDDAV, "addressbook-home-set"),
+        (Kind::Calendar, CALDAV, "calendar-home-set"),
+    ] {
+        let Some(home) = first_href(&homes, ns, tag) else {
+            continue;
+        };
+        let home = absolute(base, &home);
+
+        let listing = propfind(client, &home, auth, "1", COLLECTIONS_BODY).await?;
+        found.extend(collections(&listing, kind, base));
+    }
+
+    Ok(found)
+}
+
+/// The first href inside a named property.
+fn first_href(xml: &str, namespace: &str, tag: &str) -> Option<String> {
+    let doc = roxmltree::Document::parse(xml).ok()?;
+    doc.descendants()
+        .find(|n| n.has_tag_name((namespace, tag)))?
+        .descendants()
+        .find(|n| n.has_tag_name((DAV, "href")))?
+        .text()
+        .map(str::to_string)
+}
+
+/// The collections of one kind in a home set listing.
+fn collections(xml: &str, kind: Kind, base: &str) -> Vec<Collection> {
+    let Ok(doc) = roxmltree::Document::parse(xml) else {
+        return Vec::new();
+    };
+
+    let marker = match kind {
+        Kind::Contacts => (CARDDAV, "addressbook"),
+        Kind::Calendar => (CALDAV, "calendar"),
+    };
+
+    doc.descendants()
+        .filter(|n| n.has_tag_name((DAV, "response")))
+        // A home set contains collections of both kinds and itself. Only the
+        // ones carrying the right resourcetype are this kind's.
+        .filter(|response| response.descendants().any(|n| n.has_tag_name(marker)))
+        .filter_map(|response| {
+            let href = response
+                .descendants()
+                .find(|n| n.has_tag_name((DAV, "href")))?
+                .text()?;
+
+            let name = response
+                .descendants()
+                .find(|n| n.has_tag_name((DAV, "displayname")))
+                .and_then(|n| n.text())
+                .filter(|n| !n.trim().is_empty())
+                .map(str::to_string)
+                // A collection with no display name still has a URL, and the
+                // last segment of it is what every other client falls back to.
+                .unwrap_or_else(|| item_id(href));
+
+            Some(Collection {
+                kind,
+                url: absolute(base, href),
+                name,
+            })
+        })
+        .collect()
+}
+
+/// Resolves an href against the server it came from.
+///
+/// Servers answer with a path far more often than a URL, and joining it to the
+/// *base* rather than to the request URL is what keeps a principal at `/dav/`
+/// from being resolved under `/dav/alice/contacts/`.
+pub fn absolute(base: &str, href: &str) -> String {
+    if href.starts_with("http://") || href.starts_with("https://") {
+        return href.to_string();
+    }
+    let origin = match base.split_once("://") {
+        Some((scheme, rest)) => {
+            let host = rest.split('/').next().unwrap_or(rest);
+            format!("{scheme}://{host}")
+        }
+        None => base.trim_end_matches('/').to_string(),
+    };
+    format!(
+        "{}/{}",
+        origin.trim_end_matches('/'),
+        href.trim_start_matches('/')
+    )
+}
+
+/// Fetches every item in a collection and writes the vdir.
+pub async fn sync_collection(
+    client: &reqwest::Client,
+    collection: &Collection,
+    auth: &str,
+    root: &Path,
+) -> Result<usize> {
+    let hrefs = list(client, &collection.url, auth).await?;
+
+    let mut items = Vec::with_capacity(hrefs.len());
+    for href in hrefs {
+        let url = absolute(&collection.url, &href);
+        match fetch(client, &url, auth).await {
+            Ok(body) => items.push(Item { href, body }),
+            // One unreadable contact must not cost the other four hundred.
+            Err(err) => tracing::debug!(%url, %err, "skipping an item that could not be fetched"),
+        }
+    }
+
+    write_vdir(root, collection, &items)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,10 +423,7 @@ mod tests {
         let found = hrefs(MULTISTATUS);
         assert_eq!(
             found,
-            vec![
-                "/dav/alice/contacts/one.vcf",
-                "/dav/alice/contacts/two.vcf"
-            ]
+            vec!["/dav/alice/contacts/one.vcf", "/dav/alice/contacts/two.vcf"]
         );
     }
 
@@ -250,7 +432,10 @@ mod tests {
     #[test]
     fn a_different_namespace_prefix_parses_the_same() {
         let xml = MULTISTATUS
-            .replace("<multistatus xmlns=\"DAV:\">", "<D:multistatus xmlns:D=\"DAV:\">")
+            .replace(
+                "<multistatus xmlns=\"DAV:\">",
+                "<D:multistatus xmlns:D=\"DAV:\">",
+            )
             .replace("</multistatus>", "</D:multistatus>")
             .replace("<response>", "<D:response>")
             .replace("</response>", "</D:response>")

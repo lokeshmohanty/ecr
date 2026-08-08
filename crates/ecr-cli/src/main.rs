@@ -214,6 +214,12 @@ enum AccountCommand {
     )]
     Test { id: String },
 
+    #[command(about = "fetch contacts and calendars into the vdir. Reads only")]
+    SyncDav {
+        #[arg(help = "one account, or all of them")]
+        id: Option<String>,
+    },
+
     #[command(
         about = "read the setup you already have into accounts.toml, showing what would change"
     )]
@@ -446,6 +452,7 @@ async fn dispatch() -> anyhow::Result<()> {
             AccountCommand::Remove { id, keep_mail } => account::remove(&id, keep_mail),
             AccountCommand::Apply => account::apply(),
             AccountCommand::Test { id } => account::test(&id).await,
+            AccountCommand::SyncDav { id } => account::sync_dav(id.as_deref()).await,
             AccountCommand::Import { write } => account::import(write),
         },
 

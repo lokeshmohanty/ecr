@@ -239,6 +239,13 @@ pub struct Body {
     /// Whether the message carries a real HTML part, so the client knows
     /// whether offering to switch to it means anything.
     pub has_html: bool,
+    /// The meeting this message is about, when it carries one.
+    ///
+    /// It travels with the body rather than as a part the reader has to open:
+    /// an invitation shown as `invite.ics` is a file somebody has to download
+    /// and open elsewhere to find out when a meeting is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invite: Option<crate::invite::Invite>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

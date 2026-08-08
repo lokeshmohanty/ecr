@@ -78,12 +78,33 @@ export interface Thread {
   messages: Message[];
 }
 
+/**
+ * A meeting an invitation is about.
+ *
+ * Times are as the sender wrote them, not parsed into instants — an invitation
+ * shown at the wrong time is worse than one shown as the sender wrote it.
+ */
+export interface Invite {
+  summary?: string;
+  location?: string;
+  description?: string;
+  organizer?: string;
+  attendees: string[];
+  starts?: string;
+  ends?: string;
+  /** REQUEST, REPLY or CANCEL — an invitation and a cancellation look alike. */
+  method?: string;
+  recurring: boolean;
+}
+
 export interface Body {
   format: "text" | "html";
   content: string;
   remote_resources_blocked: number;
   /** Whether the message has a real HTML part to switch to. */
   has_html: boolean;
+  /** The meeting this message is about, when it carries one. */
+  invite?: Invite;
 }
 
 export interface Page<T> {

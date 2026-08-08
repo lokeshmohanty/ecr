@@ -6,7 +6,7 @@ import {
 	createSignal,
 	onCleanup,
 } from "solid-js";
-import type { Message } from "../api/types";
+import type { Invite, Message } from "../api/types";
 import type { AppStore } from "../state/store";
 import { absolutizePartUrls } from "./body-urls";
 import { toggleLabel } from "../state/format";
@@ -233,6 +233,16 @@ function MessageView(props: {
 								)}
 							</For>
 						</div>
+					</Show>
+
+					{/*
+						The meeting, above the body. An invitation whose only
+						trace is an `invite.ics` attachment is a file somebody
+						has to download and open elsewhere to find out when a
+						meeting is.
+					*/}
+					<Show when={body()?.invite}>
+						{(invite) => <InviteCard invite={invite()} />}
 					</Show>
 
 					<Show
@@ -500,4 +510,93 @@ function formatSize(bytes: number): string {
 	if (bytes < 1024) return `${bytes}B`;
 	if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}K`;
 	return `${(bytes / 1024 / 1024).toFixed(1)}M`;
+}
+
+/**
+ * A meeting, shown where the message is.
+ *
+ * Times are printed as the sender wrote them. Parsing `20260410T090000` with a
+ * `TZID` parameter into an instant, and getting the zone wrong, puts a meeting
+ * in somebody's day at the wrong hour — which is worse than showing them
+ * exactly what arrived.
+ */
+function InviteCard(props: { invite: Invite }) {
+	const cancelled = () => props.invite.method?.toUpperCase() === "CANCEL";
+
+	return (
+		<section
+			class="mb-3 rounded border px-3 py-2 text-xs"
+			classList={{
+				"border-blocking": cancelled(),
+				"border-obligation": !cancelled(),
+			}}
+			aria-label={cancelled() ? "cancelled meeting" : "meeting invitation"}
+		>
+			<div class="mb-1 flex items-baseline gap-2">
+				<span
+					class="uppercase tracking-wide"
+					classList={{
+						"text-blocking": cancelled(),
+						"text-obligation": !cancelled(),
+					}}
+				>
+					{cancelled() ? "cancelled" : "invitation"}
+				</span>
+				<Show when={props.invite.recurring}>
+					<span class="text-ink-3">repeats</span>
+				</Show>
+			</div>
+
+			<Show when={props.invite.summary}>
+				{(summary) => <div class="text-sm text-ink">{summary()}</div>}
+			</Show>
+
+			<dl class="mt-1 grid grid-cols-[4rem_minmax(0,1fr)] gap-x-2 text-ink-3">
+				<Show when={props.invite.starts}>
+					{(starts) => (
+						<>
+							<dt>when</dt>
+							<dd class="mono text-ink-2">
+								{starts()}
+								<Show when={props.invite.ends}>{(ends) => <> – {ends()}</>}</Show>
+							</dd>
+						</>
+					)}
+				</Show>
+				<Show when={props.invite.location}>
+					{(location) => (
+						<>
+							<dt>where</dt>
+							<dd class="text-ink-2">{location()}</dd>
+						</>
+					)}
+				</Show>
+				<Show when={props.invite.organizer}>
+					{(organizer) => (
+						<>
+							<dt>from</dt>
+							<dd class="truncate-cell text-ink-2">{organizer()}</dd>
+						</>
+					)}
+				</Show>
+				<Show when={props.invite.attendees.length > 0}>
+					<dt>with</dt>
+					<dd class="text-ink-2">
+						{props.invite.attendees.length}{" "}
+						{props.invite.attendees.length === 1 ? "person" : "people"}
+					</dd>
+				</Show>
+			</dl>
+
+			{/*
+				No RSVP button. Replying writes to somebody else's calendar and
+				has to be right about time zones, recurrence and delegation;
+				saying so is better than a control that half works.
+			*/}
+			<p class="mt-2 text-ink-3">
+				Replying to invitations is not wired up yet — answer from your
+				calendar.
+			</p>
+		</section>
+	);
 }
