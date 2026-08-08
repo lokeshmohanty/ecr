@@ -37,6 +37,50 @@ the same file, not a stale copy, and is not reported: the candidates are
 deduplicated by canonical path, so a warning never tells the reader to delete
 the config they are using.
 
+## Managed configuration
+
+By default `ecr_store::paths` *reads* the mail tools' configuration. Managed mode
+is the opt-in path where ecr writes it, and it is one direction only:
+
+```
+accounts.toml  ──render──>  ~/.config/ecr/managed/{isyncrc, msmtp/config,
+   (ecr owns)                                      notmuch/config, notmuch/hooks/post-new}
+                                     │
+                                     ├─ Env::candidates puts these first, and only
+                                     │  for a package whose management is "ecr"
+                                     ▼
+                          the existing MbsyncConfig / MsmtpConfig / NotmuchConfig
+                          parsers, unchanged
+                                     ▼
+                          discovery::accounts — still the only answer to what
+                          accounts exist
+```
+
+`accounts.toml` is an **input**. An account is still a directory under the
+maildir root, so an account described there and never synced is one ecr reports
+as missing rather than one it pretends to have — which is what keeps doctor,
+reply identities and the sidebar working exactly as they did. The renderers emit
+the shapes the parsers already read, `PassCmd "ecr oauth token <profile>"`
+included, so nothing downstream knows managed mode exists.
+
+Three bounds make it reversible:
+
+- ecr writes only inside `~/.config/ecr/managed/`. The reader's own files are
+  never touched, and are what resolution falls back to the moment a package goes
+  back to `self` — a candidate that is not a file is skipped, so even a
+  half-finished managed setup degrades to the working one underneath it.
+- Every generated file carries a `# ecr-hash:` digest of its own body. A file
+  that no longer matches was edited, and is moved aside rather than overwritten.
+- `Create` is `Near`, `Expunge` and `Remove` are `None`. ecr fetches what appears
+  on the server and creates, removes and expunges nothing on it.
+
+The switch itself is `[packages.<tool>].management` in the shared settings file,
+which is generated in TypeScript. The server parses only that one section
+(`ecr_store::packages`), and the two are pinned together by
+`crates/ecr-store/settings/default.toml` — written by the client's own generator
+as a file snapshot, parsed by a Rust test, and used as the seed when a machine
+has no settings file at all.
+
 ## Freshness
 
 `notmuch count --lastmod` returns `<count> <uuid> <lastmod>`. That `(uuid,

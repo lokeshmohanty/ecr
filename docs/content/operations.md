@@ -13,7 +13,10 @@ itself — point `PassCmd` and msmtp's `passwordeval` at `ecr oauth token
 the first three — not the package, not the Nix dev shell.
 
 **Your copies of those three are the ones ecr runs — there are no others.**
-ecr manages neither the binaries nor their configuration, and the Nix package
+ecr never manages the binaries, and by default it does not manage their
+configuration either — it reads what you have. [Managed mode](#managed-mode) is
+the opt-in exception, and it changes only *who writes the config files*, never
+which binary runs. The Nix package
 ships no copy of them, not even behind yours as a fallback. That is deliberate:
 a second copy is not the same binary. `mbsync` reaches XOAUTH2 only through
 `isync.override { withCyrusSaslXoauth2 = true; }`, which wraps it to put the
@@ -31,6 +34,8 @@ run it out of the workspace; `cargo run -p ecr-cli -- <args>` is the long form.
 ```
 ecr doctor              check the mail setup
 ecr serve               run the server
+ecr account add|list|remove|apply|import
+ecr notmuch <args>      run notmuch against the config ecr resolved
 ecr token new|list|revoke
 ecr help [topic]        worked examples: start, phone, accounts, trouble
 ```
@@ -92,6 +97,65 @@ its folder count, and each account's OAuth token state. The server refuses to
 start unless this is healthy.
 
 `--json` emits the same report for scripting.
+
+## Managed mode
+
+By default ecr reads a setup you configured. It can instead **generate** that
+configuration from accounts it holds itself:
+
+```bash
+ecr account add personal --address you@gmail.com --provider gmail
+```
+
+That writes `~/.config/ecr/accounts.toml` and generates four files under
+`~/.config/ecr/managed/` — an isyncrc, an msmtp config, a notmuch config and its
+`post-new` hook — then hands those three packages to ecr. Presets exist for
+`gmail`, `outlook` and `fastmail`; anything else is `generic` and takes
+`--imap` and `--smtp`.
+
+**Already have a working setup?** Import it, and look before you leap:
+
+```bash
+ecr account import           # reads it, shows exactly what ecr would generate
+ecr account import --write   # saves that to accounts.toml, still switching nothing
+ecr account apply            # hands the files over
+```
+
+The diff is the point. Import carries across what you already chose — the
+patterns each channel syncs, how far a deletion travels, your CA bundle, your
+`search.exclude_tags`, which address is primary — rather than replacing them
+with a preset. The one thing it cannot carry is your `post-new` hook, because
+ecr generates its own, and it says so.
+
+### What managed mode does and does not touch
+
+- ecr writes **only inside `~/.config/ecr/`**, and only for packages you set to
+  `ecr`. Your own `~/.config/isyncrc` and the rest stay exactly where they are,
+  byte for byte. They are what ecr goes back to the moment you switch a package
+  back to `self` — one line, nothing to undo.
+- A generated file says so at the top and carries a digest of its own body. Edit
+  one and the next `ecr account apply` moves your edit aside and tells you where
+  it put it, rather than overwriting it.
+- **Deletion never propagates by default.** `Expunge` and `Remove` are `None`
+  and `Create` is `Near`, so ecr fetches a folder that appears on the server and
+  never creates, removes or expunges anything *on* it. Change that per account
+  if you mean to.
+- The maildir is never deleted. `ecr account remove` forgets an account and
+  leaves its mail exactly where it is.
+- **Your own `notmuch` command will not see the generated config**, because it
+  lives in ecr's directory rather than `~/.config/notmuch`. Use `ecr notmuch
+  <args>`, which runs your notmuch against the config ecr resolved.
+
+`ecr account list` shows every account and the state of every generated file —
+`current`, `stale`, `edited` or `missing` — and `ecr doctor` reports the same
+thing, so a change made on one machine and not applied on another is named
+rather than discovered.
+
+The same is on the client's **Accounts** tab in settings, over
+`/api/v1/managed`. One thing is deliberately not reachable there: an account
+that authenticates with a password *command* can only be set at a terminal. That
+command is something the server would run, and the credential for reaching the
+API is a bearer token on a phone.
 
 ## Tokens
 
@@ -440,6 +504,10 @@ Home Manager module and what each artifact carries. In short:
 | Empty inbox, no error | The query. `/api/v1/threads?q=*` should return everything |
 | `503` responses | A binary is missing from the service's `PATH`; pin absolute paths in `server.toml` |
 | Sync fails with an auth error | `ecr oauth status <account>`; the token may need reauthorizing with `ecr oauth authorize <account>` |
+| An account added in the client does not sync | Adding it writes the configuration; it still needs a token. `ecr oauth setup <profile> --provider gmail --email …`, then sync |
+| `ecr doctor` says a managed file is `stale` | `accounts.toml` moved on and the generated files did not. `ecr account apply` |
+| `ecr doctor` says a managed file was `edited` | Somebody edited a generated file. Put the change in `accounts.toml`; the next apply backs the edit up and replaces it |
+| `notmuch` in your shell disagrees with ecr | Managed mode puts the notmuch config in ecr's directory. `ecr notmuch <args>` |
 | Sync fails with `selected SASL mechanism(s) not available`, and `mbsync` run by hand works | ecr ran a different `mbsync`. `systemctl --user show -pEnvironment ecr` and compare the first `mbsync` on that `PATH` with `command -v mbsync` in your shell; the XOAUTH2 plugin comes from your own wrapper, not from ecr. Pinning `mbsync_bin` in `server.toml` settles it |
 | New mail does not appear | Was the server started with `--no-watch`? Otherwise check the log for watcher warnings |
 | Tags silently do nothing | `notmuch tag --batch` exits 0 on malformed input; `ecr-store` validates first, so a `400` here is the intended behaviour |

@@ -9,6 +9,35 @@ release; both are frozen at v1.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- **Managed mode.** ecr can now generate the configuration for notmuch, mbsync
+  and msmtp from accounts it holds itself, instead of only reading a setup you
+  wrote. `ecr account add|list|remove|apply` and an **Accounts** tab in settings,
+  with presets for Gmail, Outlook and Fastmail. It is opt-in per tool, writes
+  only inside `~/.config/ecr/managed/`, and leaves your own files untouched —
+  switching a package back to self-managed is one line with nothing to undo.
+- **`ecr account import`** reads the setup you already have, shows exactly what
+  ecr would generate against what your tools read today, and writes nothing
+  until told to. It carries your own answers across rather than imposing
+  presets: sync patterns, CA bundle, `search.exclude_tags`, which address is
+  primary, and how far a deletion travels.
+- **`ecr notmuch <args>`** runs notmuch against the configuration ecr resolved,
+  which in managed mode is not the one your shell would find.
+- `/api/v1/managed` — the same accounts over HTTP. Setting a password *command*
+  is refused there and only possible at a terminal: it is a command the server
+  would run.
+- `ecr doctor` reports which packages ecr manages and whether the generated
+  files are current, stale or edited by hand.
+- [Parity](https://www.lokeshmohanty.in/ecr/parity/) — what ecr has and does not
+  have against Thunderbird, Gmail and Outlook, and what is deliberately absent.
+
+### Fixed
+
+- `ServerSettings` resolves through the same `Env` as everything else rather
+  than `dirs::config_dir()`, which answered the real `~/.config` however `HOME`
+  was pointed.
+
 ## [0.3.0] — 2026-08-05
 
 ### Added

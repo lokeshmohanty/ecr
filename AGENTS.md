@@ -367,14 +367,51 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   own mbsync swaps the tool under test, which is the hardest place of all to
   read that failure — so `just check` and the integration tests need the three
   installed on the machine, and the shell's greeting says which are.
-  The same rule governs configuration: notmuch, mbsync, imapnotify and msmtp
-  are the reader's to manage, and `ecr init` writes a notmuch config only when
-  there is none and only after confirming it. Nothing else in ecr writes any of
-  the four, and nothing records their resolved paths anywhere —
-  `ecr_store::paths` finds them fresh on each run, which is what lets a
-  self-managed setup move its files without ecr holding a stale answer. An
-  ecr-managed setup is a later, deliberate feature, not something a fallback
-  arrives at by accident.
+  Configuration is a different question from binaries, and the answer is now
+  opt-in per tool. By default notmuch, mbsync and msmtp are the reader's to
+  manage and nothing in ecr writes them; `ecr_store::paths` finds them fresh on
+  each run, which is what lets a self-managed setup move its files without ecr
+  holding a stale answer. **Managed mode** is the deliberate exception, and it
+  is bounded by three rules that everything in `ecr-store/src/managed/` exists
+  to keep. ecr writes only inside `~/.config/ecr/managed/`, and only for a
+  package whose `[packages.*].management` is `"ecr"` — the reader's own files
+  are never touched, which is what makes switching back one line with nothing to
+  undo. A generated file carries `# ecr-hash:` over its own body, so an edit is
+  backed up rather than destroyed. And `accounts.toml` is an *input*: what an
+  account **is** stays a directory under the maildir root found by
+  `discovery::accounts`, so managed mode adds no second authority for what mail
+  exists. The renderers emit exactly the shapes the existing parsers read —
+  `PassCmd "ecr oauth token <profile>"` and the rest — and
+  `tests/managed_round_trip.rs` renders, applies, and asserts `discovery` gives
+  back the accounts that went in.
+
+- **A managed default that deletes is a managed default that is wrong.**
+  `Create` is `Near` and `Expunge`/`Remove` are `None`, so ecr fetches a folder
+  that appears on the server and never creates, removes or expunges anything on
+  it. ecr expresses deletion as the `deleted` tag and never unlinks a message
+  file, so nothing local is waiting to propagate — and a reader who has not
+  asked for deletions to cross the network must not find out that they do.
+  `ecr account import` carries the reader's own answers across instead of
+  imposing these, including `Patterns`, `CertificateFile`, `search.exclude_tags`
+  and which address is `primary_email`: an import that quietly changed those
+  would change which mail exists and where, on the next sync, with a diff nobody
+  was told to read as the only warning.
+
+- **Two of the generated files have traps that only running them shows.**
+  msmtp's `from` is the *envelope sender* — `from Name <addr>` is not an
+  address, and `MsmtpConfig::parse` reads the whole string back as one, so the
+  account's address is then wrong everywhere ecr shows it. And an mbsync
+  `Patterns` entry containing brackets is a character class: unquoted,
+  `![Gmail]/Important` excludes a folder called `G/Important` and Gmail's own is
+  synced anyway, which arrives as duplicate mail with nothing naming why. Both
+  are pinned by tests named after the failure.
+
+- **The generated notmuch config lives in ecr's directory, and notmuch is the
+  one of the three a reader also runs by hand.** So `notmuch search` in a shell
+  answers out of a different database than ecr does, with nothing to explain the
+  disagreement. `ecr notmuch <args>` is the passthrough, and `ecr account list`
+  names it. This is the cost of the "only inside ecr's directory" rule, paid
+  deliberately rather than by writing to `~/.config/notmuch`.
 
 - **A Nix build sees only what the fileset lists, and `include_str!` is
   source.** `nix/ecr.nix` names each path that enters the sandbox, so adding a
