@@ -132,7 +132,27 @@ export interface Body {
   has_html: boolean;
   /** The meeting this message is about, when it carries one. */
   invite?: Invite;
+  /** What gpg concluded about an OpenPGP signature, when there was one. */
+  signature?: Signature;
+  /** Whether these bytes arrived encrypted. */
+  encrypted?: boolean;
 }
+
+/**
+ * What could be concluded about who wrote a message.
+ *
+ * Six states rather than a boolean, and the difference matters: `unknown` is
+ * the ordinary condition of mail from somebody whose key you have never
+ * fetched, and painting it as broken is how a security indicator becomes one
+ * nobody looks at.
+ */
+export type Signature =
+  | { state: "good"; key: string; signer: string }
+  | { state: "expired"; key: string; signer: string }
+  | { state: "revoked"; key: string; signer: string }
+  | { state: "bad"; key: string }
+  | { state: "unknown"; key: string }
+  | { state: "failed"; detail: string };
 
 export interface Page<T> {
   revision: Revision;

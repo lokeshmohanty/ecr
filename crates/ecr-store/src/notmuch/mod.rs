@@ -448,7 +448,11 @@ impl Notmuch {
             format!("/api/v1/messages/{id}/parts/"),
             allow_remote_resources,
         );
-        Ok(parsed.body(format, &ctx))
+
+        match parsed.protection() {
+            None => Ok(parsed.body(format, &ctx)),
+            Some(protection) => Ok(unwrap_pgp(id, protection, &parsed, format, &ctx).await),
+        }
     }
 
     pub async fn part(&self, id: &MessageId, part: &PartId) -> Result<Part> {
@@ -679,6 +683,86 @@ fn push_address(out: &mut Vec<Address>, raw: &str) {
             }
         }
         _ => out.push(Address::new(None, raw)),
+    }
+}
+
+/// Opens and checks whatever OpenPGP a message was carrying.
+///
+/// Everything here answers a `Body` and never an error, deliberately. The two
+/// things that go wrong are a missing gpg and a message encrypted to a key
+/// somebody does not have, and both are *about this message* — failing the
+/// request instead leaves the reading pane blank with a line in the status bar
+/// that says nothing about encryption, which reads as the client being broken.
+/// A reason shown where the message would have been is a state somebody can
+/// act on.
+async fn unwrap_pgp(
+    id: &MessageId,
+    protection: &crate::pgp::Protection,
+    parsed: &crate::mime::ParsedMessage,
+    format: BodyFormat,
+    ctx: &crate::mime::SanitizeContext,
+) -> Body {
+    use crate::pgp::{Protection, Signature};
+
+    match protection {
+        Protection::Signed { signed, signature } => {
+            let verdict = crate::pgp::verify(signed, signature)
+                .await
+                .unwrap_or_else(|err| Signature::Failed {
+                    detail: err.to_string(),
+                });
+            // The message itself is readable either way — it was never
+            // encrypted. A bad signature is a thing to say *about* mail that
+            // is on screen, not a reason to withhold it.
+            Body {
+                signature: Some(verdict),
+                ..parsed.body(format, ctx)
+            }
+        }
+        Protection::Encrypted { ciphertext }
+        | Protection::Inline {
+            armoured: ciphertext,
+        } => {
+            match crate::pgp::open(ciphertext).await {
+                Ok(opened) => {
+                    // The plaintext of a PGP/MIME message is itself a MIME
+                    // entity, so it is parsed the same way the outer message
+                    // was — which is what makes an encrypted message with
+                    // attachments, HTML or an invitation read exactly like any
+                    // other. Inline armour is not: it is bare text, and
+                    // parsing it as MIME yields one text part, which is the
+                    // right answer for it too.
+                    match crate::mime::parse(id.as_str(), &opened.plaintext) {
+                        Ok(inner) => Body {
+                            signature: opened.signature,
+                            encrypted: opened.encrypted,
+                            ..inner.body(format, ctx)
+                        },
+                        Err(err) => refusal(
+                            format,
+                            format!("this message was opened but could not be read: {err}"),
+                        ),
+                    }
+                }
+                Err(err) => refusal(format, err.to_string()),
+            }
+        }
+    }
+}
+
+/// A body that carries a reason instead of a message.
+fn refusal(format: BodyFormat, reason: String) -> Body {
+    Body {
+        // Text whatever was asked for: this is a sentence, and rendering it
+        // through the HTML path would put it behind a sandboxed frame sized
+        // for a document.
+        format: BodyFormat::Text,
+        content: reason,
+        remote_resources_blocked: 0,
+        has_html: matches!(format, BodyFormat::Html),
+        invite: None,
+        signature: None,
+        encrypted: true,
     }
 }
 

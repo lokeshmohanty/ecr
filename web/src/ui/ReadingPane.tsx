@@ -7,6 +7,7 @@ import {
 	onCleanup,
 } from "solid-js";
 import type { Invite, Message, RsvpAnswer } from "../api/types";
+import { pgpBadge as describePgp } from "./pgp-badge";
 import type { AppStore } from "../state/store";
 import { absolutizePartUrls } from "./body-urls";
 import { toggleLabel } from "../state/format";
@@ -128,6 +129,9 @@ function MessageView(props: {
 	 */
 	const [unreadable, setUnreadable] = createSignal("");
 
+	/** What OpenPGP said about this message, if it said anything. */
+	const pgpBadge = () => describePgp(body());
+
 	const [body] = createResource(
 		() =>
 			open()
@@ -241,6 +245,29 @@ function MessageView(props: {
 						has to download and open elsewhere to find out when a
 						meeting is.
 					*/}
+					{/*
+						What OpenPGP said, above the body and below the
+						headers. Above the body because it is a claim about
+						these bytes; below the headers because a badge beside
+						the sender would read as a claim about *them*, which is
+						a much stronger thing to say than anything a signature
+						supports.
+					*/}
+					<Show when={pgpBadge()}>
+						{(badge) => (
+							<div class="mb-3">
+								<span
+									class={`pgp-badge ${badge().tone}`}
+									role="status"
+									title={badge().detail}
+								>
+									<span class="pgp-badge-mark" aria-hidden="true" />
+									{badge().label}
+								</span>
+							</div>
+						)}
+					</Show>
+
 					<Show when={body()?.invite}>
 						{(invite) => (
 							<InviteCard

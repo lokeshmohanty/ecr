@@ -14,6 +14,15 @@ pub struct ParsedMessage {
     /// mail-parser's flattening of the HTML, which runs block elements
     /// together.
     has_text_part: bool,
+    /// What OpenPGP this message turned out to carry, from the bytes that
+    /// arrived rather than from anything reconstructed.
+    ///
+    /// Detected here, at parse time, because this is the last place the raw
+    /// bytes exist: a signature covers what was transmitted, and everything
+    /// downstream of here has been decoded. It is a byte scan over a buffer
+    /// already in memory — no process is run and nothing is verified until
+    /// something asks.
+    protection: Option<crate::pgp::Protection>,
 }
 
 struct StoredPart {
@@ -63,6 +72,7 @@ pub fn parse(id: &str, raw: &[u8]) -> Result<ParsedMessage> {
         text,
         has_html_part,
         has_text_part,
+        protection: crate::pgp::detect(raw),
     })
 }
 
@@ -148,7 +158,14 @@ impl ParsedMessage {
             remote_resources_blocked: 0,
             has_html: self.has_html_part,
             invite: self.invite(),
+            signature: None,
+            encrypted: false,
         }
+    }
+
+    /// The OpenPGP this message carries, if any.
+    pub fn protection(&self) -> Option<&crate::pgp::Protection> {
+        self.protection.as_ref()
     }
 
     /// True when the message carries real markup, not text dressed up as HTML.
@@ -279,6 +296,8 @@ fn sanitize(html: &str, message: &ParsedMessage, ctx: &SanitizeContext) -> Body 
         remote_resources_blocked: blocked,
         has_html: true,
         invite: message.invite(),
+        signature: None,
+        encrypted: false,
     }
 }
 

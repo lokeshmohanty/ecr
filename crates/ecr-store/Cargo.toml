@@ -54,5 +54,6 @@ mail-send = { version = "0.6.1", default-features = false, features = ["ring", "
 vparser = "1.2.1"
 roxmltree = "0.21.1"
 
-[dev-dependencies]
 tempfile = "3"
+
+[dev-dependencies]

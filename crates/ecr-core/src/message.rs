@@ -246,6 +246,21 @@ pub struct Body {
     /// and open elsewhere to find out when a meeting is.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub invite: Option<crate::invite::Invite>,
+    /// What could be concluded about an OpenPGP signature, when there was one.
+    ///
+    /// Travels with the body because it is *about* these bytes: a verdict
+    /// fetched separately would arrive a beat after the message had already
+    /// been read, and a security indicator nobody looks at in time is worse
+    /// than none, because its absence is then indistinguishable from its
+    /// having said nothing yet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signature: Option<crate::pgp::Signature>,
+    /// Whether these bytes arrived encrypted. Kept apart from `signature`
+    /// because the two answer different questions — who wrote it, and who
+    /// could read it — and a client that shows one padlock for both is wrong
+    /// about half the mail it draws it on.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub encrypted: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

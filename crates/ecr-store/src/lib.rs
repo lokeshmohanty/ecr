@@ -20,6 +20,7 @@ pub mod outbox;
 pub mod packages;
 pub mod parse;
 pub mod paths;
+pub mod pgp;
 pub mod settings;
 pub mod smtp;
 pub mod store;

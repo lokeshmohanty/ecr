@@ -5,6 +5,7 @@ pub mod invite;
 pub mod managed;
 pub mod message;
 pub mod pairing;
+pub mod pgp;
 pub mod revision;
 
 pub use account::{Account, AccountId, Folder};

@@ -50,6 +50,7 @@ pub async fn run_with_paths(paths: &MailPaths) -> Doctor {
     ];
     checks.extend(configs.iter().map(config_check));
     checks.extend(configs.iter().filter_map(shadow_check));
+    checks.push(pgp_check());
     checks.extend(managed_checks(paths));
 
     checks.push(if paths.maildir_root.is_dir() {
@@ -161,6 +162,23 @@ pub async fn run_with_paths(paths: &MailPaths) -> Doctor {
 /// Reported even when nothing is managed, because "ecr writes none of this" is
 /// the first thing worth knowing about a setup that is behaving unexpectedly —
 /// and the answer that tells a reader their switch did not take.
+/// gpg, if it is there.
+///
+/// A warning and never a failure: mail works perfectly without OpenPGP, and
+/// most readers never touch it. But a machine with no gpg shows every signed
+/// message unverified, and saying nothing about that leaves the reader unable
+/// to tell "nobody signed this" from "nothing here can check a signature".
+fn pgp_check() -> Check {
+    match crate::pgp::installed() {
+        Some(path) => Check::ok("openpgp", format!("{}", path.display())),
+        None => Check::warn("openpgp", "gpg is not installed").with_hint(
+            "signed mail will be shown unverified. ecr does not ship OpenPGP \
+             and keeps no keys of its own; install GnuPG and it will use your \
+             existing keyring and agent",
+        ),
+    }
+}
+
 fn managed_checks(paths: &MailPaths) -> Vec<Check> {
     use crate::managed::accounts::{plan, Accounts, State};
     use crate::packages::Packages;

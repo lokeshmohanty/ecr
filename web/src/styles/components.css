@@ -185,3 +185,83 @@
   padding-left: var(--safe-left);
   padding-right: var(--safe-right);
 }
+
+/*
+ * The OpenPGP badge, above the message.
+ *
+ * Six states share one shape and differ only in colour and wording, because
+ * the thing a reader has to be able to do is glance once. It sits above the
+ * body rather than beside the subject: a signature is a claim about *these
+ * bytes*, and a badge in the header would read as a claim about the sender,
+ * which is a different and much stronger thing to say.
+ *
+ * Each state uses an accent and its paired `-bg`, which every theme defines,
+ * rather than mixing a tint out of the foreground. A mix looks identical in
+ * the shipped palette and goes wrong in exactly the themes nobody screenshots.
+ */
+.pgp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.625rem;
+  border-radius: 4px;
+  border: 1px solid var(--color-rule);
+  background: var(--color-neutral-bg);
+  color: var(--color-ink-2);
+  font-size: 0.8125rem;
+  line-height: 1.2;
+}
+
+.pgp-badge-mark {
+  flex: none;
+  width: 3px;
+  align-self: stretch;
+  border-radius: 2px;
+  background: var(--color-ink-3);
+}
+
+/* Good, and only good, is reassuring. */
+.pgp-good {
+  border-color: var(--color-proved);
+  background: var(--color-proved-bg);
+  color: var(--color-ink);
+}
+.pgp-good .pgp-badge-mark {
+  background: var(--color-proved);
+}
+
+/*
+ * Expired and revoked take the amber, not the red: the message really was
+ * signed, by a key that is no longer current. Painting them as forgeries is a
+ * lie in the more dangerous direction — it makes the red state ordinary, and
+ * a red that is ordinary is a red nobody reads.
+ */
+.pgp-caution {
+  border-color: var(--color-obligation);
+  background: var(--color-obligation-bg);
+  color: var(--color-ink);
+}
+.pgp-caution .pgp-badge-mark {
+  background: var(--color-obligation);
+}
+
+/* A signature that does not match the bytes. The only alarming state. */
+.pgp-bad {
+  border-color: var(--color-blocking);
+  background: var(--color-blocking-bg);
+  color: var(--color-ink);
+}
+.pgp-bad .pgp-badge-mark {
+  background: var(--color-blocking);
+}
+
+/*
+ * A key nobody has, which is most signed mail, and encryption on its own.
+ * Deliberately the quietest of the six: it is a fact about the keyring, not
+ * about the message, and giving it an accent would put a coloured badge on
+ * ordinary mailing-list traffic until the badges stopped meaning anything.
+ */
+.pgp-quiet {
+  border-color: var(--color-rule);
+  background: transparent;
+}
