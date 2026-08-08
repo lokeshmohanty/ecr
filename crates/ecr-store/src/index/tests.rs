@@ -18,6 +18,7 @@ fn message(id: &str, thread: &str, timestamp: i64, subject: &str, tags: &[&str])
         references: Vec::new(),
         parts: Vec::new(),
         excluded: false,
+        filename: None,
     }
 }
 

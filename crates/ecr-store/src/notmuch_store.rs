@@ -75,6 +75,22 @@ impl NotmuchStore {
         self.index.as_ref().map(|index| index.status())
     }
 
+    /// Fills one batch of missing list previews. Answers how many it wrote.
+    ///
+    /// Separate from the refresh above, and deliberately not part of it: this
+    /// reads a *file* per message rather than copying what notmuch already
+    /// answered, which on a first build is tens of thousands of them. Doing it
+    /// inside the refresh would put a quarter of a minute of I/O in front of a
+    /// server that has not started listening, to fill a line of text under each
+    /// subject. Left to a caller with nothing waiting on it, and a row with no
+    /// preview yet is the row exactly as it was before previews existed.
+    pub fn fill_snippets(&self) -> Result<usize> {
+        match self.index.as_ref() {
+            Some(index) => index.fill_snippets(),
+            None => Ok(0),
+        }
+    }
+
     /// Builds or catches up the index, rebuilding it if that is what it takes.
     ///
     /// This is the caller that is allowed to be slow — a first build of a 46k

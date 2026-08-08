@@ -6,7 +6,7 @@ use rusqlite::Connection;
 /// a copy of something notmuch still holds, so rebuilding costs time and
 /// nothing else, and a migration path would be code that can only ever be
 /// wrong about mail it did not write.
-pub const VERSION: i64 = 2;
+pub const VERSION: i64 = 3;
 
 const DDL: &str = "
 CREATE TABLE meta (
@@ -23,7 +23,14 @@ CREATE TABLE messages (
     thread    TEXT NOT NULL,
     timestamp INTEGER NOT NULL,
     subject   TEXT NOT NULL,
-    author    TEXT NOT NULL
+    author    TEXT NOT NULL,
+    -- Where the file is, so a snippet can be read without asking notmuch
+    -- again. Free here: `notmuch show` already reports it.
+    path      TEXT,
+    -- The first line or two of the body. NULL means not read yet, which is
+    -- not the same as empty: a message really can have no text, and a row that
+    -- kept being retried would read every empty message on every pass.
+    snippet   TEXT
 );
 CREATE INDEX messages_thread ON messages (thread, timestamp);
 CREATE INDEX messages_timestamp ON messages (timestamp);

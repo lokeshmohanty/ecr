@@ -91,6 +91,14 @@ pub struct ThreadSummary {
     pub total: usize,
     pub tags: BTreeSet<String>,
     pub newest_message: Option<MessageId>,
+    /// The first line or two of the newest matched message.
+    ///
+    /// Absent means it has not been read yet, not that there is none — the
+    /// index fills these in the background, so a row that has just arrived
+    /// shows its sender and subject and gains a preview a moment later. Never
+    /// absent *because* the message is empty; that is an empty string.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub snippet: Option<String>,
 }
 
 impl ThreadSummary {
@@ -148,6 +156,12 @@ pub struct Message {
     pub references: Vec<String>,
     pub parts: Vec<PartMeta>,
     pub excluded: bool,
+    /// Where the file is, for the index alone.
+    ///
+    /// Never serialised: a client has no use for a path on the server's disk,
+    /// and every path in a maildir names a folder and an account.
+    #[serde(skip)]
+    pub filename: Option<std::path::PathBuf>,
 }
 
 impl Message {
@@ -364,6 +378,7 @@ mod tests {
             total: 1,
             tags: tags.iter().map(|t| t.to_string()).collect(),
             newest_message: None,
+            snippet: None,
         }
     }
 

@@ -51,6 +51,8 @@ tokio-rustls = "0.26.4"
 webpki-roots = "1.0.9"
 futures = "0.3.33"
 mail-send = { version = "0.6.1", default-features = false, features = ["ring", "tls12", "logging"] }
+vparser = "1.2.1"
+roxmltree = "0.21.1"
 
 [dev-dependencies]
 tempfile = "3"

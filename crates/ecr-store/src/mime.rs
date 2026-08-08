@@ -10,6 +10,10 @@ pub struct ParsedMessage {
     /// synthesise HTML from a text part, and serving that costs the client an
     /// iframe, a sandbox and a resize for a message with no markup in it.
     has_html_part: bool,
+    /// Whether it carries a real text/plain part. Without one, `text` is
+    /// mail-parser's flattening of the HTML, which runs block elements
+    /// together.
+    has_text_part: bool,
 }
 
 struct StoredPart {
@@ -33,6 +37,16 @@ pub fn parse(id: &str, raw: &[u8]) -> Result<ParsedMessage> {
         .iter()
         .any(|p| matches!(p.body, PartType::Html(_)));
 
+    // Whether there is a *real* text/plain part, as opposed to `body_text`
+    // answering with mail_parser's own flattening of the HTML. The two are
+    // indistinguishable from the outside and read very differently: the
+    // flattening runs block elements together, so `<div>one</div><div>two</div>`
+    // comes back as `onetwo`.
+    let has_text_part = parsed
+        .parts
+        .iter()
+        .any(|p| matches!(p.body, PartType::Text(_)));
+
     let mut parts = Vec::new();
     for (index, part) in parsed.parts.iter().enumerate() {
         if part.is_multipart() {
@@ -48,6 +62,7 @@ pub fn parse(id: &str, raw: &[u8]) -> Result<ParsedMessage> {
         html,
         text,
         has_html_part,
+        has_text_part,
     })
 }
 
@@ -138,6 +153,12 @@ impl ParsedMessage {
     /// True when the message carries real markup, not text dressed up as HTML.
     pub fn is_html(&self) -> bool {
         self.has_html_part
+    }
+
+    /// Whether [`Self::text`] is a part the sender wrote, rather than the
+    /// parser's flattening of the HTML one.
+    pub fn has_text_part(&self) -> bool {
+        self.has_text_part
     }
 
     pub fn body(&self, format: BodyFormat, ctx: &SanitizeContext) -> Body {

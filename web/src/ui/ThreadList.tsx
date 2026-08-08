@@ -7,7 +7,12 @@ import { windowRange } from "./window";
 import { isNarrow } from "./narrow";
 import { LONG_PRESS, drag, stillPressing, type Swipe } from "./row-gesture";
 
-const ROW_HEIGHT = 58;
+// Every row is exactly this tall, and the virtual scroller's arithmetic is
+// built on that — the height below is set from this constant, so the two cannot
+// drift. It leaves room for a third line of preview; a row whose preview the
+// index has not read yet simply has space at the bottom rather than a different
+// height, which is what keeps the scroll position honest.
+const ROW_HEIGHT = 76;
 
 export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
   const [scroller, setScroller] = createSignal<HTMLDivElement | null>(null);
@@ -458,6 +463,16 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
           >
             {props.thread.subject || "(no subject)"}
           </div>
+          {/*
+            The preview, once the index has read it. `--ink-3` is right here and
+            wrong for the subject above: this is the one part of a row that
+            really is furniture, there to be skimmed past.
+          */}
+          <Show when={props.thread.snippet}>
+            <div class="truncate-cell text-xs text-ink-3">
+              {props.thread.snippet}
+            </div>
+          </Show>
         </div>
       </div>
 

@@ -193,6 +193,7 @@ mod tests {
             references: vec!["older@example.com".to_string()],
             parts: Vec::new(),
             excluded: false,
+            filename: None,
         }
     }
 

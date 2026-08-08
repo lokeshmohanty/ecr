@@ -47,6 +47,11 @@ impl SearchItem {
             total: self.total,
             tags: self.tags.into_iter().collect(),
             newest_message,
+            // notmuch's search output carries no body, so a page answered by
+            // notmuch rather than the index has no previews. That is the
+            // fallback path — index off, or a query the index declines — and a
+            // row without a preview is the same row with one line less.
+            snippet: None,
         }
     }
 }
@@ -223,6 +228,7 @@ impl ShowMessage {
             references,
             parts: Vec::new(),
             excluded: self.excluded,
+            filename: self.filename.first().cloned(),
         })
     }
 }

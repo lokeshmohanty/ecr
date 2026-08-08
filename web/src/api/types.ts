@@ -29,6 +29,15 @@ export interface ThreadSummary {
   total: number;
   tags: string[];
   newest_message: string | null;
+  /**
+   * The first line or two of the newest matched message.
+   *
+   * Absent means the index has not read it yet, not that there is none — they
+   * are filled in the background, so a row that has just arrived shows its
+   * sender and subject and gains a preview a moment later. A message with no
+   * text at all is an empty string, which renders as no preview and is correct.
+   */
+  snippet?: string;
 }
 
 export interface Address {

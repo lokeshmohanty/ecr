@@ -1310,6 +1310,7 @@ dependencies = [
  "notify",
  "rand 0.10.2",
  "reqwest",
+ "roxmltree",
  "rusqlite",
  "serde",
  "serde_json",
@@ -1320,6 +1321,7 @@ dependencies = [
  "tokio-rustls",
  "toml 0.9.12+spec-1.1.0",
  "tracing",
+ "vparser",
  "webpki-roots",
 ]
 
@@ -3850,6 +3852,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "323c417e1d9665a65b263ec744ba09030cfb277e9daa0b018a4ab62e57bc8189"
 
 [[package]]
+name = "roxmltree"
+version = "0.21.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1964b10c76125c36f8afe190065a4bf9a87bf324842c05701330bba9f1cacbb"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "rsqlite-vfs"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5638,6 +5649,12 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "vparser"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b481ae1812f489c0d857c807e65c824348359e35a3b59b233a05d626aabe7164"
 
 [[package]]
 name = "vswhom"

@@ -17,6 +17,7 @@ mod freshness;
 mod plan;
 mod relative;
 mod schema;
+pub mod snippet;
 mod sync;
 
 use crate::error::Result;
@@ -178,6 +179,12 @@ impl MessageIndex {
     pub fn clear(&self) -> Result<()> {
         self.with(schema::reset)
     }
+
+    /// Fills a batch of missing previews. Answers how many, so a caller can
+    /// stop when there is nothing left.
+    pub fn fill_snippets(&self) -> Result<usize> {
+        self.with(snippet::fill)
+    }
 }
 
 fn meta(conn: &Connection, key: &str) -> Result<Option<String>> {
@@ -205,13 +212,23 @@ fn upsert(conn: &Connection, message: &Message) -> Result<()> {
         .unwrap_or_default();
 
     let num: i64 = conn.query_row(
-        "INSERT INTO messages (id, thread, timestamp, subject, author)
-              VALUES (?, ?, ?, ?, ?)
+        // The snippet is deliberately not written here. Reading it means
+        // opening the file, and a rebuild does this 46,000 times — thirteen
+        // seconds of I/O before parsing, in front of a server that has not
+        // started listening. `fill_snippets` does it afterwards, where nobody
+        // is waiting, and a row without one simply shows no preview.
+        //
+        // The path is kept on an update as well as an insert: a tag write
+        // renames the file, and a stale path is a snippet that can never be
+        // read again.
+        "INSERT INTO messages (id, thread, timestamp, subject, author, path)
+              VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT (id) DO UPDATE SET
               thread = excluded.thread,
               timestamp = excluded.timestamp,
               subject = excluded.subject,
-              author = excluded.author
+              author = excluded.author,
+              path = excluded.path
          RETURNING num",
         rusqlite::params![
             message.id.as_str(),
@@ -219,6 +236,10 @@ fn upsert(conn: &Connection, message: &Message) -> Result<()> {
             message.timestamp,
             message.subject,
             author,
+            message
+                .filename
+                .as_ref()
+                .map(|p| p.to_string_lossy().to_string()),
         ],
         |row| row.get(0),
     )?;
@@ -305,6 +326,7 @@ struct Row {
     subject: String,
     author: String,
     matched: bool,
+    snippet: Option<String>,
 }
 
 /// notmuch's thread subject is the **newest matched** message's, with one
@@ -344,7 +366,7 @@ fn summaries(conn: &Connection, plan: &plan::Plan, page: Vec<Page>) -> Result<Ve
     // fifty threads. Written as `num IN (SELECT … WHERE <predicate>)` it is
     // instead evaluated across the whole table to build the set first.
     let sql = format!(
-        "SELECT m.thread, m.id, m.subject, m.author, ({})
+        "SELECT m.thread, m.id, m.subject, m.author, ({}), m.snippet
            FROM messages m
           WHERE m.thread IN ({holes})
           ORDER BY m.thread, m.timestamp, m.num",
@@ -367,6 +389,7 @@ fn summaries(conn: &Connection, plan: &plan::Plan, page: Vec<Page>) -> Result<Ve
                 subject: row.get(2)?,
                 author: row.get(3)?,
                 matched: row.get(4)?,
+                snippet: row.get(5)?,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -399,6 +422,11 @@ fn summaries(conn: &Connection, plan: &plan::Plan, page: Vec<Page>) -> Result<Ve
                 total: rows.len(),
                 tags: tags.get(&entry.thread).cloned().unwrap_or_default(),
                 newest_message: matched.last().map(|row| row.id.as_str().into()),
+                // The newest matched message's, which is the one whose subject
+                // and authors are already being shown — a preview taken from a
+                // different message than the row describes reads as the wrong
+                // mail.
+                snippet: matched.last().and_then(|row| row.snippet.clone()),
             }
         })
         .collect())
