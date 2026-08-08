@@ -2,6 +2,7 @@ pub mod app;
 pub mod auth;
 pub mod error;
 pub mod events;
+pub mod idle;
 pub mod managed;
 pub mod routes;
 pub mod state;

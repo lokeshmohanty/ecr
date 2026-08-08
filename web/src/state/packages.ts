@@ -8,7 +8,14 @@
  */
 export type Management = "self" | "ecr";
 
-export const PACKAGE_IDS = ["notmuch", "mbsync", "msmtp", "vdirsyncer", "imapnotify"] as const;
+/**
+ * imapnotify and vdirsyncer used to be here. ecr does both jobs itself now — it
+ * holds an IMAP IDLE connection rather than supervising a process to do it, and
+ * talks CardDAV and CalDAV directly — so listing them would offer to manage a
+ * tool ecr no longer runs. A settings file that still names them parses fine:
+ * the server keeps unknown package ids rather than rejecting the file.
+ */
+export const PACKAGE_IDS = ["notmuch", "mbsync", "msmtp"] as const;
 
 export type PackageId = (typeof PACKAGE_IDS)[number];
 
@@ -23,8 +30,6 @@ export const PACKAGE_LABELS: Record<PackageId, { title: string; purpose: string;
   notmuch: { title: "notmuch", purpose: "indexes and tags mail", file: "notmuch/default/config" },
   mbsync: { title: "mbsync (isync)", purpose: "syncs IMAP to the maildir", file: "isyncrc" },
   msmtp: { title: "msmtp", purpose: "sends mail", file: "msmtp/config" },
-  vdirsyncer: { title: "vdirsyncer", purpose: "syncs contacts and calendars", file: "vdirsyncer/config" },
-  imapnotify: { title: "imapnotify", purpose: "push notification of new mail", file: "imapnotify/config.json" },
 };
 
 export const DEFAULT_PACKAGES: PackageSettings = Object.fromEntries(

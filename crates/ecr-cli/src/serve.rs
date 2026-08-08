@@ -83,6 +83,17 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
         }
     };
 
+    // Held for as long as the server runs; dropping the set aborts the watches.
+    // It is layered *above* the maildir watcher rather than replacing it: this
+    // says "go and look", the sync fetches, and the watcher is what notices what
+    // landed. So a server with no managed account, or one whose IMAP connection
+    // keeps dropping, behaves exactly as it did before this existed.
+    let _idle = if no_watch {
+        None
+    } else {
+        ecr_server::idle::spawn(state.clone())
+    };
+
     // A busy port is an ordinary, user-fixable situation. Reporting it as a
     // panic with a full backtrace buries the one line that matters.
     let listener = tokio::net::TcpListener::bind(bind)

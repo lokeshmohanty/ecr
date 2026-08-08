@@ -29,8 +29,12 @@ describe("defaults", () => {
   it("covers the tools ecr actually drives", () => {
     expect(PACKAGE_IDS).toContain("notmuch");
     expect(PACKAGE_IDS).toContain("mbsync");
-    expect(PACKAGE_IDS).toContain("vdirsyncer");
-    expect(PACKAGE_IDS).toContain("imapnotify");
+    expect(PACKAGE_IDS).toContain("msmtp");
+    // imapnotify and vdirsyncer were here. ecr holds its own IMAP IDLE
+    // connection and talks CardDAV and CalDAV itself, so offering to manage
+    // them would be offering to configure a tool it never runs.
+    expect(PACKAGE_IDS).not.toContain("imapnotify");
+    expect(PACKAGE_IDS).not.toContain("vdirsyncer");
   });
 });
 
@@ -79,7 +83,7 @@ describe("status reporting", () => {
   });
 
   it("flags a package that is not installed", () => {
-    const status = packageStatus(settings(), "vdirsyncer", { installed: false, version: null });
+    const status = packageStatus(settings(), "msmtp", { installed: false, version: null });
     expect(status.installed).toBe(false);
     expect(status.summary).toMatch(/not installed/i);
   });

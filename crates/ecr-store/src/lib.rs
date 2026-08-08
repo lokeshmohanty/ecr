@@ -4,6 +4,7 @@ pub mod compose;
 pub mod discovery;
 pub mod doctor;
 pub mod error;
+pub mod imap;
 pub mod index;
 pub mod managed;
 pub mod mbsync;

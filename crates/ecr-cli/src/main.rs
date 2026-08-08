@@ -210,6 +210,11 @@ enum AccountCommand {
     Apply,
 
     #[command(
+        about = "connect to an account's IMAP server and report how far it got. Reads nothing"
+    )]
+    Test { id: String },
+
+    #[command(
         about = "read the setup you already have into accounts.toml, showing what would change"
     )]
     Import {
@@ -440,6 +445,7 @@ async fn dispatch() -> anyhow::Result<()> {
             }),
             AccountCommand::Remove { id, keep_mail } => account::remove(&id, keep_mail),
             AccountCommand::Apply => account::apply(),
+            AccountCommand::Test { id } => account::test(&id).await,
             AccountCommand::Import { write } => account::import(write),
         },
 

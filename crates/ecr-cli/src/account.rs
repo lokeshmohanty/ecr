@@ -280,30 +280,14 @@ pub fn apply() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Reads the setup that is already working into `accounts.toml`.
+/// Builds the account model out of a setup ecr does not manage.
 ///
-/// Nothing is switched here. It writes the account file, shows what ecr *would*
-/// generate against what the tools read today, and stops — because the only
-/// honest way to ask somebody to hand over a working mail setup is to show them
-/// the diff first. `ecr account apply` is the separate step that acts on it.
-pub fn import(write: bool) -> anyhow::Result<()> {
-    let env = Env::from_process();
-    let settings = ecr_store::ServerSettings::load_from_env(&env);
-
-    // Deliberately resolved as if nothing were managed: what is being imported
-    // is the reader's own configuration, and a second import must not read back
-    // what the first one generated.
-    let paths = ecr_store::MailPaths::with_packages(&env, &settings, &Packages::default())?;
-    let discovered = ecr_store::discovery::accounts(&paths);
-
-    if discovered.is_empty() {
-        anyhow::bail!(
-            "no accounts were found under {}. There is nothing to import; \
-             `ecr account add` is the way in on a machine with no mail yet.",
-            paths.maildir_root.display()
-        );
-    }
-
+/// Shared by `import`, which shows it as a diff, and `test`, which dials it —
+/// so the question "will ecr reach this account" can be answered before
+/// anything is handed over. Answers the accounts and everything worth telling
+/// the reader about how they were read.
+fn derive(paths: &ecr_store::MailPaths) -> (ecr_core::managed::ManagedAccounts, Vec<String>) {
+    let discovered = ecr_store::discovery::accounts(paths);
     // Read out of the notmuch config rather than defaulted, both of them.
     // `exclude_tags` decides what every query in ecr returns and what the mail
     // index is built against — a setup with `trash` in it, regenerated without,
@@ -432,6 +416,33 @@ pub fn import(write: bool) -> anyhow::Result<()> {
              Set `primary = true` on the right one in accounts.toml.",
             primary_email.unwrap_or_default()
         ));
+    }
+
+    (accounts, notes)
+}
+
+/// Reads the setup that is already working into `accounts.toml`.
+///
+/// Nothing is switched here. It writes the account file, shows what ecr *would*
+/// generate against what the tools read today, and stops — because the only
+/// honest way to ask somebody to hand over a working mail setup is to show them
+/// the diff first. `ecr account apply` is the separate step that acts on it.
+pub fn import(write: bool) -> anyhow::Result<()> {
+    let env = Env::from_process();
+    let settings = ecr_store::ServerSettings::load_from_env(&env);
+
+    // Deliberately resolved as if nothing were managed: what is being imported
+    // is the reader's own configuration, and a second import must not read back
+    // what the first one generated.
+    let paths = ecr_store::MailPaths::with_packages(&env, &settings, &Packages::default())?;
+    let (accounts, notes) = derive(&paths);
+
+    if accounts.accounts.is_empty() {
+        anyhow::bail!(
+            "no accounts were found under {}. There is nothing to import; \
+             `ecr account add` is the way in on a machine with no mail yet.",
+            paths.maildir_root.display()
+        );
     }
 
     let holder = Accounts {
@@ -737,4 +748,55 @@ mod tests {
         let some = Packages::parse("[packages.mbsync]\nmanagement = \"ecr\"\n");
         assert_eq!(managed_line(&some), "ecr manages: mbsync");
     }
+}
+
+/// Connects to an account's IMAP server and reports how far it got.
+///
+/// Read-only in the strictest sense: it authenticates, lists folders and hangs
+/// up. Nothing is stored, no flag is set, no message is fetched.
+pub async fn test(id: &str) -> anyhow::Result<()> {
+    let env = Env::from_process();
+    let accounts = Accounts::load(&env)?;
+
+    // Falling back to the setup that is already working is the point, not a
+    // convenience: the question "will ecr be able to reach this account" is one
+    // worth answering *before* handing it anything, and on a self-managed
+    // machine there is no accounts.toml to look in yet.
+    let derived;
+    let account = match accounts.accounts.accounts.get(id) {
+        Some(account) => account,
+        None => {
+            let settings = ecr_store::ServerSettings::load_from_env(&env);
+            let paths = ecr_store::MailPaths::with_packages(&env, &settings, &Packages::default())?;
+            derived = derive(&paths).0;
+            derived.accounts.get(id).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "there is no account named {id:?}, in accounts.toml or in your own config"
+                )
+            })?
+        }
+    };
+
+    let paths = ecr_store::MailPaths::discover()?;
+    let probe = ecr_store::imap::probe(&paths.oauth_profiles(), account).await;
+
+    let mark = |ok: bool| if ok { "ok" } else { "--" };
+    println!("  {} reached the server", mark(probe.reached));
+    println!("  {} TLS", mark(probe.tls));
+    println!("  {} authenticated", mark(probe.authenticated));
+
+    if let Some(error) = &probe.error {
+        println!("\n  {error}");
+    }
+    if !probe.folders.is_empty() {
+        println!("\n  {} folders:", probe.folders.len());
+        for folder in probe.folders.iter().take(40) {
+            println!("    {folder}");
+        }
+    }
+
+    if !probe.ok() {
+        anyhow::bail!("this account cannot be reached as configured");
+    }
+    Ok(())
 }

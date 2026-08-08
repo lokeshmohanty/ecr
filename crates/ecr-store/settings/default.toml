@@ -70,13 +70,3 @@ config = ""
 [packages.msmtp]
 management = "self"
 config = ""
-
-# vdirsyncer — syncs contacts and calendars (vdirsyncer/config)
-[packages.vdirsyncer]
-management = "self"
-config = ""
-
-# imapnotify — push notification of new mail (imapnotify/config.json)
-[packages.imapnotify]
-management = "self"
-config = ""

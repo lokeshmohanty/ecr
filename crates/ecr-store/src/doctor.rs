@@ -208,6 +208,33 @@ fn managed_checks(paths: &MailPaths) -> Vec<Check> {
         return checks;
     };
 
+    // Push is worth stating rather than leaving to be inferred from mail
+    // arriving promptly. Without it, mail appears when something else fetches
+    // it — which on a laptop can be a long time.
+    let watched: Vec<&String> = accounts
+        .accounts
+        .enabled()
+        .filter(|(_, account)| account.imap().is_some())
+        .map(|(id, _)| id)
+        .collect();
+
+    checks.push(if watched.is_empty() {
+        Check::warn("imap push", "no account can be watched")
+            .with_hint("new mail appears when something syncs; give an account an IMAP host")
+    } else {
+        Check::ok(
+            "imap push",
+            format!(
+                "{} watched with IDLE",
+                watched
+                    .iter()
+                    .map(|id| id.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        )
+    });
+
     // Drift is the failure this whole check exists for: the reader edited
     // accounts.toml, or added one on another machine, and the files the tools
     // actually read are still the old ones. Nothing else in the system notices.
