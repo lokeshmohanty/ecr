@@ -435,10 +435,8 @@ export function createAppStore() {
 			.sort((a, b) => rank(a) - rank(b));
 	};
 
-	const [accounts] = createResource(
-		endpoint,
-		async (server) =>
-			server ? await api.accounts().catch(() => []) : ([] as Account[]),
+	const [accounts] = createResource(endpoint, async (server) =>
+		server ? await api.accounts().catch(() => []) : ([] as Account[]),
 	);
 
 	const [threads] = createResource(
@@ -483,20 +481,15 @@ export function createAppStore() {
 		},
 	);
 
-	const [addressBook] = createResource(
-		endpoint,
-		async (server) => {
-			if (!server) return [] as AddressEntry[];
-			const raw = await api.addresses().catch(() => []);
-			return raw
-				.map((a) =>
-					a.name
-						? parseAddress(`${a.name} <${a.email}>`)
-						: parseAddress(a.email),
-				)
-				.filter((a): a is AddressEntry => a !== null);
-		},
-	);
+	const [addressBook] = createResource(endpoint, async (server) => {
+		if (!server) return [] as AddressEntry[];
+		const raw = await api.addresses().catch(() => []);
+		return raw
+			.map((a) =>
+				a.name ? parseAddress(`${a.name} <${a.email}>`) : parseAddress(a.email),
+			)
+			.filter((a): a is AddressEntry => a !== null);
+	});
 
 	const [allTags] = createResource(
 		() => [endpoint(), revision()] as const,
@@ -730,20 +723,7 @@ export function createAppStore() {
 					await api.saveConfig(settingsSource());
 					return;
 				}
-				// The file is the shared half. This device's own half goes back
-				// over it, or the server would hand every client one theme.
-				const { settings: fromFile, errors } = fromToml(file.raw);
-				const parsed = withClient(fromFile);
-				saveSettings(parsed, file.raw);
-				setSettingsSignal(parsed);
-				setSettingsSource(file.raw);
-				setAllowRemote(parsed.preferences.loadRemoteImages);
-				// The status bar as well as lastError: lastError is only painted
-				// where the thread list would be, so with mail on screen a bad
-				// line in settings.toml would otherwise be discarded in silence —
-				// the one thing this file's design promises not to do.
-				if (errors.length > 0)
-					reportSettingsProblem(`${file.path}: ${errors[0]}`);
+				applyServerConfig(file.raw, file.path);
 			} catch {
 				// Offline, or an old server: the local copy stands.
 			} finally {
@@ -751,6 +731,29 @@ export function createAppStore() {
 			}
 		})();
 	});
+
+	/**
+	 * Parses and applies a settings file the server just handed back. Shared
+	 * between the initial load and a refetch after a managed-API write, which
+	 * edits the file on the server and leaves the local copy stale — the
+	 * Packages tab reads `settings()`, so without this it would show the
+	 * management value the managed route just replaced.
+	 */
+	function applyServerConfig(raw: string, path: string) {
+		const { settings: fromFile, errors } = fromToml(raw);
+		const parsed = withClient(fromFile);
+		saveSettings(parsed, raw);
+		setSettingsSignal(parsed);
+		setSettingsSource(raw);
+		setAllowRemote(parsed.preferences.loadRemoteImages);
+		if (errors.length > 0) reportSettingsProblem(`${path}: ${errors[0]}`);
+	}
+
+	/** Refetches the settings file after a managed route edits it server-side. */
+	async function refetchSettings() {
+		const file = await api.config();
+		applyServerConfig(file.raw, file.path);
+	}
 
 	// Tailwind compiles every utility to var(--color-*), so writing the theme's
 	// values onto the root element restyles the app without a component knowing
@@ -831,7 +834,11 @@ export function createAppStore() {
 
 	const [themeList] = createResource(
 		() => endpoint() || null,
-		async () => await api.themes().then((t) => t.presets).catch(() => []),
+		async () =>
+			await api
+				.themes()
+				.then((t) => t.presets)
+				.catch(() => []),
 	);
 
 	/**
@@ -931,7 +938,8 @@ export function createAppStore() {
 		if (rows.some((entry) => entry.row.id === row.id)) return;
 
 		const unread = (thread()?.messages ?? []).some(
-			(message) => message.id !== readMessage && message.tags.includes("unread"),
+			(message) =>
+				message.id !== readMessage && message.tags.includes("unread"),
 		);
 		const entry = {
 			index,
@@ -1821,6 +1829,8 @@ export function createAppStore() {
 		setStatus,
 		lastError,
 		settingsProblem,
+		setSettingsProblem,
+		refetchSettings,
 		pendingKeys,
 		setPendingKeys,
 		allowRemote,
