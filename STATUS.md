@@ -86,6 +86,48 @@ config: `primary_email`, `search.exclude_tags` losing `trash`, a dropped
 `CertificateFile`, `Create Near` becoming `Create Both`, and Gmail's `Patterns`
 replaced by the preset.
 
+### Filing, and the desktop pass (2026-08-09)
+
+Archiving and deleting now reach the server. They never did: notmuch keeps
+`unread`, `flagged` and `replied` as maildir flags, which mbsync sends, but
+`inbox` and `deleted` have no flag to live in — so filing stopped at a local
+tag and the message sat in the server's inbox. A generated `pre-new` hook moves
+files to match tags, before `notmuch new` scans, driven by *tags* rather than
+by what ecr did so a `notmuch tag` at a shell files identically.
+
+Three things about it are easy to get wrong and are pinned by tests:
+`Remove` propagates *mailbox* deletions, not message ones — the knob is
+`Expunge`, written as `far` for new accounts only; a moved file must lose its
+`,U=` infix, which encodes the UID of the folder it came *from*; and Gmail has
+nowhere to archive to, because `[Gmail]/All Mail` is a copy of everything ecr
+deliberately does not sync.
+
+Building the desktop client and looking at it found four bugs no Chrome suite
+could: the status bar painting hints over the settings message, a retired
+package (`vdirsyncer`, `imapnotify`) reported as a typo so the complaint never
+went away, the `,U=` infix above, and `just android` reporting a signature
+mismatch as a disconnected cable.
+
+### Two open items
+
+**Android is unverified on the device.** The phone carries the sideloaded
+v0.3.0 *release*, signed with the release key, so Android refuses a debug build
+over it. `adb uninstall dev.lokeshmohanty.ecr` is the only way through and it
+destroys that app's pairing and token, so it is the reader's call. The APK on
+disk also predates the last two fixes: `tauri::generate_context!` embeds
+`web/dist` at compile time, so it needs rebuilding after any web change.
+
+**`just visual`'s verdict is load-dependent.** Its states wait on fixed
+durations (700–1800ms), so under CPU contention the client has not settled when
+the screenshot is taken and unrelated states report phantom diffs —
+`08-marks-queued`, `21-list-range-selected`, `22-tag-prompt`,
+`29-mobile-selection` and `31-auth-refused` are the ones that move. On an idle
+machine the suite is stable at 33 unchanged. Two baseline approvals were
+corrupted this way before the cause was understood; the safe way to accept a
+targeted change is to copy those files from `current/`, because `--approve`
+re-renders and rewrites all 33. Replacing durations with conditions is the
+real fix and is not done.
+
 ### Still missing
 
 - **RSVP.** An invitation is rendered — what, when, where, who from — and a
