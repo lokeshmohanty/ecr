@@ -179,10 +179,17 @@ pub fn notmuch(accounts: &ManagedAccounts, layout: &Layout) -> String {
         }
         out.push_str(&format!("primary_email={}\n", primary.address));
 
-        let others: Vec<&str> = accounts
+        // Every account's address *and* every alias. notmuch uses `other_email`
+        // to decide what counts as the reader's own mail — a message to an
+        // alias that is missing here is one notmuch thinks was sent to somebody
+        // else, so `from:me` misses it and a reply quotes it as a stranger's.
+        let others: Vec<String> = accounts
             .enabled()
-            .map(|(_, a)| a.address.as_str())
+            .flat_map(|(_, a)| a.identities())
+            .map(|identity| identity.address)
             .filter(|a| *a != primary.address)
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
             .collect();
         if !others.is_empty() {
             out.push_str(&format!("other_email={};\n", others.join(";")));
@@ -246,6 +253,39 @@ pub fn post_new(accounts: &ManagedAccounts) -> String {
             out.push_str(&format!(
                 "notmuch tag +{}{unread} -- tag:new and path:\"{id}/{folder}/**\"\n",
                 role.tag()
+            ));
+        }
+        out.push('\n');
+    }
+
+    // The reader's own rules, before the fallback below. A rule that files mail
+    // somewhere has to run while `new` is still on it — that marker is what the
+    // fallback selects on, so anything tagged after it is cleared is invisible
+    // to these.
+    if !accounts.rules.is_empty() {
+        out.push_str("# Your rules, in the order they are written.\n");
+        for rule in &accounts.rules {
+            if !rule.problems().is_empty() {
+                continue;
+            }
+            if let Some(name) = &rule.name {
+                out.push_str(&format!("# {name}\n"));
+            }
+
+            let mut changes: Vec<String> = rule.add.iter().map(|t| format!("+{t}")).collect();
+            changes.extend(rule.remove.iter().map(|t| format!("-{t}")));
+            // Filed away means out of the inbox, unless the rule says otherwise:
+            // filing something and leaving it in the inbox is the one outcome
+            // nobody writes a rule for. `-new` is what stops the fallback below
+            // putting it back.
+            if !rule.keep_in_inbox {
+                changes.push("-new".to_string());
+            }
+
+            out.push_str(&format!(
+                "notmuch tag {} -- tag:new and ({})\n",
+                changes.join(" "),
+                rule.query.trim()
             ));
         }
         out.push('\n');
@@ -482,6 +522,28 @@ mod tests {
         assert!(config.new_tags.contains(&"new".to_string()));
     }
 
+    /// notmuch decides what counts as the reader's own mail from `other_email`.
+    /// An alias missing there is a message notmuch thinks was sent to somebody
+    /// else: `from:me` misses it, and a reply quotes it as a stranger's.
+    #[test]
+    fn every_alias_reaches_notmuchs_other_email() {
+        let mut accounts = accounts();
+        accounts.accounts.get_mut("work").unwrap().aliases = vec![ecr_core::managed::Identity {
+            address: "sales@corp.example".into(),
+            name: None,
+            signature: None,
+        }];
+
+        let config = NotmuchConfig::parse(&notmuch(&accounts, &layout()));
+        assert!(
+            config
+                .other_email
+                .contains(&"sales@corp.example".to_string()),
+            "{:?}",
+            config.other_email
+        );
+    }
+
     #[test]
     fn the_generated_notmuch_config_indexes_the_list_header() {
         let text = notmuch(&accounts(), &layout());
@@ -510,6 +572,77 @@ mod tests {
 
     /// The account tag has to be applied before `new` is cleared, or it matches
     /// nothing — the hook is one pass and the marker is what it selects on.
+    #[test]
+    fn a_rule_files_mail_and_takes_it_out_of_the_inbox() {
+        let mut accounts = accounts();
+        accounts.rules = vec![ecr_core::managed::Rule {
+            name: Some("Newsletters".into()),
+            query: "from:news@example.com".into(),
+            add: vec!["newsletter".into()],
+            remove: Vec::new(),
+            keep_in_inbox: false,
+        }];
+
+        let text = post_new(&accounts);
+        assert!(text.contains("# Newsletters"), "{text}");
+        assert!(
+            text.contains("notmuch tag +newsletter -new -- tag:new and (from:news@example.com)"),
+            "{text}"
+        );
+    }
+
+    /// A rule runs while `new` is still on the message. The fallback selects on
+    /// that marker, so a rule written after it was cleared would be invisible —
+    /// and a rule that files mail without clearing it would have the fallback
+    /// put it straight back in the inbox.
+    #[test]
+    fn rules_run_before_the_inbox_fallback() {
+        let mut accounts = accounts();
+        accounts.rules = vec![ecr_core::managed::Rule {
+            name: None,
+            query: "from:news@example.com".into(),
+            add: vec!["newsletter".into()],
+            remove: Vec::new(),
+            keep_in_inbox: false,
+        }];
+
+        let text = post_new(&accounts);
+        let rule = text.find("+newsletter").unwrap();
+        let fallback = text.find("Anything no rule above claimed").unwrap();
+        assert!(rule < fallback, "a rule ran after the fallback");
+    }
+
+    #[test]
+    fn a_rule_that_keeps_mail_in_the_inbox_does_not_clear_the_marker() {
+        let mut accounts = accounts();
+        accounts.rules = vec![ecr_core::managed::Rule {
+            name: None,
+            query: "from:boss@corp.example".into(),
+            add: vec!["important".into()],
+            remove: Vec::new(),
+            keep_in_inbox: true,
+        }];
+
+        let text = post_new(&accounts);
+        assert!(text.contains("notmuch tag +important -- tag:new"), "{text}");
+    }
+
+    /// `notmuch tag --batch` exits 0 on a malformed line and ignores it, so a
+    /// rule with a broken tag would silently do nothing forever.
+    #[test]
+    fn a_rule_that_cannot_work_is_left_out_of_the_hook() {
+        let mut accounts = accounts();
+        accounts.rules = vec![ecr_core::managed::Rule {
+            name: None,
+            query: "from:x@example.com".into(),
+            add: vec!["two words".into()],
+            remove: Vec::new(),
+            keep_in_inbox: false,
+        }];
+
+        assert!(!post_new(&accounts).contains("two words"));
+    }
+
     #[test]
     fn the_hook_clears_the_new_marker_last() {
         let text = post_new(&accounts());

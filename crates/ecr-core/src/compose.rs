@@ -38,6 +38,14 @@ pub struct Draft {
     pub in_reply_to: Option<String>,
     pub references: Vec<String>,
     pub attachments: Vec<Attachment>,
+    /// Which of the account's addresses this goes out as.
+    ///
+    /// Absent means the account's own. An alias is chosen by the composer, so
+    /// it travels with the draft rather than being decided at send time —
+    /// otherwise the address in the header the reader saw and the one the
+    /// server picks are two separate answers to the same question.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
 }
 
 impl Draft {
@@ -109,6 +117,9 @@ impl Draft {
             in_reply_to: Some(message.id.0.clone()),
             references,
             attachments: Vec::new(),
+            // Which address this goes out as is the composer's to decide: it
+            // needs the account's aliases, which a message does not carry.
+            from: None,
         }
     }
 
@@ -122,6 +133,7 @@ impl Draft {
             in_reply_to: None,
             references: Vec::new(),
             attachments: Vec::new(),
+            from: None,
         }
     }
 }

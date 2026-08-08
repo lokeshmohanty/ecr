@@ -326,7 +326,24 @@ pub async fn send(
         .find(|a| a.id.as_str() == request.account)
         .ok_or_else(|| ApiError::BadRequest(format!("no account named {}", request.account)))?;
 
-    let raw = ecr_store::compose::build(account, &request.draft)
+    // The addresses this account may send as. A draft naming anything else is
+    // refused rather than quietly rewritten to the account's own: a message
+    // going out as an address the reader did not choose is worse than one that
+    // does not go out at all.
+    let identities =
+        ecr_store::managed::accounts::Accounts::load_from(&state.store.paths().accounts_file())
+            .ok()
+            .and_then(|managed| {
+                managed.accounts.accounts.get(account.id.as_str()).map(|a| {
+                    a.identities()
+                        .into_iter()
+                        .map(|identity| identity.address)
+                        .collect::<Vec<_>>()
+                })
+            })
+            .unwrap_or_default();
+
+    let raw = ecr_store::compose::build_as(account, &request.draft, &identities)
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
     state.store.send(&account.id, &raw).await?;

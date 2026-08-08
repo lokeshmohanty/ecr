@@ -41,6 +41,67 @@ pub struct ManagedAccounts {
     /// every other part of ecr already calls an account by.
     #[serde(default, rename = "account")]
     pub accounts: BTreeMap<String, ManagedAccount>,
+    /// Tagging rules, applied to new mail in the order they are written.
+    ///
+    /// They become lines in the generated `post-new` hook, which is the only
+    /// place notmuch offers for this and the reason filters work at all in
+    /// managed mode. They run *before* the fallback that puts everything else
+    /// in the inbox, so a rule that files mail elsewhere keeps it out of there.
+    #[serde(default, rename = "rule", skip_serializing_if = "Vec::is_empty")]
+    pub rules: Vec<Rule>,
+}
+
+/// One tagging rule.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Rule {
+    /// What it is for, shown in the settings page and written above the line it
+    /// generates. Rules are read months after they are written.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// A notmuch query. It is combined with `tag:new`, so it only ever sees
+    /// mail that has just arrived — a rule cannot retag the whole database by
+    /// accident.
+    pub query: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub add: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub remove: Vec<String>,
+    /// Whether mail this rule matched should also land in the inbox.
+    ///
+    /// The default is no, because filing something and leaving it in the inbox
+    /// is the one outcome nobody writes a rule for.
+    #[serde(default)]
+    pub keep_in_inbox: bool,
+}
+
+impl Rule {
+    /// Anything that would make this rule do nothing, or do harm.
+    pub fn problems(&self) -> Vec<String> {
+        let mut out = Vec::new();
+
+        if self.query.trim().is_empty() {
+            out.push("a rule with no query would match every new message".into());
+        }
+        if self.add.is_empty() && self.remove.is_empty() && self.keep_in_inbox {
+            out.push(format!(
+                "the rule for {:?} changes no tags, so it does nothing",
+                self.query
+            ));
+        }
+        for tag in self.add.iter().chain(&self.remove) {
+            // The same validation `ecr-store` applies before writing tags, for
+            // the same reason: `notmuch tag --batch` exits 0 on a malformed
+            // line and silently ignores it.
+            if tag.trim().is_empty()
+                || tag.contains(char::is_whitespace)
+                || tag.starts_with('-')
+                || tag.starts_with('+')
+            {
+                out.push(format!("{tag:?} is not a tag notmuch will accept"));
+            }
+        }
+        out
+    }
 }
 
 fn default_exclude_tags() -> Vec<String> {
@@ -54,6 +115,7 @@ impl Default for ManagedAccounts {
             name: None,
             exclude_tags: default_exclude_tags(),
             accounts: BTreeMap::new(),
+            rules: Vec::new(),
         }
     }
 }
@@ -113,6 +175,17 @@ pub struct ManagedAccount {
     /// Where a folder that disappears from one side is removed from the other.
     #[serde(default)]
     pub remove: Sides,
+    /// Other addresses that deliver to this account and can be sent *as*.
+    ///
+    /// An alias is not another account: it shares the maildir, the credential
+    /// and the folders, and differs only in what goes on the `From:` line. A
+    /// reader with `me@work.example` and `first.last@work.example` has one
+    /// mailbox, and making them two accounts would sync it twice.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub aliases: Vec<Identity>,
+    /// Appended to a new message from this account, below the usual `-- `.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
     /// A CA bundle for mbsync, where the system's own is not where it looks.
     /// Carried across on import rather than dropped: a missing one is a TLS
     /// failure on every channel, out of a config that reads as complete.
@@ -143,6 +216,8 @@ impl ManagedAccount {
             smtp: None,
             folders: Folders::default(),
             patterns: Vec::new(),
+            aliases: Vec::new(),
+            signature: None,
             create: create_near(),
             expunge: Sides::default(),
             remove: Sides::default(),
@@ -173,6 +248,49 @@ impl ManagedAccount {
         } else {
             self.patterns.clone()
         }
+    }
+
+    /// Every address this account can send as, the primary one first.
+    ///
+    /// The order is what a composer's picker shows and what a reply falls back
+    /// to, so it is deliberately the account's own address first rather than
+    /// alphabetical: an alias is an exception, and an exception should not be
+    /// the default.
+    pub fn identities(&self) -> Vec<Identity> {
+        let mut out = vec![Identity {
+            address: self.address.clone(),
+            name: self.name.clone(),
+            signature: self.signature.clone(),
+        }];
+        out.extend(self.aliases.iter().cloned());
+        out
+    }
+
+    /// The identity a reply from this account should go out as.
+    ///
+    /// Whichever of its addresses the message was sent *to*, so a reply to mail
+    /// addressed to an alias comes from that alias — which is the whole reason
+    /// somebody has one. Falls back to the account's own address.
+    pub fn identity_for(&self, delivered_to: &[String]) -> Identity {
+        let addressed = |candidate: &str| {
+            delivered_to
+                .iter()
+                .any(|a| a.eq_ignore_ascii_case(candidate))
+        };
+
+        self.identities()
+            .into_iter()
+            .find(|identity| addressed(&identity.address))
+            .unwrap_or_else(|| self.identities().remove(0))
+    }
+
+    /// The signature for one of this account's identities.
+    pub fn signature_for(&self, identity: &Identity) -> Option<String> {
+        identity
+            .signature
+            .clone()
+            .or_else(|| self.signature.clone())
+            .filter(|s| !s.is_empty())
     }
 
     /// The OAuth profile behind this account, if it authenticates that way.
@@ -224,6 +342,19 @@ impl ManagedAccount {
         }
         out
     }
+}
+
+/// One address a message can be sent as.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Identity {
+    pub address: String,
+    /// The display name, when it differs from the account's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// A signature of its own. `None` takes the account's, which is not the
+    /// same as an empty string — that is an alias that deliberately has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
 }
 
 /// A maildir under the root, and a notmuch `path:` prefix. Neither tolerates a
@@ -664,6 +795,89 @@ mod tests {
         accounts.accounts.insert("bbb-on".into(), gmail());
 
         assert_eq!(accounts.primary().unwrap().0, "bbb-on");
+    }
+
+    /// A reply to mail addressed to an alias goes out as that alias. It is the
+    /// whole reason for having one, and getting it wrong tells the recipient
+    /// which of somebody's addresses is the real one.
+    #[test]
+    fn a_reply_is_sent_as_the_address_it_was_addressed_to() {
+        let mut account = gmail();
+        account.aliases = vec![Identity {
+            address: "sales@example.com".into(),
+            name: Some("Sales".into()),
+            signature: None,
+        }];
+
+        let chosen = account.identity_for(&["sales@example.com".into()]);
+        assert_eq!(chosen.address, "sales@example.com");
+        assert_eq!(chosen.name.as_deref(), Some("Sales"));
+
+        // Case is not part of an address's identity.
+        assert_eq!(
+            account.identity_for(&["SALES@Example.com".into()]).address,
+            "sales@example.com"
+        );
+    }
+
+    #[test]
+    fn mail_addressed_to_nothing_recognised_falls_back_to_the_account() {
+        let mut account = gmail();
+        account.aliases = vec![Identity {
+            address: "sales@example.com".into(),
+            name: None,
+            signature: None,
+        }];
+
+        let chosen = account.identity_for(&["someone-else@example.net".into()]);
+        assert_eq!(chosen.address, "alice@gmail.com");
+    }
+
+    /// The account's own address first, so a picker opens on the ordinary
+    /// answer: an alias is an exception, and an exception is not a default.
+    #[test]
+    fn the_accounts_own_address_leads_the_identities() {
+        let mut account = gmail();
+        account.aliases = vec![Identity {
+            address: "aaa@example.com".into(),
+            name: None,
+            signature: None,
+        }];
+
+        let identities = account.identities();
+        assert_eq!(identities[0].address, "alice@gmail.com");
+        assert_eq!(identities.len(), 2);
+    }
+
+    /// An alias with no signature of its own takes the account's; one with an
+    /// empty string has deliberately none, and must not inherit.
+    #[test]
+    fn a_signature_falls_back_to_the_accounts_unless_it_is_deliberately_empty() {
+        let mut account = gmail();
+        account.signature = Some("Alice".into());
+        account.aliases = vec![
+            Identity {
+                address: "quiet@example.com".into(),
+                name: None,
+                signature: Some(String::new()),
+            },
+            Identity {
+                address: "loud@example.com".into(),
+                name: None,
+                signature: Some("Sales team".into()),
+            },
+        ];
+
+        let identities = account.identities();
+        assert_eq!(
+            account.signature_for(&identities[0]).as_deref(),
+            Some("Alice")
+        );
+        assert_eq!(account.signature_for(&identities[1]), None);
+        assert_eq!(
+            account.signature_for(&identities[2]).as_deref(),
+            Some("Sales team")
+        );
     }
 
     #[test]

@@ -7,13 +7,43 @@ use ecr_core::compose::Draft;
 use mail_builder::MessageBuilder;
 
 pub fn build(account: &Account, draft: &Draft) -> Result<Vec<u8>> {
+    build_as(account, draft, &[])
+}
+
+/// The same, with the addresses this account is allowed to send as.
+///
+/// A draft naming a `from` that is not one of them is refused rather than
+/// quietly sent as the account's own: a message going out as an address the
+/// reader did not choose is worse than one that does not go out at all, and
+/// silently rewriting the sender is how a Bcc-shaped mistake happens.
+pub fn build_as(account: &Account, draft: &Draft, identities: &[String]) -> Result<Vec<u8>> {
     draft.is_sendable().map_err(|reason| Error::InvalidDraft {
         reason: reason.to_string(),
     })?;
 
-    let from = account.address.clone().ok_or_else(|| Error::InvalidDraft {
+    let own = account.address.clone().ok_or_else(|| Error::InvalidDraft {
         reason: format!("account {} has no address to send from", account.id),
     })?;
+
+    let from = match &draft.from {
+        None => own,
+        Some(chosen) if chosen.eq_ignore_ascii_case(&own) => own,
+        Some(chosen)
+            if identities
+                .iter()
+                .any(|known| known.eq_ignore_ascii_case(chosen)) =>
+        {
+            chosen.clone()
+        }
+        Some(chosen) => {
+            return Err(Error::InvalidDraft {
+                reason: format!(
+                    "{chosen:?} is not an address account {} can send as",
+                    account.id
+                ),
+            })
+        }
+    };
 
     let mut builder = MessageBuilder::new()
         .from(from.as_str())
@@ -97,6 +127,40 @@ mod tests {
 
     fn built(draft: &Draft) -> String {
         String::from_utf8(build(&account(), draft).unwrap()).unwrap()
+    }
+
+    /// A message must never go out as an address the reader did not choose.
+    /// Silently rewriting the sender to the account's own is the failure that
+    /// tells a recipient which of somebody's addresses is the real one.
+    #[test]
+    fn a_from_that_is_not_one_of_the_accounts_addresses_is_refused() {
+        let draft = Draft {
+            from: Some("someone-else@example.net".into()),
+            ..draft()
+        };
+
+        let err = build_as(&account(), &draft, &["alias@example.com".into()])
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("someone-else@example.net"), "{err}");
+    }
+
+    #[test]
+    fn an_alias_the_account_owns_is_what_goes_on_the_from_line() {
+        let draft = Draft {
+            from: Some("alias@example.com".into()),
+            ..draft()
+        };
+
+        let raw = build_as(&account(), &draft, &["alias@example.com".into()]).unwrap();
+        let text = String::from_utf8_lossy(&raw).to_string();
+        assert!(text.contains("alias@example.com"), "{text}");
+    }
+
+    #[test]
+    fn a_draft_naming_no_identity_goes_out_as_the_account() {
+        let raw = build_as(&account(), &draft(), &[]).unwrap();
+        assert!(String::from_utf8_lossy(&raw).contains("alice@example.com"));
     }
 
     #[test]
