@@ -2,102 +2,69 @@
 
 Volatile state. Durable knowledge belongs in `docs/`.
 
-## ecr-managed mode, phase 2 done (2026-08-07)
+## ecr-managed mode (2026-08-08)
 
-ecr is growing an opt-in mode where it *generates* the configuration for the
-tools it drives, from accounts it holds itself, rather than only reading what
-the machine already has. Six phases; phases 0–2 have landed.
+ecr can now generate the configuration for the tools it drives, from accounts
+it holds itself, instead of only reading a setup somebody else wrote. Opt-in
+per tool; thirteen commits on main.
 
-Managed mode is now reachable from the client: the Accounts tab in the settings
-pane toggles a package to `ecr`, adds and removes accounts, and regenerates the
-files. The resolution change in `paths.rs` means `management = "ecr"` actually
-works — notmuch, mbsync and msmtp resolve through ecr's generated config instead
-of the reader's own. `operations.md` now describes it.
+**Verified end to end.** `just check` passed fmt, clippy, 547 Rust tests, tsc,
+618 web tests, 28 e2e tests, and all five browser suites — `verify`,
+`verify-compose`, `verify-view`, `verify-marks` and `verify-ux`. The visual
+suite is the one thing outstanding: 23 of 33 states changed by 0.22–0.74%, each
+explained by the three deliberate UI changes, and **the baselines are not
+approved** — that is a judgement about how the client should look, and approving
+bakes in whatever else happens to be in the tree.
 
-Phase 2 (done): the server routes (`GET/POST/PUT/DELETE /api/v1/managed/*`),
-the web UI (`AccountsSettings.tsx`, mounted as an Accounts tab in the settings
-pane), the resolution change (`paths.rs` candidates prepends the managed config
-when a package is managed), and the doctor checks (which tools are managed, the
-state of each rendered file). `ecr account import` reads an existing
-self-managed setup into `accounts.toml` and shows the diff before anything is
-switched — the migration path. `ecr notmuch <args>` is the passthrough that
-lets a managed notmuch config be reached by hand. A password command over HTTP
-is refused (it is arbitrary code the server would run); an existing account
-keeps its Command auth when edited. The API refuses to invent a maildir root.
+Also verified read-only against the live four-account setup: `ecr account
+import` reproduces it, `ecr account test main` reaches Gmail over IMAP,
+authenticates and lists 40 folders, and reaches SMTP on 465 and authenticates.
+Nothing was sent and nothing was written.
 
-Phases 0–3 are done; 4, 5 and 6 are not started. **The visual baselines are not
-approved** — 23 of 33 states changed by 0.22–0.74%, every one of them explained
-by the three UI changes below, and approving them would bake the rest of this
-uncommitted tree into the baselines.
+What ecr runs is now two external tools rather than four. mbsync and notmuch
+stay — bidirectional sync is the one place a bug costs somebody their mail, and
+notmuch's search semantics are what the whole query language means. imapnotify
+is replaced by an IMAP IDLE connection ecr holds itself, msmtp by direct SMTP
+for managed accounts, and vdirsyncer by a CardDAV/CalDAV client that writes the
+same vdir khard and khal read.
 
-Phase 2 (done): managed configs resolve at step 0 of `Env::candidates`, and only
-for a package set to `ecr`; a file shadowed by a managed one is reported as
-*yours, unused* rather than as a stale copy to delete; `ecr init` offers the
-choice and points at `ecr account import` or `ecr account add` rather than
-writing a notmuch config managed mode would immediately outrank.
+Four bugs that only running things found, each now pinned by a test named after
+it: msmtp's `from` is an envelope sender, so a display name there is read back
+as the address; an mbsync `Patterns` entry with brackets is a character class,
+so `![Gmail]/Important` unquoted excluded a folder called `G/Important` and
+synced Gmail's duplicate of everything; `async_imap::Client::new` does not
+consume the server greeting, so every command afterwards is one response behind
+and the connection hangs with no error at all; and `text_bodies()` counts an
+HTML part as a text body and hands back its *source*, so list previews were
+`<!DOCTYPE html PUBLIC …` under one subject after another.
 
-Phase 3 (done): `/api/v1/managed` — view, create, update, remove, apply, and the
-management switch — plus an **Accounts** tab in settings. Every write regenerates
-the files, because an account saved and not applied is one the tools cannot see
-and the client cannot tell. Setting a password *command* is refused over HTTP and
-possible only at a terminal: it is a command the server would run, and the
-credential for the API is a bearer token on a phone. All of it is anchored to the
-`MailPaths` the server was opened with, never `Env::from_process()` — in a rooted
-test that would write the developer's own settings file.
+`ecr account import` also caught five things it would otherwise have changed
+silently on the live setup — `primary_email`, `search.exclude_tags` losing
+`trash`, a dropped `CertificateFile`, `Create Near` becoming `Create Both`, and
+Gmail's `Patterns` replaced by the preset. All five are carried across now.
 
-UI pass so far: the thread list's subject was `--ink-3`, which the house palette
-reserves for labels and furniture, so a subject read as dimmer than its sender —
-the opposite of every client ecr is meant to replace. It is `--ink-2`, and bolds
-with the sender when unread. Attachments show a marker from the tag notmuch
-already sets. Sidebar icons sit in a fixed-width slot, because the glyphs are the
-reader's (a saved query carries its own in settings.toml) and left to size
-themselves they started every label at a different place.
+### Not built
 
-Phase 1 (done, unreleased): `ecr account add|list|remove|apply` writes
-`~/.config/ecr/accounts.toml` and generates four files under
-`~/.config/ecr/managed/` — an isyncrc, an msmtp config, a notmuch config and its
-`post-new` hook. Provider presets for gmail, outlook, fastmail and generic carry
-the endpoints, the folder names and the sync patterns. Adding the first account
-is what turns managed mode on, through the same `[packages.*]` switch the
-settings page uses.
+- **Contacts and calendar are a client, not a feature.** `ecr-store/src/dav.rs`
+  lists and fetches collections and writes a vdir. Nothing calls it: the account
+  model carries no DAV endpoints, there is no service discovery, no sync runs,
+  contacts do not reach compose autocomplete, and `text/calendar` parts are
+  still not rendered — no invitations, no RSVP, no reminders.
+- **The identity picker.** Aliases, signatures and the send-as guard are in the
+  model, the renderers and the send route; the composer has no control to choose
+  one, so a reply still goes out as the account's own address.
+- **A rules editor.** Rules render into the `post-new` hook from
+  `accounts.toml`; there is no UI for them.
+- Everything else in `docs/content/parity.md`, which is the honest list.
 
-Two bugs the renderers had, both caught by running the command rather than by a
-test: `from Name <addr>` in msmtp, where `from` is the envelope sender and a
-display name is not an address; and `![Gmail]/Important` unquoted, where the
-brackets are a character class, so the exclusion missed and Gmail's duplicate
-copy of every message would have synced. Both are pinned now.
+### Worth knowing
 
-`Expunge` defaults to `None`, deliberately — ecr expresses deletion as a tag and
-never unlinks a message file, so there is nothing local waiting to propagate, and
-a reader who has not asked for deletions to cross the network should not find out
-that they do.
-
-`accounts.toml` is rewritten whole by the account commands, so comments in it do
-not survive; `toml_edit` would fix that and is not worth it until someone minds.
-
-Phase 0 (done): `ConfigSource::Managed`; `ecr_store::packages` reading
-`[packages.*]` out of the shared settings file, answering `self` on every
-failure; `ecr_store::managed::write`, which is ecr whole licence to touch a
-config file — atomic, 0600, `# ecr-hash:` over the body, hand-edits backed up
-rather than clobbered, identical bodies not rewritten. `ServerSettings` now
-resolves through an `Env` rather than `dirs::config_dir()`; that was harmless
-while the file only named paths a rooted test overrode anyway, and is not
-harmless now that managed mode reads which files ecr owns from that directory
-and then writes them.
-
-The settings schema stays in TypeScript and the server reads one section of it,
-so the two are pinned by `crates/ecr-store/tests/data/settings.generated.toml`
-— written by `web/src/state/settings/fixture.test.ts` as a file snapshot,
-parsed by `crates/ecr-store/tests/packages_fixture.rs`. Update it with
-`pnpm test -u`. It is a snapshot rather than an `fs.readFileSync` because the
-web tests carry no `@types/node`, and adding it would mean recomputing
-`pnpmDeps.hash` for a test helper.
-
-Decided, and not yet built: mbsync and notmuch stay external binaries and ecr
-still ships neither; msmtp and imapnotify are replaced by ecr's own SMTP and
-IMAP IDLE, so managed mode ends with two external tools rather than four.
-vdirsyncer is replaced by `libdav` — CalDAV and CardDAV in process — writing a
-vdir that khard and khal can still read.
+The disk filled during this work — `target/` reached 73G and `/` hit 100%,
+which surfaced first as `cargo test` failing to link and then as a chromium
+fetch stalling, neither of which looks like a disk problem.
+`target/debug/incremental` was 14G of pure cache and was deleted; `target/` is
+back to 64G with 8G free. `cargo clean` is the obvious reclaim if it bites
+again.
 
 ## Where things stand (2026-08-03)
 
