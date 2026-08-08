@@ -4,67 +4,57 @@ Volatile state. Durable knowledge belongs in `docs/`.
 
 ## ecr-managed mode (2026-08-08)
 
-ecr can now generate the configuration for the tools it drives, from accounts
-it holds itself, instead of only reading a setup somebody else wrote. Opt-in
-per tool; thirteen commits on main.
+ecr generates the configuration for the tools it drives, from accounts it holds
+itself, instead of only reading a setup somebody else wrote. Opt-in per tool.
 
-**Verified end to end.** `just check` passed fmt, clippy, 547 Rust tests, tsc,
-618 web tests, 28 e2e tests, and all five browser suites — `verify`,
-`verify-compose`, `verify-view`, `verify-marks` and `verify-ux`. The visual
-suite is the one thing outstanding: 23 of 33 states changed by 0.22–0.74%, each
-explained by the three deliberate UI changes, and **the baselines are not
-approved** — that is a judgement about how the client should look, and approving
-bakes in whatever else happens to be in the tree.
+**`just check` is green**: fmt, clippy, 564 Rust tests, tsc, 618 web tests, 28
+e2e tests, all five browser suites, and 33 of 33 visual states unchanged against
+approved baselines.
 
-Also verified read-only against the live four-account setup: `ecr account
-import` reproduces it, `ecr account test main` reaches Gmail over IMAP,
-authenticates and lists 40 folders, and reaches SMTP on 465 and authenticates.
+Verified read-only against the live four-account setup: `ecr account import`
+reproduces it, and `ecr account test main` reaches Gmail over IMAP,
+authenticates, lists 40 folders, then reaches SMTP on 465 and authenticates.
 Nothing was sent and nothing was written.
 
-What ecr runs is now two external tools rather than four. mbsync and notmuch
-stay — bidirectional sync is the one place a bug costs somebody their mail, and
-notmuch's search semantics are what the whole query language means. imapnotify
-is replaced by an IMAP IDLE connection ecr holds itself, msmtp by direct SMTP
-for managed accounts, and vdirsyncer by a CardDAV/CalDAV client that writes the
-same vdir khard and khal read.
+**Two external tools, not four.** mbsync and notmuch stay — bidirectional sync
+is the one place a bug costs somebody their mail, and notmuch's search semantics
+are what the query language means. imapnotify is replaced by an IMAP IDLE
+connection ecr holds itself; msmtp by direct SMTP for managed accounts;
+vdirsyncer by a CardDAV/CalDAV client writing the vdir khard and khal read.
 
-Four bugs that only running things found, each now pinned by a test named after
-it: msmtp's `from` is an envelope sender, so a display name there is read back
-as the address; an mbsync `Patterns` entry with brackets is a character class,
-so `![Gmail]/Important` unquoted excluded a folder called `G/Important` and
-synced Gmail's duplicate of everything; `async_imap::Client::new` does not
-consume the server greeting, so every command afterwards is one response behind
-and the connection hangs with no error at all; and `text_bodies()` counts an
-HTML part as a text body and hands back its *source*, so list previews were
-`<!DOCTYPE html PUBLIC …` under one subject after another.
+Five bugs that only running things found, each pinned by a test named after it:
+msmtp's `from` is an envelope sender, so a display name there is read back as
+the address; a bracketed mbsync `Patterns` entry is a character class, so
+`![Gmail]/Important` unquoted excluded a folder called `G/Important` and synced
+Gmail's duplicate of everything; `async_imap::Client::new` does not consume the
+server greeting, so every command after it is one response behind and the
+connection hangs with no error; `text_bodies()` counts an HTML part as a text
+body and returns its *source*, so list previews were `<!DOCTYPE html PUBLIC …`;
+and `body_text` quietly answers with mail-parser's own flattening, which runs
+block elements together into `onetwo`.
 
-`ecr account import` also caught five things it would otherwise have changed
-silently on the live setup — `primary_email`, `search.exclude_tags` losing
-`trash`, a dropped `CertificateFile`, `Create Near` becoming `Create Both`, and
-Gmail's `Patterns` replaced by the preset. All five are carried across now.
+`ecr account import` caught five more it would have changed silently on the live
+config: `primary_email`, `search.exclude_tags` losing `trash`, a dropped
+`CertificateFile`, `Create Near` becoming `Create Both`, and Gmail's `Patterns`
+replaced by the preset.
 
-### Not built
+### Still missing
 
-- **Contacts and calendar are a client, not a feature.** `ecr-store/src/dav.rs`
-  lists and fetches collections and writes a vdir. Nothing calls it: the account
-  model carries no DAV endpoints, there is no service discovery, no sync runs,
-  contacts do not reach compose autocomplete, and `text/calendar` parts are
-  still not rendered — no invitations, no RSVP, no reminders.
-- **The identity picker.** Aliases, signatures and the send-as guard are in the
-  model, the renderers and the send route; the composer has no control to choose
-  one, so a reply still goes out as the account's own address.
-- **A rules editor.** Rules render into the `post-new` hook from
-  `accounts.toml`; there is no UI for them.
-- Everything else in `docs/content/parity.md`, which is the honest list.
+- **RSVP.** An invitation is rendered — what, when, where, who from — and a
+  cancellation says so. Answering one writes to somebody else's calendar and has
+  to be right about time zones, recurrence and delegation, so the card says it
+  is not wired up rather than half working.
+- **DAV for password accounts.** `sync-dav` handles OAuth only.
+- Templates, snooze/send-later/undo-send (one send queue), folder management and
+  message moves, a unified-inbox row, vacation responder, PGP, offline. All in
+  `docs/content/parity.md`, which is the honest list.
 
 ### Worth knowing
 
-The disk filled during this work — `target/` reached 73G and `/` hit 100%,
-which surfaced first as `cargo test` failing to link and then as a chromium
-fetch stalling, neither of which looks like a disk problem.
-`target/debug/incremental` was 14G of pure cache and was deleted; `target/` is
-back to 64G with 8G free. `cargo clean` is the obvious reclaim if it bites
-again.
+The disk hit 100% mid-session — `target/` reached 73G — and it surfaced first as
+`cargo test` failing to link and then as a chromium fetch stalling, neither of
+which looks like a disk problem. `target/debug/incremental` is pure cache and
+was deleted.
 
 ## Where things stand (2026-08-03)
 
