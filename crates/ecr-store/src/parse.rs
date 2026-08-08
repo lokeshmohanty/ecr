@@ -10,6 +10,13 @@ pub struct NotmuchConfig {
     pub user_name: Option<String>,
     pub exclude_tags: Vec<String>,
     pub new_tags: Vec<String>,
+    /// `maildir.synchronize_flags`, and `None` when the file does not say.
+    ///
+    /// Three-valued on purpose. notmuch's own default is *true*, so an absent
+    /// key and an explicit `false` mean opposite things, and collapsing them
+    /// into a bool would have ecr report a setup as local-only whenever the
+    /// reader simply had not written the line — which is nearly every setup.
+    pub synchronize_flags: Option<bool>,
 }
 
 impl NotmuchConfig {
@@ -40,6 +47,17 @@ impl NotmuchConfig {
                 ("user", "name") => cfg.user_name = non_empty(value),
                 ("search", "exclude_tags") => cfg.exclude_tags = split_list(value),
                 ("new", "tags") => cfg.new_tags = split_list(value),
+                // notmuch accepts several spellings for a boolean here, and
+                // the one that matters is the negative: an unrecognised value
+                // must not read as `false`, or a typo silently reports a
+                // healthy setup as one where nothing reaches the server.
+                ("maildir", "synchronize_flags") => {
+                    cfg.synchronize_flags = match value.trim().to_ascii_lowercase().as_str() {
+                        "true" | "yes" | "1" => Some(true),
+                        "false" | "no" | "0" => Some(false),
+                        _ => None,
+                    }
+                }
                 _ => {}
             }
         }

@@ -4,6 +4,7 @@ use crate::paths::{Env, MailPaths};
 use crate::settings::ServerSettings;
 use crate::tools;
 use ecr_core::doctor::{Check, ConfigKind, ConfigSource, Doctor, ResolvedConfig, ToolInfo};
+use ecr_core::managed::{ManagedAccounts, Sides};
 
 pub async fn run() -> Doctor {
     let env = Env::from_process();
@@ -51,6 +52,14 @@ pub async fn run_with_paths(paths: &MailPaths) -> Doctor {
     checks.extend(configs.iter().map(config_check));
     checks.extend(configs.iter().filter_map(shadow_check));
     checks.push(pgp_check());
+    // Read from the accounts file when there is one, so a managed account that
+    // has been told removals may cross is not warned about. A self-managed
+    // setup gets the notmuch half, which is the half that decides whether
+    // anything crosses at all.
+    let managed_accounts = crate::managed::accounts::Accounts::load_from(&paths.accounts_file())
+        .ok()
+        .map(|loaded| loaded.accounts);
+    checks.push(tag_sync_check(paths, managed_accounts.as_ref()));
     checks.extend(managed_checks(paths));
 
     checks.push(if paths.maildir_root.is_dir() {
@@ -177,6 +186,76 @@ fn pgp_check() -> Check {
              existing keyring and agent",
         ),
     }
+}
+
+/// What actually reaches the server when you read, archive or delete something.
+///
+/// This check exists because the answer is counter-intuitive and nothing else
+/// in ecr says it. notmuch synchronises *maildir flags*, so `unread`,
+/// `flagged` and `replied` cross the network by themselves — they are `S`, `F`
+/// and `R` on the filename, and mbsync sends them as `\Seen`, `\Flagged` and
+/// `\Answered`.
+///
+/// **`inbox` and `archive` are not flags.** They are notmuch tags and nothing
+/// else, so archiving in ecr renames no file and mbsync has nothing to send.
+/// The message stays in the inbox on the server.
+///
+/// **`deleted` is the `T` flag**, sent as `\Deleted` — and with `Expunge None`
+/// nothing ever acts on it. On Gmail in particular `\Deleted` alone is
+/// invisible: the message stays in the inbox and in All Mail.
+///
+/// Both are defensible as a local-first reading workflow. Neither is
+/// defensible unsaid: somebody who deletes a hundred messages and finds them
+/// all still in Gmail an hour later has been misled by silence.
+///
+/// It runs for a self-managed setup too, and that is the point — the reader's
+/// own notmuch config is where `synchronize_flags` lives, and a setup with it
+/// switched off is one where *nothing at all* crosses, including marking
+/// something read.
+fn tag_sync_check(paths: &MailPaths, accounts: Option<&ManagedAccounts>) -> Check {
+    const NAME: &str = "tags on sync";
+
+    // Explicitly off is the loud case: not even reading a message reaches the
+    // server, so every device shows a different idea of what has been read.
+    // Absent is not the same thing — notmuch's own default is true, and
+    // treating a missing line as off would condemn nearly every setup.
+    if paths.notmuch_config.synchronize_flags == Some(false) {
+        return Check::warn(
+            NAME,
+            "maildir.synchronize_flags is off, so nothing reaches the server",
+        )
+        .with_hint(
+            "not even marking a message read: notmuch will not rename the file, \
+             so mbsync has no change to send and every other device keeps its \
+             own idea of what you have read. Set `synchronize_flags=true` under \
+             `[maildir]`",
+        );
+    }
+
+    let removals_propagate = accounts.is_some_and(|accounts| {
+        accounts
+            .enabled()
+            .any(|(_, account)| matches!(account.remove, Sides::Far | Sides::Both))
+    });
+
+    if removals_propagate {
+        return Check::ok(
+            NAME,
+            "read, flagged and replied cross as maildir flags; removals propagate",
+        );
+    }
+
+    Check::warn(
+        NAME,
+        "read, flagged and replied reach the server; archive and delete do not",
+    )
+    .with_hint(
+        "notmuch syncs maildir flags, and `inbox` is not one — archiving renames \
+         no file, so the message stays in the server's inbox. `deleted` is the T \
+         flag, sent as \\Deleted, which Gmail ignores unless it is expunged. This \
+         is safe and it is local-only; ecr will not remove mail from a server \
+         you have not told it to",
+    )
 }
 
 fn managed_checks(paths: &MailPaths) -> Vec<Check> {
@@ -510,6 +589,30 @@ mod tests {
     use std::fs;
     use std::path::Path;
 
+    /// A `MailPaths` with nothing in it but a notmuch config, for the checks
+    /// that only read one field of it.
+    fn paths_with_flags(synchronize_flags: Option<bool>) -> (tempfile::TempDir, MailPaths) {
+        let home = tempfile::tempdir().unwrap();
+        let root = home.path().join("Mail");
+        fs::create_dir_all(root.join("cur")).unwrap();
+
+        let config = home.path().join(".config/notmuch/default");
+        fs::create_dir_all(&config).unwrap();
+        let flags = match synchronize_flags {
+            Some(value) => format!("[maildir]\nsynchronize_flags={value}\n"),
+            None => String::new(),
+        };
+        fs::write(
+            config.join("config"),
+            format!("[database]\npath={}\n{flags}", root.display()),
+        )
+        .unwrap();
+
+        let paths =
+            MailPaths::with(&Env::rooted_at(home.path()), &ServerSettings::default()).unwrap();
+        (home, paths)
+    }
+
     fn maildir(root: &Path, relative: &str) {
         for leaf in ["cur", "new", "tmp"] {
             fs::create_dir_all(root.join(relative).join(leaf)).unwrap();
@@ -710,5 +813,82 @@ mod tests {
 
         assert!(text.contains("FAIL"));
         assert!(text.contains("NOT healthy"));
+    }
+
+    /// The check that exists because the answer is counter-intuitive and
+    /// nothing else in ecr says it. Somebody who deletes a hundred messages
+    /// and finds them all still in Gmail an hour later has been misled by
+    /// silence.
+    #[test]
+    fn local_only_filing_is_named_rather_than_left_to_be_discovered() {
+        use ecr_core::managed::{Auth, ManagedAccount, Provider};
+
+        let mut accounts = ManagedAccounts::default();
+        accounts.accounts.insert(
+            "main".into(),
+            ManagedAccount::new("a@example.com", Provider::Gmail, Auth::oauth("main")),
+        );
+
+        let (_home, paths) = paths_with_flags(Some(true));
+        let check = tag_sync_check(&paths, Some(&accounts));
+        assert_eq!(check.status, ecr_core::doctor::CheckStatus::Warn);
+        // The two that do work, and the two that do not, both named — a
+        // warning that only says "something is wrong" sends somebody to
+        // re-check the flags that were never the problem.
+        assert!(check.detail.contains("read"), "{}", check.detail);
+        assert!(check.detail.contains("archive"), "{}", check.detail);
+        assert!(check.detail.contains("delete"), "{}", check.detail);
+    }
+
+    /// An account that has been told removals may cross is not warned about,
+    /// because for that one they do.
+    #[test]
+    fn an_account_that_propagates_removals_is_not_warned_about() {
+        use ecr_core::managed::{Auth, ManagedAccount, Provider, Sides};
+
+        let mut account =
+            ManagedAccount::new("a@example.com", Provider::Gmail, Auth::oauth("main"));
+        account.remove = Sides::Far;
+
+        let mut accounts = ManagedAccounts::default();
+        accounts.accounts.insert("main".into(), account);
+
+        let (_home, paths) = paths_with_flags(Some(true));
+        assert_eq!(
+            tag_sync_check(&paths, Some(&accounts)).status,
+            ecr_core::doctor::CheckStatus::Ok
+        );
+    }
+
+    /// The loud case, and the one nothing else would ever surface: with flag
+    /// synchronisation off, not even marking a message read reaches the
+    /// server, so every device keeps its own idea of what has been read.
+    #[test]
+    fn flag_synchronisation_switched_off_is_reported_as_nothing_crossing() {
+        let (_home, paths) = paths_with_flags(Some(false));
+        let check = tag_sync_check(&paths, None);
+
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(check.detail.contains("nothing reaches"), "{}", check.detail);
+        assert!(
+            check.hint.as_deref().unwrap_or("").contains("read"),
+            "the hint should say that even reading does not cross"
+        );
+    }
+
+    /// notmuch's own default is true, so an absent key and an explicit `false`
+    /// mean opposite things. Collapsing them would condemn nearly every setup
+    /// in existence, none of which writes the line.
+    #[test]
+    fn an_absent_setting_is_notmuchs_default_rather_than_off() {
+        let (_home, paths) = paths_with_flags(None);
+        let check = tag_sync_check(&paths, None);
+
+        assert!(
+            !check.detail.contains("nothing reaches"),
+            "{}",
+            check.detail
+        );
+        assert!(check.detail.contains("read"), "{}", check.detail);
     }
 }
