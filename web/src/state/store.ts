@@ -437,6 +437,23 @@ export function createAppStore() {
 			.sort((a, b) => rank(a) - rank(b));
 	};
 
+	/**
+	 * Whether this server has a gpg to sign or open anything with.
+	 *
+	 * Read off the doctor report the client already fetches rather than a route
+	 * of its own — doctor is where "is the tool there" is answered for every
+	 * other tool ecr drives, and a second answer to the same question is one
+	 * that can disagree with the one `ecr doctor` prints.
+	 *
+	 * It gates the composer's OpenPGP controls. Offering them on a machine with
+	 * no gpg is offering a control that can only ever fail, at the moment
+	 * somebody has finished writing.
+	 */
+	const canProtect = () =>
+		health()?.checks.some(
+			(check) => check.name === "openpgp" && check.status === "ok",
+		) ?? false;
+
 	const [accounts] = createResource(endpoint, async (server) =>
 		server ? await api.accounts().catch(() => []) : ([] as Account[]),
 	);
@@ -2043,6 +2060,7 @@ export function createAppStore() {
 		send,
 		folders,
 		moveMessage,
+		canProtect,
 		identitiesFor,
 		unsendable,
 		unsend,

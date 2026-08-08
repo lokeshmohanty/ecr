@@ -30,6 +30,8 @@ felt, not by how hard it is.
 | Sending | Direct SMTP for a managed account; msmtp for a self-managed one |
 | Message previews | The first line of each message under its subject, filled behind the server |
 | Account setup | `ecr account add` or the Accounts tab, when ecr manages the configuration |
+| Signed and encrypted mail | Verified and opened through your own `gpg`. ecr keeps no keys of its own |
+| A send queue | Everything sent goes through it, so undo is the default rather than a feature to find |
 
 ## What is missing, and where it is going
 
@@ -38,17 +40,17 @@ felt, not by how hard it is.
 | **Filters and rules** | **Here**, for a managed setup. Rules live in `accounts.toml`, are edited on the Accounts tab, and are rendered into the `post-new` hook. They run top to bottom against new mail only |
 | **Signatures** | **Here**, per account and per alias. An alias with an empty signature has deliberately none rather than inheriting |
 | **Multiple identities and aliases per account** | **Here**. A reply goes out as the address it was addressed to, the composer picks where there is a choice, and the server refuses a `From:` the account does not own |
-| **Templates and canned replies** | Missing |
-| **Snooze, send later, undo send** | Missing, and all three are one feature: a send queue with a scheduled time. Undo send is a queue with a delay before it drains |
+| **Templates and canned replies** | **Here**. Named in the settings file with an optional subject; the composer offers them as chips. Inserting one *appends*, because somebody who has typed half a reply and then reaches for a template means to add to it |
+| **Send later, undo send** | **Here**, and they were one feature all along: everything goes through a queue in `~/.local/state/ecr/outbox`, held ten seconds by default. Undo is deleting a file. A send that failed because the laptop was in a tunnel stays there with its reason, backing off, rather than being lost. Snooze is still missing |
 | **Address book and autocomplete** | **Here**. `ecr account sync-dav` fetches CardDAV into a vdir and those contacts join completion, after the addresses gathered from mail rather than above them |
-| **Calendar and invitations** | Partly. An invitation is rendered where the message is — summary, time, location, organiser — and a cancellation says so. CalDAV collections sync into a vdir. **RSVP is not wired up**: replying writes to somebody else's calendar and has to be right about recurrence and delegation |
+| **Calendar and invitations** | **Here**. An invitation is rendered where the message is — summary, time, location, organiser — a cancellation says so, and accept/decline/tentative sends a conforming `METHOD:REPLY`. A reply to one occurrence of a repeating event needs a `RECURRENCE-ID` and is refused without one, because a reply without it answers the whole series |
 | **Junk handling** | Partly. A `spam` tag exists and is excluded from search; there is no classifier and no *report as spam* |
-| **Folder management** | Missing. ecr tags; it cannot create, rename or subscribe to an IMAP folder, and cannot move a message between maildirs |
+| **Folder management** | Partly. A message can be **moved** between maildirs — a rename into the destination's `cur/`, refusing a folder that does not exist rather than creating one from a typo. Creating, renaming and subscribing to IMAP folders is still mbsync's job |
 | **Unified inbox** | Partly. `tag:inbox` across accounts already is one, but there is no first-class row for it and no per-account colouring |
-| **Vacation responder** | Missing, and probably belongs on the server rather than here |
-| **PGP and S/MIME** | Missing. Verification before signing, if ever |
+| **Vacation responder** | **Here**, for a managed setup. `ecr account vacation on`. It will not answer mailing lists, bounces, other autoresponders, your own addresses, mail you were only Bcc'd on, or the same person twice in a week — that refusal list is the feature, and it is what a responder without one costs everybody you are subscribed with |
+| **OpenPGP** | **Here** for reading, through your own `gpg`. Signatures are verified and encrypted mail is opened, with six states rather than a padlock — `unknown` is the ordinary condition of mail from a stranger and is not shown as broken. ecr keeps no keys: GnuPG already has the keyring, the agent and your web of trust, and a second copy of a private key is a worse thing than a missing feature. Signing and encrypting outgoing mail is here too — three toggles in the composer, shown only when the server has a gpg. S/MIME is missing |
 | **Read receipts** | Deliberately missing. Requesting one is a tracker with a standards document |
-| **Offline** | Missing for the browser client. The desktop and Android clients hold a server address, not a cache — with no server reachable there is no mail |
+| **Offline** | Partly. The browser client now **boots** without a network and shows its own account of the outage rather than the browser's error page. It caches the application and deliberately no mail: a cached thread list looks current and is not, and every API response is somebody's mail written to disk in the browser profile. Reading mail offline is the desktop and Android clients' job — their server is on the same device and its maildir is local |
 | **Print and export** | Missing. The maildir is the export, and it is a better one than any client's |
 
 ## What is deliberately not planned

@@ -46,6 +46,16 @@ pub struct Draft {
     /// server picks are two separate answers to the same question.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from: Option<String>,
+    /// OpenPGP to apply on the way out: `sign`, `encrypt` or `sign+encrypt`.
+    ///
+    /// Chosen per message rather than per account, because it is a property of
+    /// what is being said and of who is being said it to: the same person
+    /// writes an encrypted message to one correspondent and a plain one to the
+    /// list an hour later. An account-wide setting would silently encrypt the
+    /// second, to recipients who have no key, and the failure arrives as a
+    /// send that did not happen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub protect: Option<String>,
 }
 
 impl Draft {
@@ -120,6 +130,12 @@ impl Draft {
             // Which address this goes out as is the composer's to decide: it
             // needs the account's aliases, which a message does not carry.
             from: None,
+            // Not inherited from the message being answered. Replying to an
+            // encrypted message with an encrypted one is usually right and is
+            // never automatic: it needs a key for every recipient, and a reply
+            // silently protected that then cannot be sent fails at the moment
+            // the writer has stopped looking.
+            protect: None,
         }
     }
 
@@ -134,6 +150,7 @@ impl Draft {
             references: Vec::new(),
             attachments: Vec::new(),
             from: None,
+            protect: None,
         }
     }
 }

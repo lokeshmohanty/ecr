@@ -45,6 +45,38 @@ release; both are frozen at v1.0.0.
 - **Tagging rules**, edited in the client and rendered into the `post-new` hook.
 - `ecr account test` connects to an account's IMAP and SMTP servers and reports
   how far it got, without sending or writing anything.
+- **A send queue**, and with it **undo send** and **send later**. Everything
+  sent goes into `~/.local/state/ecr/outbox` first and is held ten seconds by
+  default, so undo is the default rather than a feature to find — it is
+  deleting a file. A send that failed because the laptop was in a tunnel stays
+  there carrying its reason and backing off, instead of being lost.
+- **Moving a message between folders.** A maildir rename into the destination's
+  `cur/`, atomic within a filesystem. A destination that is absolute, climbs
+  with `..` or does not already exist is refused rather than created: a message
+  filed into a typo is a message nobody finds again.
+- **Templates**, named in the settings file with an optional subject and
+  offered by the composer. Inserting one appends, because somebody who has
+  typed half a reply and reaches for a template means to add to it.
+- **Replying to an invitation.** Accept, decline and tentative send a
+  conforming `METHOD:REPLY`. A reply to one occurrence of a repeating event is
+  refused without a `RECURRENCE-ID`, because without one it answers the whole
+  series.
+- **Reading OpenPGP mail**, through your own `gpg`. Signatures are verified and
+  encrypted mail is opened, and outgoing mail is signed or encrypted from three
+  toggles in the composer. ecr keeps no keys: GnuPG already has the keyring,
+  the agent and your web of trust, and a second copy of a private key is a
+  worse thing to have than a missing feature. Six states rather than a padlock
+  — a key you do not have is the ordinary condition of mail from a stranger and
+  is not shown as broken.
+- **A vacation responder**, for a managed setup. `ecr account vacation on`.
+  Nearly all of it is what it refuses to answer: mailing lists, bounces, other
+  autoresponders, your own addresses, mail you were only Bcc'd on, and the same
+  person twice in a week. Replies go through the outbox like everything else,
+  so one is visible before it goes.
+- **The browser client boots without a network**, and shows its own account of
+  the outage rather than the browser's error page. It caches the application
+  and deliberately no mail: a cached thread list looks current and is not, and
+  every API response is somebody's mail written to disk in the browser profile.
 - [Parity](https://www.lokeshmohanty.in/ecr/parity/) — what ecr has and does not
   have against Thunderbird, Gmail and Outlook, and what is deliberately absent.
 

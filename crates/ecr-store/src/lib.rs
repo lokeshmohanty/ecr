@@ -21,6 +21,7 @@ pub mod packages;
 pub mod parse;
 pub mod paths;
 pub mod pgp;
+pub mod pgp_mime;
 pub mod settings;
 pub mod smtp;
 pub mod store;

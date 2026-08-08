@@ -167,9 +167,11 @@ can, and an address book is not backed up the way a maildir is.
 
 An invitation in a message is rendered where the message is — what, when, where
 and who from — and a cancellation says so rather than looking like an
-invitation. **Replying to one is not wired up**: it writes to somebody else's
-calendar and has to be right about time zones, recurrence and delegation, so
-the card says so instead of half working.
+invitation. Accept, decline and tentative send a conforming `METHOD:REPLY` back
+to the organiser. One case is refused rather than half answered: a reply to a
+single occurrence of a **repeating** event needs a `RECURRENCE-ID`, and without
+one the reply answers the whole series — declining every Monday standup for the
+rest of the year on behalf of somebody who meant to miss one.
 
 ### Aliases, signatures and rules
 
@@ -195,6 +197,64 @@ The same is on the client's **Accounts** tab in settings, over
 that authenticates with a password *command* can only be set at a terminal. That
 command is something the server would run, and the credential for reaching the
 API is a bearer token on a phone.
+
+### While you are away
+
+```bash
+ecr account vacation on --body 'I am away until the 20th' --until 2026-08-20
+ecr account vacation show      # is it on, what does it say, who has been told
+ecr account vacation off       # keeps the message for next time
+```
+
+An autoresponder is the only thing in a mail client that sends mail nobody read
+first, so nearly all of it is about **what it will not answer**: mailing lists,
+bounces, other autoresponders, your own addresses, mail you were only Bcc'd on,
+and the same person more than once a week. That refusal list is the feature. A
+responder without it writes "I am on holiday" to every subscriber of every list
+you are on, from an address that then keeps doing it for a fortnight — and two
+responders without it talk to each other until a mail server starts refusing.
+
+`--until` is what makes it stop by itself. Somebody who has to remember to
+switch it off is somebody who will, eventually, forget for a month.
+
+Replies go through the same outbox as everything else, so one is visible before
+it goes and can be taken back. Who has been told is recorded in
+`~/.local/state/ecr/vacation-sent.json`; `ecr account vacation forget` clears
+it, which answers everybody again.
+
+## Signed and encrypted mail
+
+ecr **keeps no keys**. Signatures are checked and encrypted mail is opened by
+your own `gpg`, using the keyring, the agent and the web of trust you already
+have. A second copy of a private key inside `~/.config/ecr` is a worse thing to
+have than a missing feature, and a homegrown verifier that quietly disagrees
+with `gpg --verify` is worse than either.
+
+So a machine without GnuPG shows signed mail unverified and `ecr doctor` says
+so. That is a state you can act on.
+
+What a message says above the body is one of six things, not a padlock:
+
+| | |
+|---|---|
+| **signed by …** | the signature is good |
+| **… with an expired / revoked key** | the message really was signed, by a key that is no longer current. Amber, not red |
+| **this message has been altered** | the signature does not match these bytes. The only alarming state |
+| **signed, by a key you do not have** | the ordinary condition of mail from a stranger. Deliberately the quietest of the six — a badge shown as broken here is one nobody reads anywhere |
+| **signed, but it could not be checked** | usually no gpg on the machine |
+| **encrypted** | said separately from any of the above: encryption is who could read this, a signature is who wrote it, and a client that draws one padlock for both is wrong about half the mail it draws it on |
+
+Outgoing mail is signed or encrypted from the composer — three toggles, shown
+only when the server has a gpg, because offering a control that can only ever
+fail is worse than not offering it. It is chosen per message and never
+inherited, including on a reply to an encrypted message: encryption needs a
+public key for every recipient, and a reply silently protected that then cannot
+be sent fails at the moment the writer has stopped looking at it.
+
+**Encryption does not hide the subject line, or who the message is to.** That
+is not a shortcut in ecr — it is what PGP/MIME is. Only the body and the
+attachments are hidden; the envelope announces who is talking to whom and what
+about.
 
 ## Tokens
 

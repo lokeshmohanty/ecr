@@ -1,5 +1,5 @@
 import { For, Show, createSignal } from "solid-js";
-import type { Attachment, Draft } from "../api/types";
+import type { Attachment, Draft, Protection } from "../api/types";
 import type { AppStore } from "../state/store";
 import { formatSize, refuseReason, toAttachment } from "../state/attachments";
 import { VimEditor, type VimEditorProps } from "./VimEditor";
@@ -41,6 +41,34 @@ export function formatRecipients(list: string[]): string {
 }
 
 /** The header rows, in the order Tab walks them. */
+/**
+ * The three things OpenPGP can do to a message, worded as what they achieve.
+ *
+ * "Sign" and "encrypt" are the words the format uses and they are not what a
+ * writer is choosing between — one proves who wrote it, the other decides who
+ * can read it — so the labels say so on hover rather than assuming the
+ * distinction is already known.
+ */
+export const PROTECTIONS: { value: Protection; label: string; detail: string }[] = [
+	{
+		value: "sign",
+		label: "sign",
+		detail:
+			"prove this came from you and was not altered. Anyone can still read it",
+	},
+	{
+		value: "encrypt",
+		label: "encrypt",
+		detail:
+			"only the recipients can read it. Every one of them needs a public key in your keyring, and the subject line and the addresses still travel in the clear",
+	},
+	{
+		value: "sign+encrypt",
+		label: "both",
+		detail: "signed inside the encryption, so who wrote it is hidden too",
+	},
+];
+
 export const FIELDS = ["to", "cc", "bcc", "subject"] as const;
 export type Field = (typeof FIELDS)[number] | "body";
 const ORDER: Field[] = [...FIELDS, "body"];
@@ -86,7 +114,19 @@ export function ComposePane(props: {
     props.draft.attachments ?? [],
   );
 
+  /**
+   * What OpenPGP to apply, chosen per message.
+   *
+   * Starts at none every time, including on a reply to an encrypted message.
+   * Inheriting it would be right more often than not and is still wrong: it
+   * needs a public key for every recipient, and a reply silently protected
+   * that then cannot be sent fails at the moment the writer has stopped
+   * looking at it.
+   */
+  const [protect, setProtect] = createSignal<Protection | undefined>();
+
   let picker: HTMLInputElement | undefined;
+
 
   const account = () => props.store.sendingAccount();
   const identities = () =>
@@ -128,6 +168,7 @@ export function ComposePane(props: {
     subject: values().subject,
     body: values().body,
     attachments: attachments(),
+    protect: protect(),
   });
 
   const attach = async (files: File[]) => {
@@ -284,6 +325,51 @@ export function ComposePane(props: {
                     onClick={() => insertTemplate(template.name)}
                   >
                     {template.name}
+                  </button>
+                )}
+              </For>
+            </div>
+          </div>
+        </Show>
+
+        {/*
+          OpenPGP, as three toggles rather than a menu, and shown only when
+          this machine has a key to sign or open with — offering it on a
+          machine with no gpg is a control that can only ever fail.
+
+          It sits above the header rows because it changes what the *message*
+          is, not what one field says, and because it has to be visible while
+          the message is being written. Buried in a menu it is found by the
+          people who already know it exists, which is exactly the wrong half.
+        */}
+        <Show when={props.store.canProtect()}>
+          <div class="flex items-center gap-2 border-b border-rule-soft px-3">
+            <span class="w-14 shrink-0 text-xs uppercase tracking-wide text-ink-3">
+              openpgp
+            </span>
+            <div class="flex min-w-0 flex-1 flex-wrap gap-2 py-1">
+              <For each={PROTECTIONS}>
+                {(option) => (
+                  <button
+                    type="button"
+                    class="touch-target rounded-full border px-2 py-0.5 text-xs"
+                    classList={{
+                      "border-proved text-proved": protect() === option.value,
+                      "border-rule text-ink-2 hover:bg-neutral-bg":
+                        protect() !== option.value,
+                    }}
+                    aria-pressed={protect() === option.value}
+                    title={option.detail}
+                    onClick={() =>
+                      // A second click turns it off. A set of toggles with no
+                      // way back to none is one where choosing encrypt by
+                      // accident means starting the message again.
+                      setProtect((current) =>
+                        current === option.value ? undefined : option.value,
+                      )
+                    }
+                  >
+                    {option.label}
                   </button>
                 )}
               </For>

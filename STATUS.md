@@ -7,9 +7,46 @@ Volatile state. Durable knowledge belongs in `docs/`.
 ecr generates the configuration for the tools it drives, from accounts it holds
 itself, instead of only reading a setup somebody else wrote. Opt-in per tool.
 
-**`just check` is green**: fmt, clippy, 564 Rust tests, tsc, 618 web tests, 28
+**`just check` is green**: fmt, clippy, 626 Rust tests, tsc, 631 web tests, 28
 e2e tests, all five browser suites, and 33 of 33 visual states unchanged against
 approved baselines.
+
+### The parity batch (2026-08-08)
+
+Seven things the parity page called missing are now here, each with the reason
+it is bounded the way it is:
+
+- **A send queue** — undo send and send later are one feature, and undo is now
+  the default rather than something to find. `drain.rs` stays the only thing
+  that puts mail on the wire.
+- **Moving a message**, as a maildir rename into the destination's `cur/`. A
+  folder that does not exist is refused, never created: mbsync makes folders.
+- **Templates**, appended rather than replacing what is already typed.
+- **RSVP**, refusing a reply to one occurrence of a repeating event without a
+  `RECURRENCE-ID` rather than declining the series on somebody's behalf.
+- **OpenPGP for reading**, through the reader's own gpg — no keyring of ecr's
+  own, every verdict read from `--status-fd`, six states rather than a padlock.
+  `tests/pgp_round_trip.rs` builds a throwaway keyring and checks a real
+  signature both ways, because a boundary split one CRLF out parses perfectly
+  and fails every message in the world.
+- **A vacation responder**, which is almost entirely a list of what it will not
+  answer. The ledger of who has been told is a plain file rather than a row in
+  the mail index: the index is a cache that gets rebuilt, and a rebuilt ledger
+  means telling everybody again.
+- **Offline boot for the browser client**, caching the application and
+  deliberately no mail — a cached thread list looks current and is not, and
+  every API response is somebody's mail written into the browser profile.
+
+Outgoing PGP/MIME landed with it. The hard part there is not the cryptography —
+gpg does that — but which headers go where: addressing outside, content inside,
+and `MIME-Version` in neither, because the outer entity gets a fresh one. The
+signed bytes are the exact bytes that go on the wire, canonicalised to CRLF
+first, and `micalg` is read back from gpg's `SIG_CREATED` line rather than
+assumed, because a hardcoded `sha256` is right until somebody signs with an
+Ed25519 key and then produces signatures strict verifiers reject and lenient
+ones accept. `tests/pgp_round_trip.rs` closes the loop: a message ecr signs is
+one ecr's own reader finds, splits and verifies, and nothing about that can be
+reasoned out from either side alone.
 
 The client had a visual pass. Each row carries a **sender chip** — the sender's
 initial on one neutral surface, deliberately not a colour, because the palette's

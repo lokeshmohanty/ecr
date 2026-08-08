@@ -10,6 +10,7 @@
 //! developer's keyring, and nothing here can read their mail.
 
 use ecr_store::pgp::{self, Protection, Signature};
+use ecr_store::pgp_mime::{self, Protect};
 
 /// A keyring with one key in it, and nothing else on the machine.
 struct Keyring {
@@ -279,4 +280,140 @@ fn ordinary_mail_is_not_mistaken_for_protected_mail() {
                 --x\r\nContent-Type: text/html\r\n\r\n<p>hello</p>\r\n--x--\r\n";
 
     assert!(pgp::detect(raw).is_none());
+}
+
+const OUTGOING: &[u8] = b"From: ada@example.com\r\n\
+To: grace@example.org\r\n\
+Subject: lunch?\r\n\
+MIME-Version: 1.0\r\n\
+Content-Type: text/plain; charset=utf-8\r\n\
+\r\n\
+hello, world\r\n";
+
+/// The one that ties the two halves of OpenPGP together: ecr wraps a message,
+/// and ecr's own reader — the same code that reads mail from strangers — has to
+/// find it, split it and verify it.
+///
+/// Nothing about this can be reasoned out. The signature covers bytes produced
+/// by one function and located by another, and a boundary or a line ending one
+/// byte out passes every unit test in both files while failing here.
+#[tokio::test]
+async fn a_message_ecr_signs_is_one_ecr_can_verify() {
+    let Some(keyring) = Keyring::new() else {
+        eprintln!("gpg is not installed; skipping");
+        return;
+    };
+    let _scope = keyring.scope().await;
+
+    let wrapped = pgp_mime::protect(OUTGOING, Protect::Sign, Some(&keyring.key), &[])
+        .await
+        .expect("could not sign");
+
+    let Some(Protection::Signed { signed, signature }) = pgp::detect(&wrapped) else {
+        panic!("ecr could not find the signature it had just written");
+    };
+
+    match pgp::verify(&signed, &signature).await.unwrap() {
+        Signature::Good { signer, .. } => assert!(signer.contains("Ada"), "{signer}"),
+        other => panic!("a message ecr signed did not verify: {other:?}"),
+    }
+}
+
+/// The addressing has to survive, or the message is unroutable and nothing
+/// downstream — not a server, not a client — can say why.
+#[tokio::test]
+async fn the_addressing_headers_stay_where_a_mail_server_can_read_them() {
+    let Some(keyring) = Keyring::new() else {
+        return;
+    };
+    let _scope = keyring.scope().await;
+
+    let wrapped = pgp_mime::protect(OUTGOING, Protect::Sign, Some(&keyring.key), &[])
+        .await
+        .expect("could not sign");
+    let text = String::from_utf8_lossy(&wrapped);
+    let head = text.split("\r\n\r\n").next().unwrap();
+
+    assert!(head.contains("From: ada@example.com"), "{head}");
+    assert!(head.contains("To: grace@example.org"), "{head}");
+    assert!(head.contains("multipart/signed"), "{head}");
+    // The original content type moved inside, where it describes the part it
+    // belongs to rather than the whole message.
+    assert!(!head.contains("text/plain"), "{head}");
+}
+
+/// Round trip through the encryption path, ending at the same reader.
+#[tokio::test]
+async fn a_message_ecr_encrypts_is_one_ecr_can_open() {
+    let Some(keyring) = Keyring::new() else {
+        return;
+    };
+    let _scope = keyring.scope().await;
+
+    let wrapped = pgp_mime::protect(
+        OUTGOING,
+        Protect::SignAndEncrypt,
+        Some(&keyring.key),
+        std::slice::from_ref(&keyring.key),
+    )
+    .await
+    .expect("could not encrypt");
+
+    let Some(Protection::Encrypted { ciphertext }) = pgp::detect(&wrapped) else {
+        panic!("ecr could not find the ciphertext it had just written");
+    };
+
+    let opened = pgp::open(&ciphertext).await.expect("could not open");
+    assert!(opened.encrypted);
+    assert!(
+        opened.signature.is_some_and(|s| s.is_good()),
+        "the signature inside the encryption did not verify"
+    );
+    assert!(String::from_utf8_lossy(&opened.plaintext).contains("hello, world"));
+}
+
+/// The body must not be readable in the message that goes out. This is the
+/// assertion that would catch a wrapper which built the envelope correctly and
+/// forgot to substitute the ciphertext for the plaintext — which produces a
+/// message that looks encrypted to a human reading the headers.
+#[tokio::test]
+async fn nothing_of_the_body_is_left_in_the_clear() {
+    let Some(keyring) = Keyring::new() else {
+        return;
+    };
+    let _scope = keyring.scope().await;
+
+    let wrapped = pgp_mime::protect(
+        OUTGOING,
+        Protect::Encrypt,
+        None,
+        std::slice::from_ref(&keyring.key),
+    )
+    .await
+    .expect("could not encrypt");
+
+    assert!(
+        !String::from_utf8_lossy(&wrapped).contains("hello, world"),
+        "the plaintext body went out with the message"
+    );
+    // And the subject did not become secret, which is what PGP/MIME is and is
+    // worth pinning so nobody later assumes otherwise.
+    assert!(String::from_utf8_lossy(&wrapped).contains("Subject: lunch?"));
+}
+
+/// Encrypting to the recipients who have keys and sending anyway delivers a
+/// message the others cannot open, and looks to the sender exactly like it
+/// worked.
+#[tokio::test]
+async fn encrypting_to_nobody_is_refused_rather_than_sent_in_the_clear() {
+    let Some(keyring) = Keyring::new() else {
+        return;
+    };
+    let _scope = keyring.scope().await;
+
+    let err = pgp_mime::protect(OUTGOING, Protect::Encrypt, None, &[])
+        .await
+        .expect_err("a message with no recipient key was encrypted anyway");
+
+    assert!(err.to_string().contains("nobody to encrypt to"), "{err}");
 }

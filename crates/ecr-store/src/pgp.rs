@@ -170,8 +170,24 @@ pub async fn open(armoured: &[u8]) -> Result<Opened> {
     })
 }
 
+/// A detached signature, and which digest made it.
+#[derive(Debug, Clone)]
+pub struct Signed {
+    pub armour: Vec<u8>,
+    /// The `micalg` parameter, without the `pgp-` prefix.
+    ///
+    /// It has to match the digest gpg actually used, and gpg chooses that from
+    /// the key and the recipient's preferences rather than from anything here
+    /// — so it is read back from the status line rather than assumed. A
+    /// hardcoded `sha256` is right until somebody signs with an Ed25519 key,
+    /// which uses SHA-512, and then it is a signature that strict verifiers
+    /// reject and lenient ones accept, which is the hardest kind of wrong to
+    /// notice.
+    pub micalg: String,
+}
+
 /// Signs bytes, answering a detached ASCII-armoured signature.
-pub async fn sign(body: &[u8], key: &str) -> Result<Vec<u8>> {
+pub async fn sign_detached(body: &[u8], key: &str) -> Result<Signed> {
     let status = run(&["--detach-sign", "--armor", "--local-user", key], body).await?;
 
     if status.stdout.is_empty() {
@@ -180,7 +196,36 @@ pub async fn sign(body: &[u8], key: &str) -> Result<Vec<u8>> {
             status.stderr.lines().last().unwrap_or("no reason given")
         )));
     }
-    Ok(status.stdout)
+
+    // `SIG_CREATED <type> <pkalgo> <hashalgo> <class> <timestamp> <fpr>`; the
+    // hash algorithm is field 2, as an RFC 4880 number.
+    let micalg = status
+        .lines
+        .iter()
+        .find_map(|line| line.strip_prefix("SIG_CREATED "))
+        .and_then(|rest| rest.split_whitespace().nth(2))
+        .and_then(|code| digest_name(code))
+        .unwrap_or("sha256")
+        .to_string();
+
+    Ok(Signed {
+        armour: status.stdout,
+        micalg,
+    })
+}
+
+/// RFC 4880's hash algorithm numbers, as the names `micalg` uses.
+fn digest_name(code: &str) -> Option<&'static str> {
+    Some(match code {
+        "1" => "md5",
+        "2" => "sha1",
+        "3" => "ripemd160",
+        "8" => "sha256",
+        "9" => "sha384",
+        "10" => "sha512",
+        "11" => "sha224",
+        _ => return None,
+    })
 }
 
 /// Encrypts bytes to a set of recipients, answering ASCII-armoured ciphertext.

@@ -191,7 +191,19 @@ export interface Draft {
   in_reply_to: string | null;
   references: string[];
   attachments: Attachment[];
+  /**
+   * OpenPGP to apply on the way out.
+   *
+   * Per message, never per account: the same person writes an encrypted
+   * message to one correspondent and a plain one to a list an hour later, and
+   * an account-wide setting would silently encrypt the second to recipients
+   * who have no key.
+   */
+  protect?: Protection;
 }
+
+/** What OpenPGP to apply to an outgoing message. */
+export type Protection = "sign" | "encrypt" | "sign+encrypt";
 
 export interface Check {
   name: string;

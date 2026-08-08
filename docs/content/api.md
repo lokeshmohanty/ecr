@@ -22,9 +22,11 @@ unauthenticated and logs a warning.
 | GET | `/threads?q=&limit=&offset=` | `ETag`; honours `If-None-Match` with `304`. `limit` clamps to 1..500 |
 | GET | `/threads/{id}` | The messages in the thread. `404` if unknown |
 | GET | `/messages/{id}` | One message with part metadata |
-| GET | `/messages/{id}/body?html=&remote=` | Sanitized body. `html` defaults true, `remote` false |
+| GET | `/messages/{id}/body?html=&remote=` | Sanitized body. `html` defaults true, `remote` false. Carries `signature` and `encrypted` when the message is OpenPGP |
 | GET | `/messages/{id}/parts/{n}` | Raw part bytes with content-type and disposition |
 | POST | `/tags` | `{ ops: [{ id, add, remove }] }` → new revision |
+| GET | `/folders` | Every maildir folder, as move destinations |
+| POST | `/messages/{id}/move` | `{ folder }`. A rename into that folder's `cur/`. `400` for a folder that does not exist — ecr never creates one |
 | POST | `/sync` | `{ accounts: [] }` → `SyncReport`. Empty means all |
 | POST | `/send` | `{ account, to, cc, bcc, subject, body, in_reply_to, references, attachments }` |
 | GET | `/config` | `{ path, raw }`. An absent settings file is `raw: ""`, not a `404` |

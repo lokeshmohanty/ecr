@@ -383,6 +383,35 @@ pub async fn send(
     let raw = ecr_store::compose::build_as(account, &request.draft, &identities)
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
+    // OpenPGP, if the draft asked for it. Before the queue rather than at drain
+    // time, deliberately: a message that cannot be encrypted — a recipient with
+    // no key is the ordinary case — must fail while somebody is looking at it,
+    // with the text still in the composer. Failing in the drain leaves it in
+    // the outbox retrying something that will never work, and the sender saw
+    // "queued" and moved on.
+    let raw = match protection(request.draft.protect.as_deref())? {
+        None => raw,
+        Some(what) => {
+            let recipients: Vec<String> = request
+                .draft
+                .to
+                .iter()
+                .chain(&request.draft.cc)
+                .chain(&request.draft.bcc)
+                .cloned()
+                .collect();
+            let from = request
+                .draft
+                .from
+                .clone()
+                .or_else(|| account.address.clone());
+
+            ecr_store::pgp_mime::protect(&raw, what, from.as_deref(), &recipients)
+                .await
+                .map_err(|e| ApiError::BadRequest(e.to_string()))?
+        }
+    };
+
     // Everything goes through the queue, including an immediate send. One path
     // means a message that fails is *always* recoverable from the outbox rather
     // than only when somebody happened to schedule it — and it is what makes
@@ -899,4 +928,26 @@ fn position(text: &str, offset: usize) -> (usize, usize) {
     let line = head.matches('\n').count() + 1;
     let column = head.rsplit('\n').next().map(str::len).unwrap_or(0) + 1;
     (line, column)
+}
+
+/// Reads the draft's `protect` field.
+///
+/// A closed set with an explicit error rather than a silent fallback. A typo
+/// answering "no protection" sends in the clear a message somebody asked to
+/// have encrypted, and nothing on either end ever says so — which is the one
+/// failure in this whole feature that cannot be noticed after the fact.
+fn protection(requested: Option<&str>) -> Result<Option<ecr_store::pgp_mime::Protect>, ApiError> {
+    use ecr_store::pgp_mime::Protect;
+
+    Ok(match requested.map(str::trim) {
+        None | Some("") | Some("none") => None,
+        Some("sign") => Some(Protect::Sign),
+        Some("encrypt") => Some(Protect::Encrypt),
+        Some("sign+encrypt") => Some(Protect::SignAndEncrypt),
+        Some(other) => {
+            return Err(ApiError::BadRequest(format!(
+                "{other:?} is not a protection; use sign, encrypt or sign+encrypt"
+            )))
+        }
+    })
 }
