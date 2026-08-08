@@ -13,6 +13,8 @@ import type {
   ThreadSummary,
   ThemeListing,
   MailingLists,
+  ManagedAccount,
+  ManagedView,
 } from "./types";
 import { isTauri } from "./platform";
 
@@ -243,6 +245,57 @@ export class Api {
       body: JSON.stringify({ queries }),
     });
     return body.counts;
+  }
+
+  async managed(): Promise<ManagedView> {
+    return await this.request("/api/v1/managed");
+  }
+
+  /**
+   * Every write here answers with the whole view, because each one regenerates
+   * the configuration files as a side effect — an account saved and not applied
+   * is one the mail tools cannot see, and the client would have no way to tell.
+   */
+  async addManagedAccount(
+    id: string,
+    account: ManagedAccount,
+  ): Promise<ManagedView> {
+    return await this.request("/api/v1/managed/accounts", {
+      method: "POST",
+      body: JSON.stringify({ id, ...account }),
+    });
+  }
+
+  async updateManagedAccount(
+    id: string,
+    account: ManagedAccount,
+  ): Promise<ManagedView> {
+    return await this.request(
+      `/api/v1/managed/accounts/${encodeURIComponent(id)}`,
+      { method: "PUT", body: JSON.stringify({ id, ...account }) },
+    );
+  }
+
+  /** Never deletes the mail; the maildir is left exactly where it is. */
+  async removeManagedAccount(id: string): Promise<ManagedView> {
+    return await this.request(
+      `/api/v1/managed/accounts/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async setManagement(
+    pkg: string,
+    management: "ecr" | "self",
+  ): Promise<ManagedView> {
+    return await this.request("/api/v1/managed/management", {
+      method: "PUT",
+      body: JSON.stringify({ package: pkg, management }),
+    });
+  }
+
+  async applyManaged(): Promise<ManagedView> {
+    return await this.request("/api/v1/managed/apply", { method: "POST" });
   }
 
   async themes(): Promise<ThemeListing> {

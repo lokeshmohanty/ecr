@@ -161,3 +161,79 @@ export type ServerEvent =
   | { type: "sync_progress"; line: string }
   | { type: "sync_finished"; new_messages: number; revision: Revision }
   | { type: "error"; detail: string };
+
+/**
+ * The accounts ecr manages, when it is managing any.
+ *
+ * `managing` being empty is the ordinary state of a self-managed install, not
+ * an error: the pane says so and offers to take over, and nothing else in the
+ * client changes.
+ */
+export type ManagedProvider = "gmail" | "outlook" | "fastmail" | "generic";
+
+export type ManagedTls = "implicit" | "starttls" | "none";
+
+export interface ManagedEndpoint {
+  host: string;
+  port: number;
+  tls: ManagedTls;
+}
+
+/**
+ * A password command can only be set at a terminal — the server refuses one over
+ * HTTP, because it is a command that server would run. The client shows it and
+ * never offers to change it.
+ */
+export type ManagedAuth =
+  | { kind: "oauth"; profile: string }
+  | { kind: "command"; command: string[] };
+
+export interface ManagedFolders {
+  inbox?: string;
+  sent?: string;
+  drafts?: string;
+  trash?: string;
+  junk?: string;
+  archive?: string;
+}
+
+export type ManagedSides = "none" | "near" | "far" | "both";
+
+export interface ManagedAccount {
+  address: string;
+  name?: string;
+  provider: ManagedProvider;
+  auth: ManagedAuth;
+  imap?: ManagedEndpoint;
+  smtp?: ManagedEndpoint;
+  folders?: ManagedFolders;
+  patterns?: string[];
+  create: ManagedSides;
+  expunge: ManagedSides;
+  remove: ManagedSides;
+  certificate_file?: string;
+  primary: boolean;
+  enabled: boolean;
+}
+
+export interface ManagedFile {
+  kind: string;
+  path: string;
+  /** `stale` means accounts.toml moved on; `edited` means somebody edited the file. */
+  state: "current" | "missing" | "stale" | "edited";
+}
+
+export interface ManagedView {
+  /** Which of notmuch/mbsync/msmtp ecr generates configuration for. */
+  managing: string[];
+  path: string;
+  maildir: string | null;
+  accounts: {
+    maildir?: string;
+    name?: string;
+    exclude_tags: string[];
+    account: Record<string, ManagedAccount>;
+  };
+  files: ManagedFile[];
+  problems: string[];
+}
