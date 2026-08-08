@@ -26,20 +26,22 @@ felt, not by how hard it is.
 | `mailto:` links | Registered on desktop and Android; a link anywhere opens a prefilled draft here |
 | Themes | Ten presets, and a TOML file for your own |
 | Phone | Swipe to archive or flag, long-press to select, an action bar, and a plain textarea composer because a soft keyboard is not a keyboard |
-| Push | A maildir watcher, so mail delivered by anything appears without a poll |
+| Push | A maildir watcher, plus an IMAP IDLE connection ecr holds itself for managed accounts — no imapnotify, no supervisor |
+| Sending | Direct SMTP for a managed account; msmtp for a self-managed one |
+| Message previews | The first line of each message under its subject, filled behind the server |
 | Account setup | `ecr account add` or the Accounts tab, when ecr manages the configuration |
 
 ## What is missing, and where it is going
 
 | | Status |
 |---|---|
-| **Filters and rules** | Missing. notmuch's `post-new` hook is where these belong, and managed mode already generates one — rules would be entries in `accounts.toml` rendered into it |
-| **Signatures** | Missing. Belongs with the account model, per identity |
-| **Multiple identities and aliases per account** | Missing. `ManagedAccount` holds one address; send-as needs a list, and the composer needs a picker |
+| **Filters and rules** | **Here**, for a managed setup. Rules live in `accounts.toml`, are edited on the Accounts tab, and are rendered into the `post-new` hook. They run top to bottom against new mail only |
+| **Signatures** | **Here**, per account and per alias. An alias with an empty signature has deliberately none rather than inheriting |
+| **Multiple identities and aliases per account** | **Here**. A reply goes out as the address it was addressed to, the composer picks where there is a choice, and the server refuses a `From:` the account does not own |
 | **Templates and canned replies** | Missing |
 | **Snooze, send later, undo send** | Missing, and all three are one feature: a send queue with a scheduled time. Undo send is a queue with a delay before it drains |
-| **Address book and autocomplete** | Partly. Addresses are gathered from the mail already; real contacts arrive with CardDAV |
-| **Calendar and invitations** | Missing. `text/calendar` parts are not rendered and RSVP does nothing. Planned over CalDAV, in process, with no external sync tool |
+| **Address book and autocomplete** | **Here**. `ecr account sync-dav` fetches CardDAV into a vdir and those contacts join completion, after the addresses gathered from mail rather than above them |
+| **Calendar and invitations** | Partly. An invitation is rendered where the message is — summary, time, location, organiser — and a cancellation says so. CalDAV collections sync into a vdir. **RSVP is not wired up**: replying writes to somebody else's calendar and has to be right about recurrence and delegation |
 | **Junk handling** | Partly. A `spam` tag exists and is excluded from search; there is no classifier and no *report as spam* |
 | **Folder management** | Missing. ecr tags; it cannot create, rename or subscribe to an IMAP folder, and cannot move a message between maildirs |
 | **Unified inbox** | Partly. `tag:inbox` across accounts already is one, but there is no first-class row for it and no per-account colouring |

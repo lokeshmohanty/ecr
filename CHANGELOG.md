@@ -29,6 +29,22 @@ release; both are frozen at v1.0.0.
   would run.
 - `ecr doctor` reports which packages ecr manages and whether the generated
   files are current, stale or edited by hand.
+- **Push without imapnotify.** ecr holds an IMAP IDLE connection per managed
+  account itself, using the token it already mints, and triggers the sync that
+  was going to happen anyway.
+- **Sending without msmtp**, for a managed account. A self-managed one still
+  goes through msmtp, because its configuration is yours and may say things ecr
+  has never been told.
+- **Contacts and calendars without vdirsyncer.** `ecr account sync-dav` fetches
+  CardDAV and CalDAV into a vdir khard and khal already read. Contacts join the
+  composer's completion; an invitation is rendered where the message is.
+- **Message previews** in the list — the first line of each message under its
+  subject, filled in behind the server rather than in front of it.
+- **Send-as aliases with signatures.** A reply goes out as the address it was
+  addressed to, and the server refuses a `From:` the account does not own.
+- **Tagging rules**, edited in the client and rendered into the `post-new` hook.
+- `ecr account test` connects to an account's IMAP and SMTP servers and reports
+  how far it got, without sending or writing anything.
 - [Parity](https://www.lokeshmohanty.in/ecr/parity/) — what ecr has and does not
   have against Thunderbird, Gmail and Outlook, and what is deliberately absent.
 

@@ -34,7 +34,7 @@ run it out of the workspace; `cargo run -p ecr-cli -- <args>` is the long form.
 ```
 ecr doctor              check the mail setup
 ecr serve               run the server
-ecr account add|list|remove|apply|import
+ecr account add|list|remove|apply|import|test|sync-dav
 ecr notmuch <args>      run notmuch against the config ecr resolved
 ecr token new|list|revoke
 ecr help [topic]        worked examples: start, phone, accounts, trouble
@@ -145,6 +145,45 @@ ecr generates its own, and it says so.
 - **Your own `notmuch` command will not see the generated config**, because it
   lives in ecr's directory rather than `~/.config/notmuch`. Use `ecr notmuch
   <args>`, which runs your notmuch against the config ecr resolved.
+
+### Contacts and calendars
+
+```bash
+ecr account sync-dav          # every account
+ecr account sync-dav personal # one
+```
+
+Fetches CardDAV and CalDAV collections into a **vdir** under
+`~/.local/state/ecr` — one file per contact or event, the same layout khard and
+khal read, so this replaces vdirsyncer without moving anybody's data somewhere
+only ecr can reach. Gmail and Outlook serve both over the token ecr already
+holds for mail; anything else needs `[account.x.dav] url`.
+
+Synced contacts join the composer's completion behind the addresses gathered
+from your mail, which are ranked by how often you have written to somebody.
+
+It is read-only. Fetching an address book cannot lose anything; writing to one
+can, and an address book is not backed up the way a maildir is.
+
+An invitation in a message is rendered where the message is — what, when, where
+and who from — and a cancellation says so rather than looking like an
+invitation. **Replying to one is not wired up**: it writes to somebody else's
+calendar and has to be right about time zones, recurrence and delegation, so
+the card says so instead of half working.
+
+### Aliases, signatures and rules
+
+An account can carry other addresses that deliver to it. A reply goes out as
+whichever of them the message was addressed to, the composer offers a picker
+where there is more than one, and the server refuses a `From:` the account does
+not own rather than quietly rewriting it. Signatures fall back from the alias to
+the account; an alias with an empty one has deliberately none.
+
+Rules are notmuch queries that tag new mail, edited on the Accounts tab and
+rendered into the `post-new` hook. They run top to bottom, see only mail that
+has just arrived, and by default take what they match out of the inbox — filing
+something and leaving it in the inbox is the one outcome nobody writes a rule
+for.
 
 `ecr account list` shows every account and the state of every generated file —
 `current`, `stale`, `edited` or `missing` — and `ecr doctor` reports the same
