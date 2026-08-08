@@ -1,6 +1,7 @@
 pub mod address;
 pub mod cache;
 pub mod compose;
+pub mod dav;
 pub mod discovery;
 pub mod doctor;
 pub mod error;
