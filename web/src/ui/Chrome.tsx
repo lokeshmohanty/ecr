@@ -114,7 +114,7 @@ export function StatusBar(props: { store: AppStore }) {
 
   return (
     <footer
-      class="chrome-bottom flex items-center gap-3 border-t border-rule bg-paper-2 px-3 text-xs"
+      class="chrome-bottom status-line flex items-center gap-3 border-t border-rule bg-paper-2 px-3 text-xs"
       classList={{ "max-md:hidden": quiet() }}
     >
       {/*
@@ -151,7 +151,18 @@ export function StatusBar(props: { store: AppStore }) {
         {accountName(props.store)}
       </span>
 
-      <span class="hidden min-w-0 flex-1 gap-3 md:flex">
+      {/*
+        `overflow-hidden`, and it is load-bearing rather than tidy. Each hint is
+        `shrink-0` — a keybinding cut in half tells you nothing — so this span's
+        content is routinely wider than the space `flex-1` gives it. Without
+        clipping, the overflow is *painted* rather than hidden, straight across
+        the status cell beside it: on a desktop window with a settings error on
+        screen, the file path and the key hints were drawn on top of each other
+        and neither could be read. The hints are the thing that gives way,
+        because the status says what just happened and a hint is a reminder of
+        something that is also in `?`.
+      */}
+      <span class="hint-row hidden min-w-0 flex-1 gap-3 overflow-hidden md:flex">
         <For each={hints}>
           {([key, label]) => (
             <span class="shrink-0 text-ink-3">
@@ -186,13 +197,13 @@ export function StatusBar(props: { store: AppStore }) {
       <Show
         when={props.store.settingsProblem()}
         fallback={
-          <span class="truncate-cell flex-1 text-ink-2 md:flex-none md:text-right">
+          <span class="status-text truncate-cell flex-1 text-ink-2 md:flex-none md:text-right">
             {props.store.status()}
           </span>
         }
       >
         {(problem) => (
-          <span class="truncate-cell flex-1 text-blocking" title={problem()}>
+          <span class="settings-problem truncate-cell flex-1 text-blocking" title={problem()}>
             settings: {problem()}
           </span>
         )}
