@@ -153,6 +153,17 @@ impl Server {
         self.client.get(self.url(path)).bearer_auth(TOKEN)
     }
 
+    /// For the one test that has to serve this same state a second time, told
+    /// its callers are somewhere other than loopback — which is the one thing a
+    /// server bound to `127.0.0.1` can never demonstrate about itself.
+    pub fn state(&self) -> ecr_server::AppState {
+        self.state.clone()
+    }
+
+    pub fn token(&self) -> &'static str {
+        TOKEN
+    }
+
     pub async fn get(&self, path: &str) -> reqwest::Response {
         self.request(path).send().await.expect("request")
     }
@@ -308,7 +319,16 @@ async fn spawn(
 
     let served = state.clone();
     tokio::spawn(async move {
-        let _ = axum::serve(listener, ecr_server::router(served)).await;
+        // The same service wiring `ecr serve` uses. Without the connect info a
+        // handler that asks for the peer address answers 500, so a router built
+        // the short way here would fail every managed route for a reason that
+        // has nothing to do with what is being tested.
+        let _ = axum::serve(
+            listener,
+            ecr_server::router(served)
+                .into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .await;
     });
 
     (format!("http://{addr}"), state)

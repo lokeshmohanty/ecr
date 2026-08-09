@@ -124,9 +124,26 @@ impl Fixture {
     /// a send failing with that instead of the message the test was asserting
     /// on, once, on a release build, having passed everywhere for weeks.
     ///
-    /// Renaming sidesteps it rather than narrowing the window: the inode that
-    /// gets executed is never the inode that was written, so there is nothing
-    /// for exec to object to.
+    /// Renaming sidesteps *that* much: the inode that gets executed is never the
+    /// inode that was written, so nothing this thread did is left for exec to
+    /// object to. It is not enough on its own, and the reason is one process
+    /// over.
+    ///
+    /// **`fork` copies the file descriptor table, and `O_CLOEXEC` does not close
+    /// anything until `execve`.** So while *this* thread holds the staging file
+    /// open for writing, every other thread that spawns a process — and the
+    /// tests in this binary spawn plenty — has a child that inherits that
+    /// writable descriptor for the window between its `fork` and its `execve`.
+    /// A child sitting in that window is a writer as far as the kernel is
+    /// concerned, and our own `execve` a moment later fails `ETXTBSY` against a
+    /// file nothing in this test ever wrote twice. It reproduces about once in
+    /// eight release runs and effectively never in a debug one, which is what
+    /// made the first fix look complete.
+    ///
+    /// The way out is to never hold the descriptor at all: the bytes are written
+    /// by a child process, so there is nothing in *our* descriptor table for
+    /// anybody to inherit. `set_permissions` and `rename` both act on the path
+    /// rather than on an open file, so neither reopens it.
     fn write_stub(&self, path: &Path, body: &str) {
         let script = format!(
             "#!/bin/sh\nECR_TEST_INBOX='{}'\nECR_TEST_CAPTURE='{}'\n{body}",
@@ -135,7 +152,25 @@ impl Fixture {
         );
 
         let staged = path.with_extension("staging");
-        std::fs::write(&staged, script).expect("write stub");
+
+        let mut child = std::process::Command::new("/bin/sh")
+            .arg("-c")
+            .arg(r#"cat > "$1""#)
+            .arg("sh")
+            .arg(&staged)
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+            .expect("spawn the writer");
+        {
+            use std::io::Write;
+            child
+                .stdin
+                .take()
+                .expect("writer stdin")
+                .write_all(script.as_bytes())
+                .expect("write stub");
+        }
+        assert!(child.wait().expect("writer").success(), "writing the stub");
 
         #[cfg(unix)]
         {

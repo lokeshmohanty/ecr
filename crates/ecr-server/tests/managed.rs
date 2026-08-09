@@ -198,3 +198,70 @@ async fn a_read_only_server_refuses_to_change_the_accounts() {
     // Reading is still fine.
     assert_eq!(server.get("/api/v1/managed").await.status(), 200);
 }
+
+/// The buttons that start an OAuth flow are drawn from this, and the flow they
+/// start redirects to this machine's loopback. A test server *is* on loopback,
+/// which is what makes this the honest assertion rather than a mocked one.
+#[tokio::test]
+async fn a_local_caller_is_told_it_is_local() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let view: Value = server.get("/api/v1/managed").await.json().await.unwrap();
+    assert_eq!(view["local"], json!(true));
+}
+
+/// A device that is not on this machine can hold a perfectly valid token and
+/// still not be able to finish a flow: the callback goes to `127.0.0.1` here.
+/// Refusing with the reason beats accepting and leaving a phone waiting on a
+/// redirect that is being delivered to somebody else's loopback.
+#[tokio::test]
+async fn authorizing_is_refused_when_the_caller_is_not_on_this_machine() {
+    use axum::extract::connect_info::MockConnectInfo;
+    use std::net::SocketAddr;
+
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    // The same router, told its callers arrive from somewhere else — which is
+    // what a phone on the tailnet is, and what no loopback test can produce.
+    let router = ecr_server::router(server.state())
+        .layer(MockConnectInfo(SocketAddr::from(([100, 64, 0, 2], 51234))));
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        let _ = axum::serve(listener, router).await;
+    });
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(format!(
+            "http://{addr}/api/v1/managed/accounts/main/authorize"
+        ))
+        .bearer_auth(server.token())
+        .json(&json!({ "with_dav": true }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 400);
+    let body = response.text().await.unwrap();
+    assert!(
+        body.contains("machine ecr runs on"),
+        "the refusal did not say why: {body}"
+    );
+
+    let view: Value = client
+        .get(format!("http://{addr}/api/v1/managed"))
+        .bearer_auth(server.token())
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(view["local"], json!(false));
+}

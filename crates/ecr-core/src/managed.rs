@@ -485,14 +485,43 @@ impl Provider {
         }
     }
 
-    /// Where this provider serves CardDAV and CalDAV, when it is somewhere
-    /// fixed. Gmail and Outlook both do, on the same OAuth token ecr already
-    /// holds for mail.
-    pub fn dav_url(&self) -> Option<&'static str> {
+    /// Where this provider serves CardDAV, when it is somewhere fixed.
+    ///
+    /// There are two of these rather than one because **Google serves the two
+    /// protocols from different hosts** — `www.googleapis.com` for contacts and
+    /// `apidata.googleusercontent.com` for calendars — so no single base can
+    /// discover both. A single `dav.url` pointed at either one finds that half
+    /// and reports the other as simply absent, which reads as an account with
+    /// no calendars rather than as a URL that was never going to have any.
+    ///
+    /// These are the canonical discovery paths the providers document, not the
+    /// resources behind them: both answer a redirect, which is what RFC 6764
+    /// discovery is built on and what `propfind` follows.
+    pub fn carddav_url(&self, _address: &str) -> Option<String> {
         match self {
-            Provider::Gmail => Some("https://www.googleapis.com/carddav/v1/principals/"),
-            Provider::Outlook => Some("https://outlook.office365.com/"),
-            Provider::Fastmail => Some("https://carddav.fastmail.com/"),
+            Provider::Gmail => Some("https://www.googleapis.com/.well-known/carddav".into()),
+            // Microsoft retired CalDAV and CardDAV for Office 365 in favour of
+            // Graph. `outlook.office365.com` answers 404 on both well-known
+            // paths and redirects its root to the web client, so an Outlook
+            // account has no DAV to offer and saying so beats a URL that cannot
+            // work.
+            Provider::Outlook => None,
+            Provider::Fastmail => Some("https://carddav.fastmail.com/.well-known/carddav".into()),
+            Provider::Generic => None,
+        }
+    }
+
+    /// Where this provider serves CalDAV. See [`Provider::carddav_url`].
+    ///
+    /// Google's is per-user: the path carries the calendar id, which for a
+    /// primary calendar is the address itself.
+    pub fn caldav_url(&self, address: &str) -> Option<String> {
+        match self {
+            Provider::Gmail => Some(format!(
+                "https://apidata.googleusercontent.com/caldav/v2/{address}/user"
+            )),
+            Provider::Outlook => None,
+            Provider::Fastmail => Some("https://caldav.fastmail.com/.well-known/caldav".into()),
             Provider::Generic => None,
         }
     }
@@ -737,6 +766,45 @@ mod tests {
 
     fn gmail() -> ManagedAccount {
         ManagedAccount::new("alice@gmail.com", Provider::Gmail, Auth::oauth("main"))
+    }
+
+    /// The whole reason there are two of these. A single base pointed at either
+    /// host discovers that half and reports the other as absent, which reads as
+    /// an account with no calendars rather than as a URL that never had any.
+    #[test]
+    fn google_serves_the_two_protocols_from_different_hosts() {
+        let contacts = Provider::Gmail.carddav_url("alice@gmail.com").unwrap();
+        let calendars = Provider::Gmail.caldav_url("alice@gmail.com").unwrap();
+
+        assert!(
+            contacts.starts_with("https://www.googleapis.com/"),
+            "{contacts}"
+        );
+        assert!(
+            calendars.starts_with("https://apidata.googleusercontent.com/"),
+            "{calendars}"
+        );
+        assert_ne!(contacts, calendars);
+    }
+
+    /// Google's CalDAV path carries the calendar id, which for a primary
+    /// calendar is the address. A base that forgets it is the whole service
+    /// rather than this user's, and answers 404.
+    #[test]
+    fn the_caldav_url_names_the_user() {
+        assert!(Provider::Gmail
+            .caldav_url("alice@gmail.com")
+            .unwrap()
+            .contains("alice@gmail.com"));
+    }
+
+    /// Microsoft retired DAV for Office 365 in favour of Graph. Answering with
+    /// a URL that 404s makes an account look misconfigured; answering with
+    /// nothing makes it a provider that does not offer this.
+    #[test]
+    fn outlook_offers_no_dav_at_all() {
+        assert_eq!(Provider::Outlook.carddav_url("a@b.com"), None);
+        assert_eq!(Provider::Outlook.caldav_url("a@b.com"), None);
     }
 
     #[test]

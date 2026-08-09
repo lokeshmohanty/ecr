@@ -297,6 +297,11 @@ enum OauthCommand {
     #[command(about = "run the browser flow and store a refresh token")]
     Authorize {
         profile: String,
+        #[arg(
+            long,
+            help = "widen this profile to contacts and calendars before authorizing"
+        )]
+        with_dav: bool,
         #[command(flatten)]
         flow: FlowArgs,
     },
@@ -353,6 +358,12 @@ struct ProfileArgs {
 
     #[arg(long, help = "override the requested scopes; repeatable")]
     scope: Vec<String>,
+
+    #[arg(
+        long,
+        help = "also ask for contacts and calendars, for `ecr account sync-dav`"
+    )]
+    with_dav: bool,
 
     #[arg(
         long,
@@ -558,9 +569,11 @@ async fn dispatch() -> anyhow::Result<()> {
                 oauth::setup(profile.into(), flow.try_into()?).await
             }
             OauthCommand::Init { profile } => oauth::init(profile.into()).await,
-            OauthCommand::Authorize { profile, flow } => {
-                oauth::authorize(&profile, flow.try_into()?).await
-            }
+            OauthCommand::Authorize {
+                profile,
+                with_dav,
+                flow,
+            } => oauth::authorize(&profile, flow.try_into()?, with_dav).await,
             OauthCommand::Token { profile } => oauth::token(&profile).await,
             OauthCommand::Xoauth2 { profile } => oauth::xoauth2(&profile).await,
             OauthCommand::Status { profile } => oauth::status(&profile),
@@ -585,6 +598,7 @@ impl From<ProfileArgs> for oauth::Init {
             client_secret: args.client_secret,
             tenant: args.tenant,
             scope: args.scope,
+            with_dav: args.with_dav,
             redirect_port: args.redirect_port,
             force: args.force,
         }

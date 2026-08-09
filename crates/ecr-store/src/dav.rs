@@ -318,34 +318,52 @@ async fn propfind(
     Ok(text)
 }
 
-/// Finds every collection an account has, starting from one URL.
+/// Finds the collections of the given kinds, starting from one URL.
 ///
 /// Three round trips, which is what the protocol costs: who am I, where are my
 /// collections, and what is in there. Each step is separate because each fails
 /// differently — a wrong password stops at the first, and a server with no
 /// address book at all stops at the second with nothing wrong.
-pub async fn discover(client: &reqwest::Client, base: &str, auth: &str) -> Result<Vec<Collection>> {
-    let principal = {
-        let xml = propfind(client, base, auth, "0", PRINCIPAL_BODY).await?;
-        first_href(&xml, DAV, "current-user-principal")
-            .ok_or_else(|| Error::Managed(format!("{base} named no principal for this account")))?
-    };
-    let principal = absolute(base, &principal);
+///
+/// `kinds` is a parameter rather than always both because a provider may serve
+/// the two protocols from different hosts (Google does), and asking one of them
+/// for the other's home set is a round trip that can only come back empty.
+pub async fn discover(
+    client: &reqwest::Client,
+    base: &str,
+    auth: &str,
+    kinds: &[Kind],
+) -> Result<Vec<Collection>> {
+    // A base that does not answer `current-user-principal` **is** the principal.
+    //
+    // Google's CalDAV is the case that matters: it answers the property with a
+    // `404 Not Found` inside an otherwise perfectly good `207`, because the URL
+    // it documents — `/caldav/v2/<address>/user` — is already the principal and
+    // there is nothing to point at. Treating that as a failure ends discovery
+    // with "named no principal" against the one URL Google says to use, while
+    // the very next request for `calendar-home-set` answers `200` at that same
+    // URL. Falling through costs a wrong base nothing: it finds no home set
+    // either, and an empty result is what a server with no collections gives.
+    let xml = propfind(client, base, auth, "0", PRINCIPAL_BODY).await?;
+    let principal = first_href(&xml, DAV, "current-user-principal")
+        .map(|href| absolute(base, &href))
+        .unwrap_or_else(|| base.to_string());
 
     let homes = propfind(client, &principal, auth, "0", HOMES_BODY).await?;
     let mut found = Vec::new();
 
-    for (kind, ns, tag) in [
-        (Kind::Contacts, CARDDAV, "addressbook-home-set"),
-        (Kind::Calendar, CALDAV, "calendar-home-set"),
-    ] {
+    for kind in kinds {
+        let (ns, tag) = match kind {
+            Kind::Contacts => (CARDDAV, "addressbook-home-set"),
+            Kind::Calendar => (CALDAV, "calendar-home-set"),
+        };
         let Some(home) = first_href(&homes, ns, tag) else {
             continue;
         };
         let home = absolute(base, &home);
 
         let listing = propfind(client, &home, auth, "1", COLLECTIONS_BODY).await?;
-        found.extend(collections(&listing, kind, base));
+        found.extend(collections(&listing, *kind, base));
     }
 
     Ok(found)

@@ -9,6 +9,53 @@ release; both are frozen at v1.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- **Contacts and calendars actually sync.** `ecr account sync-dav` could not
+  fetch anything from Google: the OAuth token asked only for mail. The DAV
+  scopes are now opt-in per account — `ecr oauth setup|authorize <profile>
+  --with-dav` — so an account that will never sync a calendar is never asked to
+  grant one, and a 403 from a DAV server now names the command that fixes it
+  instead of looking like an account with no address book.
+- **Authorizing from the settings page.** Each account on the **Accounts** tab
+  shows its token state and whether it covers contacts and calendars, with
+  buttons to authorize, re-authorize, and grant the extra permission. They
+  appear only when the client is running on the machine the server is: the flow
+  redirects to *that* machine's loopback, so a phone that followed the link
+  would consent perfectly and then wait for a callback it can never receive.
+  `GET /api/v1/managed` carries `local` and a per-account `auth` for this, and
+  `POST /api/v1/managed/accounts/{id}/authorize` refuses a caller that is not
+  on the server's own machine.
+- **Editing an account** on the Accounts tab, beside adding and removing it.
+
+### Fixed
+
+- **CardDAV and CalDAV are on different hosts for Google**, so a single DAV base
+  URL could never find both — one half was always reported as simply absent.
+  Each kind is now discovered from its own base.
+- **Google's CalDAV answers `current-user-principal` with a 404 inside an
+  otherwise valid 207**, because the URL it documents is already the principal.
+  Discovery treated that as fatal and stopped against the one URL Google says to
+  use. A base that names no principal is now taken to be the principal.
+- The Gmail CardDAV preset pointed at a path that answers 404; it is now the
+  canonical `.well-known/carddav`. Fastmail's was a bare host that 404s too.
+- An Outlook account no longer offers DAV at all. Microsoft retired CalDAV and
+  CardDAV for Office 365 in favour of Graph, and a URL that cannot work reads as
+  a broken account rather than as a provider that does not do this.
+- A test stub could still fail to execute with `ETXTBSY`, about once in eight
+  release runs, having been declared fixed once already. Renaming the file into
+  place is not enough on its own: `fork` copies the descriptor table and
+  `O_CLOEXEC` closes nothing until `execve`, so another thread's child holds the
+  writable descriptor across its own fork-to-exec window. The bytes are written
+  by a child process now, so there is nothing of ours to inherit.
+
+### Changed
+
+- The settings pane is one module per concern under `web/src/ui/settings/`
+  rather than three files, and adding an account and editing one are the same
+  form — the update route replaces an account rather than patching it, so two
+  copies of that form is two places for a field to be silently dropped.
+
 ## [0.4.0] — 2026-08-09
 
 ### Added

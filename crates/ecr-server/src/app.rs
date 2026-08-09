@@ -22,12 +22,21 @@ pub async fn serve(
     allowed_origins: Option<Vec<String>>,
     web_dir: Option<&std::path::Path>,
 ) -> anyhow::Result<()> {
-    axum::serve(listener, router_with_web(state, allowed_origins, web_dir))
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
-            tracing::info!("shutting down");
-        })
-        .await?;
+    // `into_make_service_with_connect_info` rather than the plain service: the
+    // OAuth routes are refused to anyone but a caller on this machine, and the
+    // peer address is the only thing that can tell them apart. Without it
+    // `ConnectInfo` is simply absent from every request, and a handler that
+    // asks for it answers 500 rather than being wrong about who called.
+    axum::serve(
+        listener,
+        router_with_web(state, allowed_origins, web_dir)
+            .into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(async {
+        let _ = tokio::signal::ctrl_c().await;
+        tracing::info!("shutting down");
+    })
+    .await?;
     Ok(())
 }
 
@@ -93,6 +102,10 @@ pub fn router_with_cors(state: AppState, allowed_origins: Option<Vec<String>>) -
             put(crate::managed::set_management),
         )
         .route("/api/v1/managed/accounts", post(crate::managed::create))
+        .route(
+            "/api/v1/managed/accounts/{id}/authorize",
+            post(crate::managed::authorize),
+        )
         .route(
             "/api/v1/managed/accounts/{id}",
             put(crate::managed::update).delete(crate::managed::remove),

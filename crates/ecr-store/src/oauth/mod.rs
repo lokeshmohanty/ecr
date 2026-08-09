@@ -147,8 +147,43 @@ pub struct InitOptions {
     pub client_secret: Option<String>,
     pub tenant: Option<String>,
     pub scopes: Vec<String>,
+    /// Also ask for contacts and calendars, for `ecr account sync-dav`.
+    pub with_dav: bool,
     pub redirect_port: Option<u16>,
     pub force: bool,
+}
+
+/// Adds a provider's DAV scopes, leaving anything already asked for alone.
+fn add_dav_scopes(provider: &str, scopes: &mut Vec<String>) {
+    for scope in providers::dav_scopes(provider) {
+        if !scopes.contains(&scope) {
+            scopes.push(scope);
+        }
+    }
+}
+
+/// Widens an existing profile to cover contacts and calendars.
+///
+/// Answers whether anything was added, so a caller can tell "now it asks for
+/// them" from "it always did" — the second is the case where a 403 from a DAV
+/// server means something other than the scopes, and saying *re-authorize* to
+/// somebody who just did is how a real problem gets mistaken for a slow one.
+///
+/// The tokens on disk are deliberately left alone: they are still the valid
+/// credential for mail, and a widening that logged the account out would take
+/// mail away to add contacts. They stay narrow until the flow is run again.
+pub fn widen_to_dav(profiles: &Profiles, name: &str) -> Result<bool> {
+    let mut config = profiles.load_config(name)?;
+    let before = config.scopes.clone();
+
+    let provider = config.provider.clone();
+    add_dav_scopes(&provider, &mut config.scopes);
+
+    if config.scopes == before {
+        return Ok(false);
+    }
+    profiles.save_config(&config)?;
+    Ok(true)
 }
 
 /// Write a profile, without authorizing it.
@@ -191,11 +226,16 @@ pub async fn init(profiles: &Profiles, options: InitOptions) -> Result<PathBuf> 
         }
     };
 
-    let scopes = if options.scopes.is_empty() {
+    // `--scope` replaces; `--with-dav` adds. An explicit scope list is somebody
+    // saying exactly what they want, and appending to it would take that back.
+    let mut scopes = if options.scopes.is_empty() {
         provider.scopes
     } else {
         options.scopes
     };
+    if options.with_dav {
+        add_dav_scopes(&options.provider, &mut scopes);
+    }
 
     let config = ProfileConfig {
         profile: options.profile.clone(),
@@ -301,12 +341,55 @@ mod tests {
                 client_secret: None,
                 tenant: None,
                 scopes: Vec::new(),
+                with_dav: false,
                 redirect_port: Some(49500),
                 force: false,
             },
         )
         .await
         .unwrap();
+    }
+
+    /// A mail account asks for mail. DAV is consent a reader who never runs
+    /// `sync-dav` should not be made to give, so it is not in the default.
+    #[tokio::test]
+    async fn a_profile_asks_for_mail_alone_until_dav_is_asked_for() {
+        let (_home, profiles) = store();
+        gmail(&profiles, "main").await;
+
+        let config = profiles.load_config("main").unwrap();
+        assert_eq!(config.scopes, ["https://mail.google.com/"]);
+        assert!(!config.scopes.iter().any(|s| s.contains("carddav")));
+    }
+
+    /// Widening answers whether it changed anything, because "re-authorize with
+    /// --with-dav" is the wrong thing to tell somebody who already did: their
+    /// 403 is about something else, and the advice sends them round the browser
+    /// again to arrive back where they started.
+    #[tokio::test]
+    async fn widening_is_idempotent_and_says_when_it_did_nothing() {
+        let (_home, profiles) = store();
+        gmail(&profiles, "main").await;
+
+        assert!(widen_to_dav(&profiles, "main").unwrap());
+        let widened = profiles.load_config("main").unwrap();
+        assert!(widened
+            .scopes
+            .contains(&"https://www.googleapis.com/auth/carddav".to_string()));
+        assert!(widened
+            .scopes
+            .contains(&"https://www.googleapis.com/auth/calendar".to_string()));
+
+        assert!(!widen_to_dav(&profiles, "main").unwrap());
+        assert_eq!(profiles.load_config("main").unwrap().scopes, widened.scopes);
+    }
+
+    /// Microsoft has no DAV to ask for, so `--with-dav` there must not invent a
+    /// scope — an unknown scope is refused for the whole request, which would
+    /// cost the account its mail token to add nothing.
+    #[test]
+    fn microsoft_has_no_dav_scopes_to_add() {
+        assert!(providers::dav_scopes(MICROSOFT).is_empty());
     }
 
     fn write_tokens(profiles: &Profiles, name: &str, expires_in: i64, refresh: Option<&str>) {
@@ -353,6 +436,7 @@ mod tests {
                 client_secret: None,
                 tenant: None,
                 scopes: Vec::new(),
+                with_dav: false,
                 redirect_port: Some(49501),
                 force: false,
             },
@@ -381,6 +465,7 @@ mod tests {
                 client_secret: None,
                 tenant: None,
                 scopes: Vec::new(),
+                with_dav: false,
                 redirect_port: None,
                 force: false,
             },
@@ -426,6 +511,7 @@ mod tests {
                 client_secret: None,
                 tenant: None,
                 scopes: Vec::new(),
+                with_dav: false,
                 redirect_port: Some(49502),
                 force: false,
             },
@@ -460,6 +546,7 @@ mod tests {
                 client_secret: None,
                 tenant: None,
                 scopes: Vec::new(),
+                with_dav: false,
                 redirect_port: Some(49503),
                 force: true,
             },

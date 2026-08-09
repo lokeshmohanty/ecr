@@ -15,12 +15,12 @@ import {
   PREFERENCE_DOCS,
   SECTIONS,
   type Preferences,
-} from "../state/settings";
-import { DATE_FORMATS } from "../state/datetime";
-import { SECTION_IDS, type CustomView } from "../state/views";
-import { checkForUpdate, type UpdateState } from "../state/updates";
-import { apkVersion, canScanQr, openExternal } from "../api/platform";
-import type { AppStore } from "../state/store";
+} from "../../state/settings";
+import { DATE_FORMATS } from "../../state/datetime";
+import { SECTION_IDS, type CustomView } from "../../state/views";
+import { checkForUpdate, type UpdateState } from "../../state/updates";
+import { apkVersion, canScanQr, openExternal } from "../../api/platform";
+import type { AppStore } from "../../state/store";
 
 export function DeviceSettings(props: { store: AppStore }) {
   const preferences = () => props.store.settings().preferences;

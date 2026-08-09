@@ -11,6 +11,7 @@ pub struct Init {
     pub client_secret: Option<String>,
     pub tenant: Option<String>,
     pub scope: Vec<String>,
+    pub with_dav: bool,
     pub redirect_port: Option<u16>,
     pub force: bool,
 }
@@ -26,6 +27,7 @@ impl From<Init> for InitOptions {
             client_secret: init.client_secret,
             tenant: init.tenant,
             scopes: init.scope,
+            with_dav: init.with_dav,
             redirect_port: init.redirect_port,
             force: init.force,
         }
@@ -55,9 +57,17 @@ pub async fn setup(init_options: Init, auth: Authorize) -> Result<()> {
     run_authorize(&profiles, &profile, auth).await
 }
 
-pub async fn authorize(profile: &str, auth: Authorize) -> Result<()> {
+pub async fn authorize(profile: &str, auth: Authorize, with_dav: bool) -> Result<()> {
     let profiles = Profiles::from_process();
     adopt(&profiles, profile);
+
+    // Before the flow, not after: the scopes are what the browser is about to
+    // be asked for, so widening afterwards would store a permission the token
+    // in hand does not carry and report success for a sync that still 403s.
+    if with_dav && oauth::widen_to_dav(&profiles, profile)? {
+        eprintln!("{profile}: now also asking for contacts and calendars");
+    }
+
     run_authorize(&profiles, profile, auth).await
 }
 

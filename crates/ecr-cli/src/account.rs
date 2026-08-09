@@ -673,6 +673,24 @@ fn endpoint(value: &str, default_port: u16) -> anyhow::Result<Endpoint> {
     })
 }
 
+/// Names the fix when a DAV server refuses a token that is perfectly good.
+///
+/// A 403 here is almost always the account having been authorized for mail
+/// alone: the password is right, the address is right, the server is up, and
+/// nothing else on screen distinguishes that from an account with no address
+/// book. The scopes are opt-in — see `oauth::providers::dav_scopes` — so this
+/// is the expected state of every account until somebody asks for more, and it
+/// has to say which command asks.
+fn scope_hint(err: &str, account: &ManagedAccount) -> String {
+    match &account.auth {
+        Auth::Oauth { profile } if err.contains("403") => format!(
+            "{err}\n               this token covers mail only; \
+             `ecr oauth authorize {profile} --with-dav` asks for contacts and calendars"
+        ),
+        _ => err.to_string(),
+    }
+}
+
 /// Fetches an account's contacts and calendars into the vdir.
 ///
 /// Read-only against the server, and the vdir it writes is the layout khard and
@@ -704,17 +722,42 @@ pub async fn sync_dav(id: Option<&str>) -> anyhow::Result<()> {
             continue;
         };
 
-        let base = match dav
-            .url
-            .clone()
-            .or_else(|| account.provider.dav_url().map(str::to_string))
-        {
-            Some(base) => base,
-            None => {
-                println!("  {name:<12} no DAV url, and the provider has no default");
-                continue;
+        // A base per kind, because Google serves the two protocols from
+        // different hosts. An explicit `url` is one root serving both, which is
+        // what every server that is not Google or Microsoft does — the grouping
+        // below then keeps that case at one discovery rather than two.
+        let mut wanted: Vec<(ecr_store::dav::Kind, String)> = Vec::new();
+        if dav.contacts {
+            if let Some(url) = dav
+                .url
+                .clone()
+                .or_else(|| account.provider.carddav_url(&account.address))
+            {
+                wanted.push((ecr_store::dav::Kind::Contacts, url));
             }
-        };
+        }
+        if dav.calendars {
+            if let Some(url) = dav
+                .url
+                .clone()
+                .or_else(|| account.provider.caldav_url(&account.address))
+            {
+                wanted.push((ecr_store::dav::Kind::Calendar, url));
+            }
+        }
+
+        if wanted.is_empty() {
+            println!("  {name:<12} no DAV url, and the provider has no default");
+            continue;
+        }
+
+        let mut by_base: Vec<(String, Vec<ecr_store::dav::Kind>)> = Vec::new();
+        for (kind, url) in wanted {
+            match by_base.iter_mut().find(|(base, _)| *base == url) {
+                Some((_, kinds)) => kinds.push(kind),
+                None => by_base.push((url, vec![kind])),
+            }
+        }
 
         // The same credential as the mail, whichever kind it is: a token for
         // the providers that serve DAV on one, Basic for everybody else.
@@ -726,23 +769,17 @@ pub async fn sync_dav(id: Option<&str>) -> anyhow::Result<()> {
             }
         };
 
-        let collections = match ecr_store::dav::discover(&client, &base, &auth).await {
-            Ok(found) => found,
-            Err(err) => {
-                println!("  {name:<12} {err}");
-                continue;
+        let mut collections = Vec::new();
+        // One base failing must not cost the other: on Google that is contacts
+        // and calendars, which are separate hosts and fail separately.
+        for (base, kinds) in &by_base {
+            match ecr_store::dav::discover(&client, base, &auth, kinds).await {
+                Ok(found) => collections.extend(found),
+                Err(err) => println!("  {name:<12} {}", scope_hint(&err.to_string(), account)),
             }
-        };
+        }
 
         for collection in collections {
-            let wanted = match collection.kind {
-                ecr_store::dav::Kind::Contacts => dav.contacts,
-                ecr_store::dav::Kind::Calendar => dav.calendars,
-            };
-            if !wanted {
-                continue;
-            }
-
             match ecr_store::dav::sync_collection(&client, &collection, &auth, &root).await {
                 Ok(written) => {
                     println!(

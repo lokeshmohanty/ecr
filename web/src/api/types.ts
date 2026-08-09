@@ -342,4 +342,31 @@ export interface ManagedView {
   };
   files: ManagedFile[];
   problems: string[];
+  /** The OAuth state of each account that has any, keyed by account id. */
+  auth?: Record<string, ManagedAuthState>;
+  /**
+   * Whether this client is running on the machine the server is.
+   *
+   * The authorize buttons are drawn from this and from nothing else. The flow
+   * they start redirects to the *server's* loopback address, so a phone that
+   * follows the link consents perfectly and then waits for a callback it can
+   * never receive — a button that cannot work reads as ecr being broken rather
+   * than as this being a thing to do at the desk.
+   */
+  local?: boolean;
+}
+
+export interface ManagedAuthState {
+  profile: string;
+  /** `valid`, `refreshable`, `expired`, or why it could not be read. */
+  token: string;
+  /** Whether the profile already covers contacts and calendars. */
+  dav: boolean;
+  /** Whether this provider serves DAV at all. Microsoft no longer does. */
+  dav_available: boolean;
+}
+
+export interface AuthorizeStarted {
+  url: string;
+  widened: boolean;
 }

@@ -385,6 +385,65 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   `tests/managed_round_trip.rs` renders, applies, and asserts `discovery` gives
   back the accounts that went in.
 
+- **Google serves CardDAV and CalDAV from two different hosts, and one of them
+  answers `current-user-principal` with a 404 inside a perfectly good 207.**
+  Contacts are on `www.googleapis.com`, calendars on
+  `apidata.googleusercontent.com`, so a single `[account.*.dav] url` structurally
+  cannot find both — it discovers one half and reports the other as *absent*,
+  which reads as an account with no calendars rather than as a base that was
+  never going to have any. `Provider::carddav_url`/`caldav_url` are therefore a
+  pair, and `dav::discover` takes the kinds to look for so neither host is asked
+  for the other's home set. The 404 is the second half: the URL Google documents
+  for CalDAV, `/caldav/v2/<address>/user`, *is* the principal and has nothing to
+  point at, so a base that names no principal is taken to be one. Treating that
+  as fatal ends discovery with *named no principal* against the exact URL Google
+  says to use, while the very next request answers 200 at that same URL.
+  Microsoft is the opposite trap: it retired DAV for Graph, both well-known
+  paths 404, and answering with a URL that cannot work reads as a broken account
+  rather than a provider that does not do this — so it answers `None`.
+- **The DAV scopes are opt-in, and the 403 they cause is indistinguishable from
+  an empty address book.** ecr asks for `https://mail.google.com/` alone, because
+  contacts and calendars are consent a reader who never runs `sync-dav` should
+  not be made to give. Every collection then answers 403, and nothing in that
+  says *scope* — so `scope_hint` names `ecr oauth authorize <profile>
+  --with-dav`, and `widen_to_dav` answers whether it changed anything so the
+  advice is never given to somebody who already did it. It leaves the tokens on
+  disk alone: they are still the valid credential for *mail*, and a widening
+  that logged the account out would take mail away to add contacts.
+- **RFC 6764 discovery is built on redirects, so the HTTP client's redirect
+  policy is load-bearing.** `.well-known/carddav` answers 301, and a client that
+  rewrites a non-GET to GET on a 301 — which is what browsers do, and what
+  several HTTP libraries therefore implement — follows it to a resource that
+  answers with something other than a multistatus. Discovery then ends at *named
+  no principal* naming a URL that is correct. reqwest keeps the method **and the
+  body**; that is not obvious, it is not documented as a guarantee, and it is
+  pinned by `a_redirect_is_followed_as_propfind_with_its_body`.
+- **`ConnectInfo` is absent unless the service was built with it, and a handler
+  that asks for it then answers 500.** The OAuth routes are refused to anyone
+  but a caller on this machine — the flow redirects to *this* machine's
+  `127.0.0.1`, so a phone that follows the link consents perfectly and then
+  waits for a callback it can never receive — and the peer address is the only
+  thing that can tell them apart. `app::serve` uses
+  `into_make_service_with_connect_info`, and so must every test harness that
+  builds the router itself, or every managed route fails for a reason that has
+  nothing to do with what is being tested. A loopback-bound test server cannot
+  demonstrate the *remote* half of that rule at all; `MockConnectInfo` is what
+  does.
+- **An authorization outlives the request that starts it.** It does not finish
+  until somebody has clicked through a consent screen, which is minutes of a
+  person rather than milliseconds of a server, so the route spawns the flow and
+  answers as soon as there is a URL. What the page must then watch is the
+  account's *token state*, not the response: reporting success there would be
+  reporting that a browser opened.
+- **`PUT /api/v1/managed/accounts/:id` replaces an account rather than patching
+  it.** So an edit form that shows six fields and sends six fields silently
+  resets `Expunge`, `Patterns`, the folder overrides, the CA bundle and the
+  aliases to their defaults — and the next sync acts on it, with a diff nobody
+  was told to read as the only warning. `accountFrom` in
+  `web/src/ui/settings/accounts/draft.ts` spreads the existing account back out
+  underneath, and its tests are named after that failure. It is also why adding
+  and editing are one form: two copies are two places for a field to be dropped.
+
 - **A managed default that deletes is a managed default that is wrong.**
   `Create` is `Near` and `Expunge`/`Remove` are `None`, so ecr fetches a folder
   that appears on the server and never creates, removes or expunges anything on
@@ -531,14 +590,25 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   package installs that same file under that same name so all three artifacts
   agree.
 
-- **A stub binary must be renamed into place, never written in place.** A
-  `cargo test` run is many threads in one process, and exec refuses a file any
-  of them still holds open for writing with `ETXTBSY` — reported as "Text file
-  busy", surfacing as the *wrong error* from whatever was being tested rather
-  than as anything resembling a race. `write_stub` in `ecr-store`'s test
-  support writes to a `.staging` sibling and renames, so the inode that runs is
-  never the inode that was written. It failed exactly once, in the release
-  workflow, having passed every local run and every CI run before it.
+- **A stub binary must be renamed into place, and the bytes must be written by
+  somebody else's process.** A `cargo test` run is many threads in one process,
+  and exec refuses a file any of them still holds open for writing with
+  `ETXTBSY` — reported as "Text file busy", surfacing as the *wrong error* from
+  whatever was being tested rather than as anything resembling a race.
+  `write_stub` in `ecr-store`'s test support writes to a `.staging` sibling and
+  renames, so the inode that runs is never the inode that was written. **That
+  half is not sufficient, and the reason is one process over:** `fork` copies
+  the descriptor table and `O_CLOEXEC` closes nothing until `execve`, so while
+  this thread holds the staging file open, every *other* thread spawning a
+  process has a child holding that writable descriptor for the window between
+  its fork and its exec — and a child in that window is a writer as far as the
+  kernel is concerned. So the stub is written by a child process (`sh -c 'cat >
+  "$1"'`), leaving nothing in our own table to inherit; `set_permissions` and
+  `rename` act on the path rather than an open file, so neither reopens it.
+  With only the rename it reproduced about **once in eight release runs and
+  effectively never in a debug one**, which is what made the first fix look
+  complete — it failed once in the release workflow, then again in `nix build`,
+  each time against a file nothing had written twice.
 
 - **`notmuch show` never says which thread a message is in.** Not with
   `--entire-thread`, not among the headers — the field is simply not in the
@@ -807,8 +877,10 @@ line cannot drift from the documentation. `withClient` lays the device's half
 over the file's; until a device has saved anything the file still wins, which
 is what carries an existing setup across the split instead of resetting it.
 The shared half is edited as text through the vim editor; the device's half is
-switches and pickers (`ui/DeviceSettings.tsx`), because it is changed by trying
-it and there is no file to open on a phone.
+switches and pickers (`ui/settings/DeviceSettings.tsx`), because it is changed
+by trying it and there is no file to open on a phone. The pane is one module per
+concern under `ui/settings/`, with the accounts tab and its forms under
+`ui/settings/accounts/`.
 
 A preference resolves through **four layers**, weakest first: the shipped
 default, the shared file, `deviceDefaults()` for the kind of screen in use, and

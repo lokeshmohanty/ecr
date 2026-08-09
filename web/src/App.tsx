@@ -15,7 +15,7 @@ import { ThreadList } from "./ui/ThreadList";
 import { ReadingPane } from "./ui/ReadingPane";
 import { Palette } from "./ui/Palette";
 import { ComposePane, emptyDraft } from "./ui/ComposePane";
-import { SettingsPane } from "./ui/SettingsPane";
+import { SettingsPane } from "./ui/settings/SettingsPane";
 import {
 	AuthAlert,
 	ConnectionSetup,

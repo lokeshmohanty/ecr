@@ -156,8 +156,34 @@ ecr account sync-dav personal # one
 Fetches CardDAV and CalDAV collections into a **vdir** under
 `~/.local/state/ecr` — one file per contact or event, the same layout khard and
 khal read, so this replaces vdirsyncer without moving anybody's data somewhere
-only ecr can reach. Gmail and Outlook serve both over the token ecr already
-holds for mail; anything else needs `[account.x.dav] url`.
+only ecr can reach.
+
+It needs an account to say so — `[account.x.dav]`, an empty table being enough
+— and it needs **more consent than mail**. The token ecr holds for an account
+covers mail alone, deliberately: contacts and calendars are not something to
+ask for on behalf of somebody who will never sync them. Adding them is one trip
+through the browser:
+
+```bash
+ecr oauth authorize main --with-dav   # existing account
+ecr oauth setup main --provider gmail --email you@gmail.com --with-dav
+```
+
+Without it every collection answers **403**, and `sync-dav` says so and names
+that command. Google serves the two protocols from **different hosts**, so ecr
+carries a base per kind and discovers each separately; a single `[dav] url` is
+for the servers that serve both from one root, which is everybody else.
+
+The same two things are buttons on the client's **Accounts** tab, beside each
+account's token state — but only when the client is running on the machine the
+server is. The flow sends the browser back to *that* machine's loopback address,
+so a phone that followed the link would consent perfectly and then wait for a
+callback it can never receive; rather than offer a button that cannot work, the
+phone is told where it can be done.
+
+Microsoft is the exception with nothing to offer: Office 365 retired CalDAV and
+CardDAV in favour of Graph, so an Outlook account has no DAV and `sync-dav`
+says that rather than failing against a URL that cannot work.
 
 Synced contacts join the composer's completion behind the addresses gathered
 from your mail, which are ranked by how often you have written to somebody.

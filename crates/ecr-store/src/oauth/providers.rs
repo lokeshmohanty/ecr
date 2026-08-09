@@ -54,6 +54,31 @@ pub fn provider(name: &str, tenant: Option<&str>) -> Result<Provider> {
     }
 }
 
+/// The extra scopes a provider wants before it will serve CardDAV and CalDAV.
+///
+/// Kept apart from [`provider`]'s own scopes, and added only when asked for,
+/// because they are consent a reader who never runs `ecr account sync-dav`
+/// should not be made to give: the mail scope alone is what an account needs to
+/// be an account. Asking for them later costs one more trip through the
+/// browser, which is the trade — `ecr oauth authorize <profile> --with-dav`.
+///
+/// `auth/calendar` rather than `auth/calendar.readonly`: ecr's DAV client never
+/// writes, but the CalDAV endpoint is Google's GData-era one and the narrower
+/// scope is not known to satisfy it. A scope that is refused fails as a 403 on
+/// every calendar, indistinguishable from having none.
+///
+/// Microsoft has none: it retired DAV for Office 365 in favour of Graph, so
+/// there is nothing to ask for. See `Provider::carddav_url` in `ecr-core`.
+pub fn dav_scopes(name: &str) -> Vec<String> {
+    match name {
+        GMAIL => vec![
+            "https://www.googleapis.com/auth/carddav".into(),
+            "https://www.googleapis.com/auth/calendar".into(),
+        ],
+        _ => Vec::new(),
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Client {
     pub client_id: String,

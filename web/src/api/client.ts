@@ -13,6 +13,7 @@ import type {
   ThreadSummary,
   ThemeListing,
   MailingLists,
+  AuthorizeStarted,
   ManagedAccount,
   ManagedRule,
   MailFolder,
@@ -324,6 +325,24 @@ export class Api {
     return await this.request(
       `/api/v1/managed/accounts/${encodeURIComponent(id)}`,
       { method: "PUT", body: JSON.stringify({ id, ...account }) },
+    );
+  }
+
+  /**
+   * Starts an OAuth flow for one account and answers with the URL to consent at.
+   *
+   * The flow outlives this request — it does not finish until somebody has
+   * clicked through a consent screen — so this returns as soon as there is a URL
+   * and the page watches `auth[id].token` in the view for it to become valid.
+   * The server refuses this outright unless the caller is on its own machine.
+   */
+  async authorizeAccount(
+    id: string,
+    withDav: boolean,
+  ): Promise<AuthorizeStarted> {
+    return await this.request(
+      `/api/v1/managed/accounts/${encodeURIComponent(id)}/authorize`,
+      { method: "POST", body: JSON.stringify({ with_dav: withDav }) },
     );
   }
 
