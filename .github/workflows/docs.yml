@@ -31,9 +31,20 @@ jobs:
         with:
           submodules: recursive
 
+      # Pinned, and the pin is the point. `tool: zola` installs whatever is
+      # latest, so this job was building the site with a version nobody had
+      # ever run — and on 2026-08-05 that became 0.23.0, which replaced Tera
+      # with Tera2 and stopped understanding the `reticle` theme's
+      # `{% macro %}` tags. The site had not changed; the compiler under it
+      # had. The theme is a submodule tracking somebody else's `main`, so
+      # there was nothing in this repo to fix.
+      #
+      # 0.22.1 is what the dev shell provides, so CI now builds the site with
+      # the same zola that anyone editing the docs is using. Moving this is a
+      # deliberate act that comes with checking the theme still renders.
       - uses: taiki-e/install-action@v2
         with:
-          tool: zola
+          tool: zola@0.22.1
 
       # Zola fails the build on a dangling `@/page.md` link, which is why the
       # docs link that way: a page renamed without its references being updated
