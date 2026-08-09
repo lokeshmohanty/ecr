@@ -58,7 +58,14 @@ describe("list pane auto-refresh", () => {
 				statusText: "OK",
 				json: async () => {
 					if (url.includes("/api/v1/threads?")) {
-						threadsCalls++;
+						// Only the list's own refetch is counted. Notifications
+						// ask the same route for `tag:inbox and tag:unread` —
+						// naming a sender means asking who it is — and counting
+						// those here would measure the notification instead of
+						// the thing this test is about.
+						const forNotifications =
+							url.includes("tag%3Ainbox") && url.includes("tag%3Aunread");
+						if (!forNotifications) threadsCalls++;
 						return { revision: revision(), total: 0, items: [] };
 					}
 					if (url.includes("/api/v1/threads/")) return { messages: [] };

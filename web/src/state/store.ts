@@ -21,6 +21,12 @@ import {
 	shellServerUrl,
 	shellToken,
 } from "../api/platform";
+import {
+	NOTIFY_QUERY,
+	announcementFor,
+	arrivedSince,
+	newestTimestamp,
+} from "./announce";
 import type {
 	Account,
 	Check,
@@ -1880,6 +1886,8 @@ export function createAppStore() {
 	 * and can no longer suppress it.
 	 */
 	let announcedAt = 0;
+	/** The newest arrival already accounted for; see `seedAnnouncements`. */
+	let announcedThrough = 0;
 
 	/**
 	 * Nothing here may throw. This runs inside the server-event handler, ahead
@@ -1887,7 +1895,7 @@ export function createAppStore() {
 	 * to a notification would stop new mail from appearing at all — the failure
 	 * being to not show the thing the notification was about.
 	 */
-	function announceNewMail(text: string) {
+	async function announceNewMail() {
 		try {
 			if (!settings().preferences.notifyNewMail) return;
 			// Whoever is looking at the window can already see the list change.
@@ -1897,9 +1905,39 @@ export function createAppStore() {
 			if (now - announcedAt < 5000) return;
 			announcedAt = now;
 
-			void notify("ecr", text);
+			// Asked for rather than taken from the list on screen: the reader may
+			// be looking at `tag:sent`, and what deserves a notification is not
+			// what they happen to have open.
+			const page = await api.threads(NOTIFY_QUERY, 20, 0);
+			const arrived = arrivedSince(page.items, announcedThrough);
+			announcedThrough = newestTimestamp(page.items, announcedThrough);
+
+			const announcement = announcementFor(arrived);
+			if (!announcement) return;
+
+			void notify(announcement.title, announcement.body);
 		} catch {
 			// A notification is the least important thing happening here.
+		}
+	}
+
+	/**
+	 * The mark that stops the first event announcing an inbox somebody has
+	 * already read.
+	 *
+	 * Seeded from the server rather than left at zero, and seeded *without*
+	 * announcing: a client that has just started has no idea which of the
+	 * hundred unread messages in front of it are new, and the honest answer is
+	 * none of them. Without this, opening ecr after a weekend fires a
+	 * notification about mail from Friday.
+	 */
+	async function seedAnnouncements() {
+		try {
+			const page = await api.threads(NOTIFY_QUERY, 20, 0);
+			announcedThrough = newestTimestamp(page.items, announcedThrough);
+		} catch {
+			// Nothing seeded means the first arrival is announced, which is the
+			// harmless direction to fail in.
 		}
 	}
 
@@ -1908,7 +1946,7 @@ export function createAppStore() {
 			case "mail_changed":
 				// During a sync the count is worth waiting for; `sync:finished`
 				// carries it and this event does not.
-				if (!syncing()) announceNewMail("New mail");
+				if (!syncing()) void announceNewMail();
 				bumpRevision();
 				break;
 			case "tags_changed":
@@ -1925,11 +1963,7 @@ export function createAppStore() {
 				setSyncing(false);
 				setStatus(`synced: ${event.new_messages} new`);
 				if (event.new_messages > 0) {
-					announceNewMail(
-						event.new_messages === 1
-							? "1 new message"
-							: `${event.new_messages} new messages`,
-					);
+					void announceNewMail();
 				}
 				bumpRevision();
 				break;
@@ -1941,6 +1975,9 @@ export function createAppStore() {
 
 	function subscribe() {
 		if (!connection().baseUrl) return () => {};
+		// Before the stream, so the first event compares against mail that was
+		// already here rather than against nothing.
+		void seedAnnouncements();
 		return api.events(onServerEvent, () => setConnected(false));
 	}
 

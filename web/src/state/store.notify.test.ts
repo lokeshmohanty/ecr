@@ -34,6 +34,30 @@ class FakeEventSource {
 
 const revision = () => ({ uuid: "uuid", lastmod: 1 });
 
+/**
+ * What the server would answer for `tag:inbox and tag:unread`.
+ *
+ * Mutable, because the whole of the new behaviour is a comparison against what
+ * was there before: the store seeds a high-water mark when it subscribes, and
+ * a test that cannot add to the inbox afterwards cannot make anything new.
+ */
+let inbox: unknown[] = [];
+
+function arrival(over: Record<string, unknown> = {}) {
+	return {
+		id: "t1",
+		subject: "Lunch on Thursday",
+		authors: ["Ada Lovelace <ada@example.com>"],
+		timestamp: 2_000,
+		date_relative: "now",
+		matched: 1,
+		total: 1,
+		tags: ["inbox", "unread"],
+		newest_message: null,
+		...over,
+	};
+}
+
 describe("announcing new mail", () => {
 	function stubFetch(): void {
 		vi.stubGlobal(
@@ -43,8 +67,18 @@ describe("announcing new mail", () => {
 				status: 200,
 				statusText: "OK",
 				json: async () => {
-					if (url.includes("/api/v1/threads?"))
-						return { revision: revision(), total: 0, items: [] };
+					// Only the notification query answers with mail. The list is
+					// left empty so that what is announced can only have come
+					// from the query notifications are meant to use.
+					if (url.includes("/api/v1/threads?")) {
+						const forNotifications =
+							url.includes("tag%3Ainbox") && url.includes("tag%3Aunread");
+						return {
+							revision: revision(),
+							total: forNotifications ? inbox.length : 0,
+							items: forNotifications ? inbox : [],
+						};
+					}
 					if (url.includes("/api/v1/threads/")) return { messages: [] };
 					if (url.includes("/api/v1/config")) return { path: "", raw: "" };
 					if (url.includes("/api/v1/accounts"))
@@ -61,6 +95,7 @@ describe("announcing new mail", () => {
 
 	beforeEach(() => {
 		localStorage.clear();
+		inbox = [];
 		vi.mocked(shellServerUrl).mockResolvedValue(null);
 		vi.mocked(notify).mockClear();
 		stubFetch();
@@ -97,20 +132,73 @@ describe("announcing new mail", () => {
 
 	const flush = () => new Promise((r) => setTimeout(r, 20));
 
-	it("announces a finished sync that brought mail", async () => {
+	it("names who a finished sync brought mail from, and what about", async () => {
 		await withStore(async () => {
 			await flush();
+			inbox = [arrival()];
 			FakeEventSource.current?.dispatch("sync:finished", {
 				type: "sync_finished",
-				new_messages: 3,
+				new_messages: 1,
 				revision: revision(),
 			});
 			await flush();
-			expect(notify).toHaveBeenCalledWith("ecr", "3 new messages");
+			expect(notify).toHaveBeenCalledWith("Ada Lovelace", "Lunch on Thursday");
 		});
 	});
 
-	it("counts one message in the singular", async () => {
+	/*
+	 * The point of the whole change: a notification that says "3 new messages"
+	 * tells somebody to go and look, and one that names the sender tells them
+	 * whether they need to.
+	 */
+	it("collapses a burst into one notification naming the newest", async () => {
+		await withStore(async () => {
+			await flush();
+			inbox = [
+				arrival({ id: "a", timestamp: 2_000, subject: "Older" }),
+				arrival({
+					id: "b",
+					timestamp: 9_000,
+					subject: "Newest",
+					authors: ["Grace Hopper <grace@example.org>"],
+				}),
+			];
+			FakeEventSource.current?.dispatch("sync:finished", {
+				type: "sync_finished",
+				new_messages: 2,
+				revision: revision(),
+			});
+			await flush();
+			expect(notify).toHaveBeenCalledTimes(1);
+			expect(notify).toHaveBeenCalledWith("Grace Hopper and 1 other", "Newest");
+		});
+	});
+
+	/*
+	 * Mail that a rule filed away, or that was read on another device, is not
+	 * in `tag:inbox and tag:unread` — so the server answering nothing for that
+	 * query has to mean silence, however many messages the sync reported.
+	 */
+	it("stays quiet when nothing is unread in the inbox", async () => {
+		await withStore(async () => {
+			await flush();
+			inbox = [];
+			FakeEventSource.current?.dispatch("sync:finished", {
+				type: "sync_finished",
+				new_messages: 7,
+				revision: revision(),
+			});
+			await flush();
+			expect(notify).not.toHaveBeenCalled();
+		});
+	});
+
+	/*
+	 * Opening ecr after a weekend must not announce Friday's mail. The mark is
+	 * seeded when the client subscribes, so what was already there is not new.
+	 */
+	it("says nothing about mail that was already there when it started", async () => {
+		inbox = [arrival({ timestamp: 5_000 })];
 		await withStore(async () => {
 			await flush();
 			FakeEventSource.current?.dispatch("sync:finished", {
@@ -119,7 +207,7 @@ describe("announcing new mail", () => {
 				revision: revision(),
 			});
 			await flush();
-			expect(notify).toHaveBeenCalledWith("ecr", "1 new message");
+			expect(notify).not.toHaveBeenCalled();
 		});
 	});
 
@@ -139,12 +227,13 @@ describe("announcing new mail", () => {
 	it("announces mail the watcher saw arrive outside a sync", async () => {
 		await withStore(async () => {
 			await flush();
+			inbox = [arrival()];
 			FakeEventSource.current?.dispatch("mail:changed", {
 				type: "mail_changed",
 				revision: revision(),
 			});
 			await flush();
-			expect(notify).toHaveBeenCalledWith("ecr", "New mail");
+			expect(notify).toHaveBeenCalledWith("Ada Lovelace", "Lunch on Thursday");
 		});
 	});
 
@@ -170,6 +259,7 @@ describe("announcing new mail", () => {
 	it("announces one arrival once, however it is described", async () => {
 		await withStore(async () => {
 			await flush();
+			inbox = [arrival()];
 			FakeEventSource.current?.dispatch("sync:finished", {
 				type: "sync_finished",
 				new_messages: 2,
@@ -189,6 +279,7 @@ describe("announcing new mail", () => {
 		vi.mocked(document.hasFocus).mockReturnValue(true);
 		await withStore(async () => {
 			await flush();
+			inbox = [arrival()];
 			FakeEventSource.current?.dispatch("sync:finished", {
 				type: "sync_finished",
 				new_messages: 5,
@@ -206,6 +297,7 @@ describe("announcing new mail", () => {
 		);
 		await withStore(async () => {
 			await flush();
+			inbox = [arrival()];
 			FakeEventSource.current?.dispatch("sync:finished", {
 				type: "sync_finished",
 				new_messages: 4,

@@ -195,7 +195,7 @@ export const PREFERENCE_DOCS: Record<keyof Preferences, PreferenceDoc> = {
 	notifyNewMail: {
 		section: "general",
 		scope: "client",
-		doc: "Announce arriving mail through the system's notifications, but only\nwhile the window is not the one being looked at. This is a device\nsetting: a phone and a desktop rarely want the same answer. Nothing is\nannounced while ecr is closed — there is no background service, and the\nserver never reaches out to a client.",
+		doc: "Announce arriving mail through the system's notifications, naming who\nit is from and what it is about, but only while the window is not the\none being looked at. Only mail matching `tag:inbox and tag:unread` is\nannounced: something a rule filed away is not worth a buzz, and mail\nalready read on another device is not new. A burst becomes one\nnotification naming the newest and counting the rest. This is a device\nsetting: a phone and a desktop rarely want the same answer, and the\nsubject appears on a lock screen. Nothing is announced while ecr is\nclosed — there is no background service, and the server never reaches\nout to a client.",
 	},
 	sidebarLeaders: {
 		section: "sidebar",
