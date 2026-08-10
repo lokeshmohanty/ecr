@@ -574,6 +574,22 @@ impl Notmuch {
             .unwrap_or(false)
     }
 
+    /// Where `notmuch new` will run hooks from.
+    ///
+    /// Asked rather than derived: the default is `database.path`-relative for a
+    /// traditional config and config-relative for a split one, so a second copy
+    /// of that rule here would be right about one setup and wrong about the
+    /// other — and being wrong is silent, since a hook that never runs still
+    /// leaves `notmuch new` indexing perfectly well.
+    pub async fn hook_dir(&self) -> Option<PathBuf> {
+        self.run(&["config", "get", "database.hook_dir"])
+            .await
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+    }
+
     /// Every tag in the database, for query completion.
     pub async fn tags(&self) -> Result<Vec<String>> {
         let stdout = self.run(&["search", "--output=tags", "*"]).await?;

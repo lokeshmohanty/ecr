@@ -5,6 +5,7 @@ pub mod error;
 pub mod events;
 pub mod idle;
 pub mod managed;
+pub mod periodic;
 pub mod routes;
 pub mod state;
 pub mod vacation;

@@ -145,6 +145,16 @@ ecr generates its own, and it says so.
 - **Your own `notmuch` command will not see the generated config**, because it
   lives in ecr's directory rather than `~/.config/notmuch`. Use `ecr notmuch
   <args>`, which runs your notmuch against the config ecr resolved.
+- **The generated config names `hook_dir` explicitly**, and has to. notmuch does
+  not look for hooks beside its config file: it reads `database.hook_dir`, whose
+  default is `<database.path>/.notmuch/hooks` — inside the maildir, which is the
+  one place managed mode will not write. Generating the hook without naming the
+  directory it is in is therefore only half the job, and the missing half is
+  silent: `notmuch new` still indexes, so mail keeps arriving and is simply never
+  tagged. Every view that starts from `tag:inbox` then stops at the last message
+  tagged before managed mode was switched on, which reads as syncing having
+  stopped rather than as tagging having stopped. `ecr doctor` asks notmuch where
+  it will run hooks from, rather than assuming, and fails when nothing is there.
 
 ### Contacts and calendars
 
@@ -440,6 +450,34 @@ ecr serve --bind 127.0.0.1:8383
 | `--allowed-origin` | Restrict browser origins. Repeatable. Default allows any — see [architecture.md](@/architecture.md#auth) |
 | `--tokens` | Alternate token store path |
 
+### When mail actually syncs
+
+Three things start a sync, and they cover different ground:
+
+| What | Scope | When |
+|---|---|---|
+| **Push** — an IMAP `IDLE` per account | that one account | the moment its **inbox** receives something |
+| **The periodic sync** | every account, every folder | every 30 minutes |
+| **Pressing sync** in the client | the account the current view names | when you ask |
+
+Push is what makes new mail feel instant, and it is deliberately narrow: it
+watches the inbox and nothing else. So everything you do in another client —
+archiving, deleting, relabelling, marking read — happens where nothing is
+listening and produces no notification at all. **That is what the periodic sync
+is for**, and it is the only thing that reconciles a folder no mail arrives in.
+Without it a message archived on the web stays in ecr's inbox until new mail
+happens to arrive.
+
+Both are skipped under `--read-only` and `--no-watch`, which is what that flag
+means: do not go looking on your own.
+
+A manual sync follows the view on screen, because syncing an account fetches
+every one of its folders and doing all of them to refresh the one being read is
+most of a minute of somebody else's mail. A view that names no account — a
+combined inbox, a saved query across accounts — asks for all of them, since it
+is wrong the moment any one of them is stale. This changes what a manual sync
+*costs*, never how fast mail arrives: every account keeps its own watch.
+
 ## The client is served by the server
 
 `ecr serve` serves the built web client at `/` alongside the API. Opening
@@ -662,5 +700,6 @@ Home Manager module and what each artifact carries. In short:
 | `notmuch` in your shell disagrees with ecr | Managed mode puts the notmuch config in ecr's directory. `ecr notmuch <args>` |
 | Sync fails with `selected SASL mechanism(s) not available`, and `mbsync` run by hand works | ecr ran a different `mbsync`. `systemctl --user show -pEnvironment ecr` and compare the first `mbsync` on that `PATH` with `command -v mbsync` in your shell; the XOAUTH2 plugin comes from your own wrapper, not from ecr. Pinning `mbsync_bin` in `server.toml` settles it |
 | New mail does not appear | Was the server started with `--no-watch`? Otherwise check the log for watcher warnings |
+| A message is in the webmail but not in ecr | Almost never a sync problem — check `ecr doctor`'s **account tags** line first. Mail indexed without the `post-new` hook running carries no account tag, and every account view filters on it, so the message is on disk and in notmuch while being invisible in the client. Doctor names the account and the count; the repair is by path, `notmuch tag +<account> -- path:"<account>/**" and not tag:<account>`, because the hook itself is keyed on `tag:new` and cannot reach mail whose `new` was already cleared. The generated hook now applies the account tag ungated, so this heals itself on the next `notmuch new` |
 | Tags silently do nothing | `notmuch tag --batch` exits 0 on malformed input; `ecr-store` validates first, so a `400` here is the intended behaviour |
 | A list looks wrong, and you suspect the index | Delete `~/.local/state/ecr/index.sqlite3` and restart, or set `index = false` in `server.toml` to take notmuch's answer directly. If both agree, the index was not it |

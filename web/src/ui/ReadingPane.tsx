@@ -13,6 +13,7 @@ import { absolutizePartUrls } from "./body-urls";
 import { toggleLabel } from "../state/format";
 import { linkify } from "./linkify";
 import { followLink } from "./follow-link";
+import { type Hint, hintsFor, matchHint } from "./link-hints";
 import { attachViewCursor, type ViewTarget } from "./view-mode";
 
 export function ReadingPane(props: { store: AppStore; onBack?: () => void }) {
@@ -193,12 +194,91 @@ function MessageView(props: {
 		onCleanup(detach);
 	});
 
+	/** The labels `u` puts on screen, empty whenever hints are down. */
+	const [hints, setHints] = createSignal<Hint[]>([]);
+
+	/**
+	 * `u` labels every link in the message under the cursor.
+	 *
+	 * The keys are taken on `keydown` in the capture phase, because the keymap
+	 * engine is listening too and a label like `j` would otherwise scroll the
+	 * pane on its way to opening a link. Anything that is not a label at all
+	 * cancels rather than being swallowed — a reader who mistyped wants the
+	 * labels gone, not a buffer quietly filling up.
+	 */
+	createEffect(() => {
+		if (!props.store.hinting() || !current() || !open()) return;
+
+		const rendered = target();
+		if (!rendered) return;
+
+		const found = hintsFor(rendered.root, rendered.frame);
+		setHints(found);
+
+		if (found.length === 0) {
+			props.store.setStatus("no links in this message");
+			props.store.setHinting(false);
+			return;
+		}
+
+		let typed = "";
+		const done = () => {
+			setHints([]);
+			props.store.setHinting(false);
+		};
+
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				event.preventDefault();
+				event.stopPropagation();
+				done();
+				return;
+			}
+			if (event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey) {
+				return;
+			}
+
+			event.preventDefault();
+			event.stopPropagation();
+
+			typed += event.key.toLowerCase();
+			const match = matchHint(found, typed);
+			if (match.kind === "pending") return;
+
+			done();
+			if (match.kind === "open") followLink(props.store, match.href);
+		};
+
+		window.addEventListener("keydown", onKey, true);
+		onCleanup(() => {
+			window.removeEventListener("keydown", onKey, true);
+			setHints([]);
+		});
+	});
+
 	return (
 		<article
 			data-message={props.index}
 			class="border-b border-rule"
 			classList={{ "bg-neutral-bg/40": cursor() }}
 		>
+			{/*
+			 * Fixed, not absolute: these are viewport coordinates, because that
+			 * is what `getBoundingClientRect` answers on both sides of the
+			 * message frame. Pointer events are off so a label can never
+			 * swallow the click on the link it is pointing at.
+			 */}
+			<For each={hints()}>
+				{(hint) => (
+					<span
+						class="pointer-events-none fixed z-50 rounded bg-accent px-1 text-[11px] leading-tight font-bold text-canvas shadow"
+						style={{ left: `${hint.x}px`, top: `${hint.y}px` }}
+						aria-hidden="true"
+					>
+						{hint.label}
+					</span>
+				)}
+			</For>
 			<button
 				type="button"
 				class="touch-target flex w-full items-baseline gap-3 px-4 py-3 text-left hover:bg-neutral-bg"

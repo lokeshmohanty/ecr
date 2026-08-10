@@ -96,7 +96,30 @@ pub async fn run_with_paths(paths: &MailPaths) -> Doctor {
 
     let post_new_hook = paths.post_new_hook();
     checks.push(match &post_new_hook {
-        Some(hook) => Check::ok("post-new hook", format!("{}", hook.display())),
+        // Existing is not the same as reachable. notmuch runs whatever is in
+        // `database.hook_dir`, so a hook ecr wrote elsewhere is a hook that
+        // never runs — and the only symptom is untagged mail.
+        Some(hook) => match Notmuch::new(std::sync::Arc::new(paths.clone()))
+            .hook_dir()
+            .await
+        {
+            // A warning rather than a failure, and deliberately: the server
+            // refuses to start on a failure, and untagged mail is a great deal
+            // better than no mail client. It is the same severity as no hook at
+            // all, which is the same outcome — this one just knows why.
+            Some(dir) if !dir.join("post-new").is_file() => Check::warn(
+                "post-new hook",
+                format!(
+                    "{} exists, but notmuch runs hooks from {}, which has none",
+                    hook.display(),
+                    dir.display()
+                ),
+            )
+            .with_hint(
+                "new mail is indexed but never tagged, so `tag:inbox` stops updating; set `hook_dir` under [database] in your notmuch config, or run `ecr account apply` to regenerate it",
+            ),
+            _ => Check::ok("post-new hook", format!("{}", hook.display())),
+        },
         None => Check::warn("post-new hook", "none installed")
             .with_hint("tag routing after `notmuch new` will not happen"),
     });
@@ -121,6 +144,10 @@ pub async fn run_with_paths(paths: &MailPaths) -> Doctor {
                 .join(", "),
         )
     });
+
+    if !accounts.is_empty() {
+        checks.push(account_tag_check(paths, &accounts).await);
+    }
 
     let oauth_profiles: Vec<(String, String)> = accounts
         .iter()
@@ -478,6 +505,57 @@ fn indexes_list_header(paths: &MailPaths) -> bool {
         }
     }
     false
+}
+
+/// Mail sitting in an account's maildir without that account's tag.
+///
+/// This is the failure nothing else in the system can see. The message is
+/// fetched, on disk and indexed — `notmuch count '*'` is right, the maildir is
+/// right, mbsync is right — but every account view filters on the account tag,
+/// so it is invisible in the client. It reads as mail that never arrived, which
+/// sends whoever is looking at the sync, which is the one part that worked.
+///
+/// It happens whenever mail is indexed without the `post-new` hook running:
+/// the hook was unreachable (`hook_dir`), or `notmuch new` was run by hand, or
+/// the database already had mail in it when managed mode was switched on. The
+/// hook is keyed on `tag:new`, which it clears, so nothing it does later can
+/// reach that mail — which is what makes this worth a check rather than a
+/// retry.
+async fn account_tag_check(paths: &MailPaths, accounts: &[ecr_core::account::Account]) -> Check {
+    const NAME: &str = "account tags";
+
+    let queries: Vec<String> = accounts
+        .iter()
+        .map(|a| format!("path:\"{id}/**\" and not tag:{id}", id = a.id))
+        .collect();
+
+    // One process for every account, and a failure here says nothing about the
+    // mail — doctor must not report a notmuch that would not run as untagged
+    // mail.
+    let Ok(counts) = Notmuch::new(std::sync::Arc::new(paths.clone()))
+        .count_batch(&queries)
+        .await
+    else {
+        return Check::ok(NAME, "not checked");
+    };
+
+    let behind: Vec<String> = accounts
+        .iter()
+        .zip(&counts)
+        .filter(|(_, untagged)| **untagged > 0)
+        .map(|(account, untagged)| format!("{} ({untagged})", account.id))
+        .collect();
+
+    if behind.is_empty() {
+        return Check::ok(NAME, "every message carries the account it arrived in");
+    }
+
+    // A warning, not a failure: the mail is all still there, and refusing to
+    // start the server over it would take away the client that could show it.
+    Check::warn(NAME, format!("mail with no account tag: {}", behind.join(", ")))
+        .with_hint(
+            "it is on disk but hidden from every account view; retag it by path with `notmuch tag +<account> -- path:\"<account>/**\" and not tag:<account>`",
+        )
 }
 
 fn tool_check(tool: &ToolInfo) -> Check {

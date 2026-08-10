@@ -196,10 +196,24 @@ export async function openExternal(url: string): Promise<boolean> {
   if (!["http:", "https:", "mailto:"].includes(parsed.protocol)) return false;
 
   if (isTauri()) {
+    // Not through `invoke`, which answers `null` for everything that went
+    // wrong: a refused command and one that opened a browser were then the
+    // same answer, and `openExternal` reported success either way. A link that
+    // does nothing is the *only* symptom this failure has — nothing reaches
+    // the console, nothing reaches logcat — so the rejection is caught here,
+    // where it can be said out loud, rather than discarded one layer down.
+    //
     // No browser fallback: `window.open` is what does nothing here, so trying
-    // it after a failed plugin call would only hide the failure.
-    await invoke<null>("plugin:opener|open_url", { url: parsed.href, with: null });
-    return true;
+    // it after a failed plugin call would only hide the failure again.
+    const call = invoker();
+    if (!call) return false;
+    try {
+      await call<null>("plugin:opener|open_url", { url: parsed.href, with: null });
+      return true;
+    } catch (err) {
+      console.error(`ecr: the shell refused to open ${parsed.href}:`, err);
+      return false;
+    }
   }
 
   window.open(parsed.href, "_blank", "noopener,noreferrer");

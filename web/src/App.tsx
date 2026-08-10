@@ -465,6 +465,10 @@ export function App() {
 				store.cycleAccount(-1);
 				break;
 
+			case "linkHints":
+				store.setHinting(true);
+				break;
+
 			case "settings":
 				store.setRight({ kind: "settings" });
 				store.setPane("detail");

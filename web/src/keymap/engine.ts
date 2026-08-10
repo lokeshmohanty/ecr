@@ -47,6 +47,7 @@ export type Action =
 	| { kind: "toggleFullscreen" }
 	| { kind: "togglePinned" }
 	| { kind: "focusPinned" }
+	| { kind: "linkHints" }
 	| { kind: "help" };
 
 export interface Binding {
@@ -193,6 +194,12 @@ export const DEFAULT_BINDINGS: Binding[] = [
 
 	// Detail. Reading is scrolling, so j/k move the page and the conversation is
 	// walked with a chord — the same split vim makes between a buffer and a list.
+	{
+		keys: "u",
+		action: { kind: "linkHints" },
+		description: "label every link, then press its label to open it",
+		panes: ["detail"],
+	},
 	{
 		keys: "j",
 		action: { kind: "scrollDown" },

@@ -105,6 +105,16 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
         ecr_server::idle::spawn(state.clone())
     };
 
+    // Push only ever hears about the inbox, so this is the only thing that
+    // reconciles the folders a reader changes somewhere else. It is held for as
+    // long as the server runs, and skipped under --no-watch for the same reason
+    // the others are: that flag means "do not go looking on your own".
+    let _periodic = if no_watch {
+        None
+    } else {
+        ecr_server::periodic::spawn(state.clone())
+    };
+
     // A busy port is an ordinary, user-fixable situation. Reporting it as a
     // panic with a full backtrace buries the one line that matters.
     let listener = tokio::net::TcpListener::bind(bind)

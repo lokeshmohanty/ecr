@@ -21,5 +21,14 @@ export function followLink(store: AppStore, href: string): void {
     store.composeDraft(draft, "compose");
     return;
   }
-  void openExternal(href);
+
+  // A link that does not open has to say so. `openExternal` answers whether it
+  // handed the URL over, and discarding that answer is what made a failure here
+  // indistinguishable from success: the reader clicks, nothing happens, and
+  // there is nothing on screen or in any log to say why. The status line is the
+  // right slot — it is about this action, it is not `lastError`'s *cannot reach
+  // the server*, and it is gone the next time anything else reports.
+  void openExternal(href).then((opened) => {
+    if (!opened) store.setStatus(`could not open ${href}`);
+  });
 }

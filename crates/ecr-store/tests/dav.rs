@@ -232,3 +232,80 @@ async fn asking_for_one_kind_visits_only_that_home_set() {
     assert_eq!(found.len(), 1);
     assert!(found.iter().all(|c| c.kind == Kind::Contacts));
 }
+
+/// A vCard, answered to a `GET` of one item.
+fn vcard(body: &str) -> String {
+    format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: text/vcard\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{body}",
+        body.len()
+    )
+}
+
+/// The listing every run of the collection answers, unchanged between them.
+const LISTING: &str = r#"<?xml version="1.0"?>
+<multistatus xmlns="DAV:">
+<response><href>/dav/alice/contacts/default/</href>
+<propstat><prop><resourcetype><collection/></resourcetype></prop></propstat></response>
+<response><href>/dav/alice/contacts/default/one.vcf</href>
+<propstat><prop><getetag>"v1"</getetag><resourcetype/></prop></propstat></response>
+<response><href>/dav/alice/contacts/default/two.vcf</href>
+<propstat><prop><getetag>"v1"</getetag><resourcetype/></prop></propstat></response>
+</multistatus>"#;
+
+/// The whole point of reading the etags: a collection that has not changed
+/// costs one `PROPFIND`, not one request per item.
+///
+/// Without this, every pass re-downloaded every contact and every event —
+/// measured at ten and a half minutes against a real Google account, every
+/// fifteen minutes, to write nothing. That is invisible in the log, which says
+/// `(0 changed)` either way; the only symptom is a sync that never settles. So
+/// what is asserted here is the request count, which is the thing that was
+/// wrong, rather than the files on disk, which were always right.
+#[tokio::test]
+async fn an_unchanged_collection_is_not_downloaded_again() {
+    let (port, seen) = serve(vec![
+        xml(LISTING),
+        vcard("BEGIN:VCARD\nFN:One\nEND:VCARD"),
+        vcard("BEGIN:VCARD\nFN:Two\nEND:VCARD"),
+        xml(LISTING),
+        // Spare replies: if the second pass wrongly refetches, it gets these
+        // and the assertion below names how many extra requests it made.
+        vcard("BEGIN:VCARD\nFN:One\nEND:VCARD"),
+        vcard("BEGIN:VCARD\nFN:Two\nEND:VCARD"),
+    ]);
+
+    let root = tempfile::tempdir().unwrap();
+    let client = reqwest::Client::new();
+    let collection = ecr_store::dav::Collection {
+        kind: Kind::Contacts,
+        url: format!("http://127.0.0.1:{port}/dav/alice/contacts/default/"),
+        name: "Personal".into(),
+    };
+
+    let first = ecr_store::dav::sync_collection(&client, &collection, "Bearer t", root.path())
+        .await
+        .unwrap();
+    assert_eq!(first, 2, "both contacts should be written the first time");
+
+    let second = ecr_store::dav::sync_collection(&client, &collection, "Bearer t", root.path())
+        .await
+        .unwrap();
+    assert_eq!(second, 0, "nothing changed, so nothing is rewritten");
+
+    let methods: Vec<String> = requests(&seen, 4).into_iter().map(|r| r.method).collect();
+    assert_eq!(
+        methods,
+        vec!["PROPFIND", "GET", "GET", "PROPFIND"],
+        "the second pass must list and stop"
+    );
+
+    assert!(
+        seen.recv_timeout(std::time::Duration::from_millis(500))
+            .is_err(),
+        "the second pass fetched an item whose etag had not changed"
+    );
+
+    // And the files are still there to be read, which is what the skip risks.
+    let one = root.path().join("contacts/Personal/one.vcf");
+    assert!(one.is_file(), "{} is missing", one.display());
+}

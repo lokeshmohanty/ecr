@@ -289,6 +289,14 @@ export function createAppStore() {
 	);
 	/** Whether the detail pane has a text cursor in the message being read. */
 	const [viewing, setViewing] = createSignal(false);
+	/**
+	 * Whether every link on screen is wearing a label.
+	 *
+	 * Kept beside `viewing` rather than inside it: hints are a way to *reach* a
+	 * link without a pointer, not a mode for reading, so `u` works whether or not
+	 * the reading cursor is up and leaves it exactly as it found it.
+	 */
+	const [hinting, setHinting] = createSignal(false);
 	const [pinnedOpen, setPinnedOpen] = createSignal(true);
 	const [expandedGroup, setExpandedGroup] = createSignal<string>(ALL_ACCOUNTS);
 	const [expandedSections, setExpandedSections] = createSignal<
@@ -1606,11 +1614,26 @@ export function createAppStore() {
 		}
 	}
 
+	/**
+	 * Syncing fetches every folder of an account, so doing all four to refresh
+	 * the one being read is most of a minute of somebody else's mail. The view
+	 * on screen already names its account — that is what the footer reads — so
+	 * the sync follows it.
+	 *
+	 * A view that names no account is not a missing answer, it is a request for
+	 * all of them: a saved query across accounts, or the combined inbox, is
+	 * wrong the moment any one of them is stale. `ALL_ACCOUNTS` is the empty
+	 * list the route already treats as everything.
+	 *
+	 * Push is untouched by this. Every account keeps its own IDLE watch, so
+	 * this changes what a *manual* sync costs, never how fast mail arrives.
+	 */
 	async function sync() {
 		setSyncing(true);
 		setStatus("syncing");
 		try {
-			const report = await api.sync();
+			const only = accountLabel(query(), accounts() ?? []);
+			const report = await api.sync(only === ALL_ACCOUNTS ? [] : [only]);
 			setStatus(`synced: ${report.new_messages} new`);
 			releaseHeld();
 			bumpRevision();
@@ -2030,6 +2053,8 @@ export function createAppStore() {
 		followSelection,
 		viewing,
 		setViewing,
+		hinting,
+		setHinting,
 		pinnedOpen,
 		setPinnedOpen,
 		expandedGroup,

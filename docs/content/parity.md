@@ -21,6 +21,7 @@ felt, not by how hard it is.
 | Compose, reply, attachments | Labelled rows rather than a header buffer, vim editing throughout, attachments up to 25MB |
 | HTML mail, safely | Sanitised server-side, remote images blocked until asked for, no script ever runs |
 | Reading cursor | Motions, visual mode, `/` and `y` over the rendered message — over HTML as well as plain text |
+| Opening a link by keyboard | `u` labels every link in the message with a home-row key; press the label to open it |
 | Saved searches | `S` names whatever the list is showing; they live on the device |
 | Mailing lists | A sidebar section, gathered from `List-Id` headers |
 | `mailto:` links | Registered on desktop and Android; a link anywhere opens a prefilled draft here |

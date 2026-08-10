@@ -331,3 +331,34 @@ fn a_generated_file_that_was_edited_is_backed_up_on_the_next_apply() {
     };
     assert_eq!(std::fs::read_to_string(backup).unwrap(), edited);
 }
+
+/// notmuch runs hooks from `database.hook_dir`, defaulting to
+/// `<database.path>/.notmuch/hooks` — never the directory beside its config.
+/// So writing `hooks/post-new` next to the generated config is only half the
+/// job, and the missing half fails silently: `notmuch new` still indexes, mail
+/// still arrives, and it simply never gets tagged `inbox`. Every pane that
+/// starts from `tag:inbox` then stops at the last message tagged before
+/// managed mode was switched on, which reads as sync having stopped.
+#[test]
+fn the_generated_config_points_notmuch_at_the_hooks_it_generated() {
+    let home = tempfile::tempdir().unwrap();
+    let paths = set_up(home.path());
+
+    let config = paths
+        .notmuch
+        .path
+        .as_ref()
+        .expect("a managed notmuch config");
+    let text = std::fs::read_to_string(config).unwrap();
+
+    let hook_dir = text
+        .lines()
+        .map(str::trim)
+        .find_map(|line| line.strip_prefix("hook_dir="))
+        .expect("the generated config names a hook_dir");
+
+    assert!(
+        Path::new(hook_dir).join("post-new").is_file(),
+        "notmuch would run hooks from {hook_dir}, which has no post-new"
+    );
+}

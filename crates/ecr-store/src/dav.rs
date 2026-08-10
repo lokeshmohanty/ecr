@@ -18,6 +18,7 @@
 
 use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 /// Where a collection lives, and what it is.
@@ -62,6 +63,17 @@ pub struct Item {
     pub body: String,
 }
 
+/// One item as the collection *listed* it, before anything is fetched.
+///
+/// The etag is what makes a resync cheap: it is the server's own answer to
+/// "has this changed", so an item whose etag matches the one beside the file
+/// already on disk never has to be downloaded again.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Listing {
+    pub href: String,
+    pub etag: Option<String>,
+}
+
 /// The `PROPFIND` body that asks a collection what it holds.
 const LIST_BODY: &str = r#"<?xml version="1.0" encoding="utf-8" ?>
 <d:propfind xmlns:d="DAV:"><d:prop><d:getetag/><d:resourcetype/></d:prop></d:propfind>"#;
@@ -70,7 +82,7 @@ const LIST_BODY: &str = r#"<?xml version="1.0" encoding="utf-8" ?>
 ///
 /// `Depth: 1`, which is the collection and its children — the alternative is
 /// `infinity`, which many servers refuse outright and the rest answer slowly.
-pub async fn list(client: &reqwest::Client, url: &str, auth: &str) -> Result<Vec<String>> {
+pub async fn list(client: &reqwest::Client, url: &str, auth: &str) -> Result<Vec<Listing>> {
     let response = client
         .request(reqwest::Method::from_bytes(b"PROPFIND").unwrap(), url)
         .header("Depth", "1")
@@ -91,15 +103,15 @@ pub async fn list(client: &reqwest::Client, url: &str, auth: &str) -> Result<Vec
         return Err(Error::Managed(format!("{url} answered {status}")));
     }
 
-    Ok(hrefs(&text))
+    Ok(listings(&text))
 }
 
-/// The item hrefs in a WebDAV multistatus response.
+/// The items in a WebDAV multistatus response, each with its etag.
 ///
 /// Parsed rather than pattern-matched: `d:` is a convention and not a
 /// guarantee, so this matches on the namespaced local name, which is what the
 /// specification actually fixes.
-pub fn hrefs(xml: &str) -> Vec<String> {
+pub fn listings(xml: &str) -> Vec<Listing> {
     let Ok(doc) = roxmltree::Document::parse(xml) else {
         return Vec::new();
     };
@@ -115,11 +127,23 @@ pub fn hrefs(xml: &str) -> Vec<String> {
                 .any(|n| n.has_tag_name((DAV, "collection")))
         })
         .filter_map(|response| {
-            response
+            let href = response
                 .descendants()
                 .find(|n| n.has_tag_name((DAV, "href")))
                 .and_then(|n| n.text())
-                .map(str::to_string)
+                .map(str::to_string)?;
+
+            // Servers quote etags, and some change the quoting without changing
+            // the entity. Comparing the unquoted value keeps a resync cheap
+            // across that; comparing the raw string would refetch everything.
+            let etag = response
+                .descendants()
+                .find(|n| n.has_tag_name((DAV, "getetag")))
+                .and_then(|n| n.text())
+                .map(|raw| raw.trim().trim_matches('"').to_string())
+                .filter(|etag| !etag.is_empty());
+
+            Some(Listing { href, etag })
         })
         .collect()
 }
@@ -154,19 +178,12 @@ pub async fn fetch(client: &reqwest::Client, url: &str, auth: &str) -> Result<St
 /// collection — the layout vdirsyncer wrote, so khard and khal read what ecr
 /// fetches without being told anything.
 pub fn write_vdir(root: &Path, collection: &Collection, items: &[Item]) -> Result<usize> {
-    let dir = root
-        .join(collection.kind.dir())
-        .join(safe_name(&collection.name));
+    let dir = collection_dir(root, collection);
     std::fs::create_dir_all(&dir)?;
 
     let mut written = 0;
     for item in items {
-        let name = format!(
-            "{}.{}",
-            safe_name(&item_id(&item.href)),
-            collection.kind.extension()
-        );
-        let path = dir.join(name);
+        let path = item_path(root, collection, &item.href);
 
         // Only when it differs, so a resync does not rewrite an entire address
         // book's mtimes and wake everything watching the directory.
@@ -178,6 +195,24 @@ pub fn write_vdir(root: &Path, collection: &Collection, items: &[Item]) -> Resul
     }
 
     Ok(written)
+}
+
+/// The vdir a collection is written to.
+fn collection_dir(root: &Path, collection: &Collection) -> PathBuf {
+    root.join(collection.kind.dir())
+        .join(safe_name(&collection.name))
+}
+
+/// Where one item's file lives. Shared with the etag cache rather than
+/// recomputed there: the cache says a file is already correct, so the two
+/// disagreeing about which file that is would skip a fetch and leave the item
+/// missing.
+fn item_path(root: &Path, collection: &Collection, href: &str) -> PathBuf {
+    collection_dir(root, collection).join(format!(
+        "{}.{}",
+        safe_name(&item_id(href)),
+        collection.kind.extension()
+    ))
 }
 
 /// The last path segment of an href, without its extension.
@@ -444,26 +479,104 @@ pub fn absolute(base: &str, href: &str) -> String {
     )
 }
 
-/// Fetches every item in a collection and writes the vdir.
+/// Where the etags from the last sync of a collection are remembered.
+///
+/// Beside the vdirs rather than inside one: a vdir is a directory of `.vcf` or
+/// `.ics` files that khard and khal read, and ecr's bookkeeping is not part of
+/// that contract.
+fn etag_cache_path(root: &Path, collection: &Collection) -> PathBuf {
+    root.join(".dav-etags").join(format!(
+        "{}-{}.json",
+        collection.kind.dir(),
+        safe_name(&collection.name)
+    ))
+}
+
+fn load_etags(root: &Path, collection: &Collection) -> HashMap<String, String> {
+    std::fs::read_to_string(etag_cache_path(root, collection))
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default()
+}
+
+fn save_etags(root: &Path, collection: &Collection, etags: &HashMap<String, String>) {
+    let path = etag_cache_path(root, collection);
+    let saved = path
+        .parent()
+        .map(std::fs::create_dir_all)
+        .transpose()
+        .ok()
+        .and_then(|_| serde_json::to_string(etags).ok())
+        .map(|text| std::fs::write(&path, text));
+
+    // A cache that could not be written costs the next run its speed and
+    // nothing else, so it must never fail a sync that fetched everything.
+    if let Some(Err(err)) = saved {
+        tracing::debug!(path = %path.display(), %err, "could not save the etag cache");
+    }
+}
+
+/// Fetches a collection's items and writes the vdir.
+///
+/// Only what changed is fetched. The server's etag for an item is compared
+/// against the one recorded when that item was last written, and a match skips
+/// the `GET` entirely — which is the difference between a resync costing one
+/// `PROPFIND` and costing one request per contact. Without it a pass over a
+/// few thousand items takes minutes, every time, to write nothing.
+///
+/// The etag alone is not enough to skip: the file it describes has to still be
+/// there, or an item deleted locally would never come back.
 pub async fn sync_collection(
     client: &reqwest::Client,
     collection: &Collection,
     auth: &str,
     root: &Path,
 ) -> Result<usize> {
-    let hrefs = list(client, &collection.url, auth).await?;
+    let listings = list(client, &collection.url, auth).await?;
+    let known = load_etags(root, collection);
 
-    let mut items = Vec::with_capacity(hrefs.len());
-    for href in hrefs {
-        let url = absolute(&collection.url, &href);
+    let mut items = Vec::new();
+    let mut etags = HashMap::with_capacity(listings.len());
+    let mut reused = 0usize;
+
+    for entry in listings {
+        if let Some(etag) = entry.etag.as_deref() {
+            if known.get(&entry.href).map(String::as_str) == Some(etag)
+                && item_path(root, collection, &entry.href).is_file()
+            {
+                etags.insert(entry.href, etag.to_string());
+                reused += 1;
+                continue;
+            }
+        }
+
+        let url = absolute(&collection.url, &entry.href);
         match fetch(client, &url, auth).await {
-            Ok(body) => items.push(Item { href, body }),
-            // One unreadable contact must not cost the other four hundred.
+            Ok(body) => {
+                if let Some(etag) = entry.etag {
+                    etags.insert(entry.href.clone(), etag);
+                }
+                items.push(Item {
+                    href: entry.href,
+                    body,
+                });
+            }
+            // One unreadable contact must not cost the other four hundred. Its
+            // etag is deliberately not recorded, so the next run tries again.
             Err(err) => tracing::debug!(%url, %err, "skipping an item that could not be fetched"),
         }
     }
 
-    write_vdir(root, collection, &items)
+    tracing::debug!(
+        collection = %collection.name,
+        fetched = items.len(),
+        reused,
+        "synced a dav collection"
+    );
+
+    let written = write_vdir(root, collection, &items)?;
+    save_etags(root, collection, &etags);
+    Ok(written)
 }
 
 #[cfg(test)]
@@ -490,7 +603,7 @@ mod tests {
     /// item gets a directory listing where a vCard should be.
     #[test]
     fn the_collection_itself_is_not_one_of_its_items() {
-        let found = hrefs(MULTISTATUS);
+        let found: Vec<String> = listings(MULTISTATUS).into_iter().map(|l| l.href).collect();
         assert_eq!(
             found,
             vec!["/dav/alice/contacts/one.vcf", "/dav/alice/contacts/two.vcf"]
@@ -522,12 +635,12 @@ mod tests {
             .replace("<getetag>", "<D:getetag>")
             .replace("</getetag>", "</D:getetag>");
 
-        assert_eq!(hrefs(&xml).len(), 2, "{xml}");
+        assert_eq!(listings(&xml).len(), 2, "{xml}");
     }
 
     #[test]
     fn nonsense_is_no_items_rather_than_an_error() {
-        assert!(hrefs("not xml at all <<<").is_empty());
+        assert!(listings("not xml at all <<<").is_empty());
     }
 
     /// An href is the server's to choose, and one containing a traversal would

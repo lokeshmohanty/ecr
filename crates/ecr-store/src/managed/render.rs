@@ -31,6 +31,10 @@ impl Layout {
         notmuch_config(&self.managed_dir)
     }
 
+    pub fn hook_dir(&self) -> std::path::PathBuf {
+        hook_dir(&self.managed_dir)
+    }
+
     pub fn post_new(&self) -> std::path::PathBuf {
         post_new_hook(&self.managed_dir)
     }
@@ -61,14 +65,23 @@ pub fn notmuch_config(managed_dir: &Path) -> std::path::PathBuf {
     managed_dir.join("notmuch").join("config")
 }
 
-/// `MailPaths::post_new_hook` looks for `hooks/post-new` beside the notmuch
-/// config, so this is not a choice — it is where notmuch will look.
+/// notmuch does **not** look for hooks beside its config. It reads
+/// `database.hook_dir`, which defaults to `<database.path>/.notmuch/hooks` —
+/// inside the maildir, which is the one place managed mode may not write. So
+/// putting the hooks here is only half the job: `notmuch` below has to name
+/// this directory, or `notmuch new` runs with no hook at all. It still indexes,
+/// so mail arrives and is simply never tagged `inbox`, and every pane that
+/// starts from `tag:inbox` stops at the last message tagged before the switch.
+pub fn hook_dir(managed_dir: &Path) -> std::path::PathBuf {
+    managed_dir.join("notmuch").join("hooks")
+}
+
 pub fn post_new_hook(managed_dir: &Path) -> std::path::PathBuf {
-    managed_dir.join("notmuch").join("hooks").join("post-new")
+    hook_dir(managed_dir).join("post-new")
 }
 
 pub fn pre_new_hook(managed_dir: &Path) -> std::path::PathBuf {
-    managed_dir.join("notmuch").join("hooks").join("pre-new")
+    hook_dir(managed_dir).join("pre-new")
 }
 
 pub fn mbsync(accounts: &ManagedAccounts, layout: &Layout) -> String {
@@ -178,7 +191,11 @@ pub fn notmuch(accounts: &ManagedAccounts, layout: &Layout) -> String {
     let mut out = String::new();
 
     out.push_str("[database]\n");
-    out.push_str(&format!("path={}\n\n", layout.maildir_root.display()));
+    out.push_str(&format!("path={}\n", layout.maildir_root.display()));
+    out.push_str(&format!(
+        "hook_dir={}\n\n",
+        hook_dir(&layout.managed_dir).display()
+    ));
 
     out.push_str("[user]\n");
     if let Some((_, primary)) = accounts.primary() {
@@ -243,8 +260,24 @@ pub fn post_new(accounts: &ManagedAccounts) -> String {
 
     for (id, account) in accounts.enabled() {
         out.push_str(&format!("# {id} — {}\n", account.address));
+        // The one rule here that is *not* gated on `tag:new`, deliberately.
+        //
+        // Every other rule derives filing, and re-deriving filing would undo
+        // the reader's own — a message they archived is still in the Inbox
+        // folder. Which account a message belongs to is not filing: it is which
+        // maildir the file is in, it is never something a reader changes, and
+        // re-applying it cannot be wrong.
+        //
+        // Making it self-healing is what stops one missed hook run costing that
+        // mail permanently. `tag:new` is cleared at the end of this script, so a
+        // message the hook never saw — indexed while the hook was unreachable,
+        // or already in the database when managed mode was switched on — can
+        // never be reached by a rule keyed on it again. Every account view
+        // filters on this tag, so such a message is simply invisible while its
+        // file sits on disk. Here that heals on the next `notmuch new`; the
+        // query matches nothing once it has, so it costs a lookup.
         out.push_str(&format!(
-            "notmuch tag +{id} -- tag:new and path:\"{id}/**\"\n"
+            "notmuch tag +{id} -- path:\"{id}/**\" and not tag:{id}\n"
         ));
 
         for role in FolderRole::ALL {
@@ -604,8 +637,13 @@ mod tests {
         let text = post_new(&accounts());
 
         assert!(text.starts_with("#!/bin/sh\n"), "{text}");
+        // The account tag is the one rule not gated on `tag:new`, so mail the
+        // hook never saw still gets it on the next run. Gating it was what let
+        // eighteen thousand messages sit on disk, indexed and invisible,
+        // because every account view filters on this tag and nothing keyed on
+        // `tag:new` can reach a message whose `new` was already cleared.
         assert!(
-            text.contains("notmuch tag +main -- tag:new and path:\"main/**\""),
+            text.contains("notmuch tag +main -- path:\"main/**\" and not tag:main"),
             "{text}"
         );
         assert!(
