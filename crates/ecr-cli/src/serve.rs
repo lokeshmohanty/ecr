@@ -41,6 +41,35 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
         crate::init::ensure().await?;
     }
 
+    // Before the store is opened, because one of the files this regenerates is
+    // the notmuch config the store is about to be resolved from — and because a
+    // generated file that predates this binary is exactly what the reconcile is
+    // for. `ecr account apply` runs when an *account* changes; upgrading ecr is
+    // not an account change, so nothing regenerated these files and a renderer
+    // that learned something new never reached the disk. That is how the same
+    // outage happened twice: notmuch ran no hook, mail was indexed and never
+    // tagged, and doctor called the server healthy throughout.
+    //
+    // A failure here is not fatal. Every one of these files is something doctor
+    // checks by itself a few lines below, so the diagnosis is about to be
+    // printed properly; failing the start would replace a specific complaint
+    // with a generic one.
+    // Not behind `--no-init`: that flag means "do not stop for a question
+    // nobody is there to answer", and this asks nothing. A server started with
+    // it is under systemd or in a container, which is precisely where a config
+    // left behind by an upgrade has nobody watching for it.
+    match crate::account::reconcile() {
+        Ok(applied) => {
+            for entry in applied.iter().filter(|entry| entry.outcome.wrote()) {
+                tracing::info!(
+                    path = %entry.path.display(),
+                    "regenerated a managed file that was behind the accounts"
+                );
+            }
+        }
+        Err(err) => tracing::warn!(%err, "could not regenerate the managed files"),
+    }
+
     let store = Arc::new(NotmuchStore::open()?);
 
     let report = ecr_store::doctor::run_with_paths(store.paths()).await;

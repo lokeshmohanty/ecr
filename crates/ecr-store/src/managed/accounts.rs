@@ -243,6 +243,48 @@ pub fn apply(
     Ok(applied)
 }
 
+/// Regenerates only what has fallen behind, and never a file somebody edited.
+///
+/// The renderers are *code*, so what these files should contain changes when ecr
+/// does — and nothing regenerated them, because [`apply`] runs when an account
+/// changes and an upgrade is not an account change. That gap has already cost
+/// this setup twice: `render::notmuch` learned to emit `hook_dir`, the installed
+/// binary had it, and the config on disk was still the one written before it —
+/// so notmuch ran no hook, mail was indexed and never tagged, and every pane
+/// starting from `tag:inbox` froze while doctor reported the server healthy.
+/// Managed mode's premise is that ecr owns these files; a generated file older
+/// than the binary reading it is therefore ecr's to fix, not the reader's to
+/// notice.
+///
+/// This is deliberately weaker than [`apply`]. Apply is someone typing a command
+/// and means it, so it replaces a hand-edited file too, backing the edit up
+/// first. This runs unattended on every `ecr serve`, where that same backup
+/// would be a file the reader never asked for and does not know to look for — so
+/// [`State::EditedByHand`] is left exactly as it is and doctor goes on reporting
+/// it. Nothing here can discard work.
+pub fn reconcile(
+    accounts: &ManagedAccounts,
+    layout: &Layout,
+    packages: &Packages,
+) -> Result<Vec<Applied>> {
+    let mut applied = Vec::new();
+
+    for rendered in plan(accounts, layout, packages) {
+        if !matches!(rendered.state(), State::Missing | State::Stale) {
+            continue;
+        }
+
+        let outcome =
+            super::write_with_mode(&rendered.path, &rendered.body, SOURCE, rendered.mode)?;
+        applied.push(Applied {
+            path: rendered.path,
+            outcome,
+        });
+    }
+
+    Ok(applied)
+}
+
 fn create_maildir(dir: &Path) -> Result<()> {
     for leaf in ["cur", "new", "tmp"] {
         std::fs::create_dir_all(dir.join(leaf))?;
@@ -380,6 +422,64 @@ mod tests {
         );
         let stale = plan(&accounts.accounts, &layout, &all_managed());
         assert!(stale.iter().any(|r| r.state() == State::Stale), "{stale:?}");
+    }
+
+    /// The upgrade case, which is the one that froze a real inbox twice. A
+    /// renderer that learns something new leaves every generated file on disk
+    /// behind it, and nothing but this brings them forward.
+    #[test]
+    fn reconciling_regenerates_a_file_the_renderers_have_moved_past() {
+        let home = tempfile::tempdir().unwrap();
+        let (accounts, layout) = fixture(home.path());
+        apply(&accounts.accounts, &layout, &all_managed()).unwrap();
+
+        // Stands for an older ecr's output: ecr's own header, so it is not an
+        // edit, over a body this ecr would no longer write.
+        let stale = super::super::render("Channel gone\n", SOURCE);
+        std::fs::write(layout.isyncrc(), stale).unwrap();
+
+        let applied = reconcile(&accounts.accounts, &layout, &all_managed()).unwrap();
+
+        assert_eq!(applied.len(), 1);
+        assert_eq!(applied[0].path, layout.isyncrc());
+        let planned = plan(&accounts.accounts, &layout, &all_managed());
+        assert!(planned.iter().all(|r| r.state() == State::Current));
+    }
+
+    /// Unattended, so it may not cost anybody work. `apply` is a person typing
+    /// a command and backs the edit up; this runs on every `ecr serve`, where a
+    /// backup is a file nobody knows to look for.
+    #[test]
+    fn reconciling_leaves_a_hand_edited_file_exactly_where_it_is() {
+        let home = tempfile::tempdir().unwrap();
+        let (accounts, layout) = fixture(home.path());
+        apply(&accounts.accounts, &layout, &all_managed()).unwrap();
+
+        let edited = std::fs::read_to_string(layout.isyncrc()).unwrap() + "Patterns *\n";
+        std::fs::write(layout.isyncrc(), &edited).unwrap();
+
+        let applied = reconcile(&accounts.accounts, &layout, &all_managed()).unwrap();
+
+        assert!(applied.is_empty(), "{applied:?}");
+        assert_eq!(std::fs::read_to_string(layout.isyncrc()).unwrap(), edited);
+        // And no backup was taken, because nothing was replaced.
+        let backups = std::fs::read_dir(layout.isyncrc().parent().unwrap())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains("backup"))
+            .count();
+        assert_eq!(backups, 0);
+    }
+
+    #[test]
+    fn reconciling_a_setup_that_is_already_current_writes_nothing() {
+        let home = tempfile::tempdir().unwrap();
+        let (accounts, layout) = fixture(home.path());
+        apply(&accounts.accounts, &layout, &all_managed()).unwrap();
+
+        let applied = reconcile(&accounts.accounts, &layout, &all_managed()).unwrap();
+
+        assert!(applied.is_empty(), "{applied:?}");
     }
 
     #[test]

@@ -300,6 +300,30 @@ pub fn apply() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// [`accounts::reconcile`] against this process's environment, for `ecr serve`.
+///
+/// Answers what it changed rather than printing: a self-healing step that works
+/// silently is indistinguishable from one that never ran, which is most of what
+/// made the bug it exists for so expensive to find.
+///
+/// A setup with problems in `accounts.toml` is left alone deliberately. The
+/// model those files would be rendered from is the thing that is wrong, so
+/// writing from it would replace four good files with four bad ones — and
+/// doctor already fails on it, which stops the server a moment later with the
+/// problem named.
+pub fn reconcile() -> anyhow::Result<Vec<accounts::Applied>> {
+    let env = Env::from_process();
+    let model = Accounts::load(&env)?;
+    let packages = Packages::load(&env);
+
+    if !packages.any_managed() || !model.problems().is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let layout = model.layout(&env)?;
+    Ok(accounts::reconcile(&model.accounts, &layout, &packages)?)
+}
+
 /// Builds the account model out of a setup ecr does not manage.
 ///
 /// Shared by `import`, which shows it as a diff, and `test`, which dials it —

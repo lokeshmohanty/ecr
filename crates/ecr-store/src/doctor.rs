@@ -61,6 +61,7 @@ pub async fn run_with_paths(paths: &MailPaths) -> Doctor {
         .map(|loaded| loaded.accounts);
     checks.push(tag_sync_check(paths, managed_accounts.as_ref()));
     checks.extend(managed_checks(paths));
+    checks.push(theme_check(paths));
 
     checks.push(if paths.maildir_root.is_dir() {
         Check::ok("maildir root", format!("{}", paths.maildir_root.display()))
@@ -556,6 +557,37 @@ async fn account_tag_check(paths: &MailPaths, accounts: &[ecr_core::account::Acc
         .with_hint(
             "it is on disk but hidden from every account view; retag it by path with `notmuch tag +<account> -- path:\"<account>/**\" and not tag:<account>`",
         )
+}
+
+/// Presets on disk that an older ecr wrote and this one would write differently.
+///
+/// Seeding deliberately never overwrites, so a palette that gains a colour role
+/// in a release does not reach an install that already has the file — the client
+/// renders that one role with its compiled-in colour and the theme is quietly
+/// half-applied. Unlike the managed files, this cannot be repaired on the
+/// reader's behalf: ecr seeds a preset and it is theirs from then on, so the
+/// most that can be done is to name it.
+fn theme_check(paths: &MailPaths) -> Check {
+    const NAME: &str = "theme presets";
+
+    let behind = crate::themes::incomplete(&paths.themes_dir());
+    if behind.is_empty() {
+        return Check::ok(NAME, "the shipped palettes are current");
+    }
+
+    let detail: Vec<String> = behind
+        .iter()
+        .map(|(name, missing)| format!("{name} ({})", missing.join(", ")))
+        .collect();
+
+    Check::warn(
+        NAME,
+        format!("older than this ecr, missing: {}", detail.join("; ")),
+    )
+    .with_hint(
+        "the client falls back to a built-in colour for each missing role; delete the file to \
+         have ecr write the current one, or add the roles to the copy you have edited",
+    )
 }
 
 fn tool_check(tool: &ToolInfo) -> Check {

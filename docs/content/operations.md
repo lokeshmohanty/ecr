@@ -136,6 +136,15 @@ ecr generates its own, and it says so.
 - A generated file says so at the top and carries a digest of its own body. Edit
   one and the next `ecr account apply` moves your edit aside and tells you where
   it put it, rather than overwriting it.
+- **`ecr serve` brings the generated files forward by itself at startup.** What
+  they should contain is decided by ecr's code, so upgrading ecr can leave every
+  one of them behind — and `ecr account apply` runs when an *account* changes,
+  which an upgrade is not. Anything ecr wrote and has since moved past is
+  rewritten when the server starts, with a line in the log naming it. A file
+  **you** edited is never touched by this: it stays exactly as you left it and
+  `ecr doctor` goes on reporting it, because the startup path is unattended and a
+  backup you did not ask for is a file you will not know to look for. `ecr
+  account apply` remains the deliberate version that replaces an edited file too.
 - **Deletion never propagates by default.** `Expunge` and `Remove` are `None`
   and `Create` is `Near`, so ecr fetches a folder that appears on the server and
   never creates, removes or expunges anything *on* it. Change that per account
@@ -695,7 +704,9 @@ Home Manager module and what each artifact carries. In short:
 | `503` responses | A binary is missing from the service's `PATH`; pin absolute paths in `server.toml` |
 | Sync fails with an auth error | `ecr oauth status <account>`; the token may need reauthorizing with `ecr oauth authorize <account>` |
 | An account added in the client does not sync | Adding it writes the configuration; it still needs a token. `ecr oauth setup <profile> --provider gmail --email …`, then sync |
-| `ecr doctor` says a managed file is `stale` | `accounts.toml` moved on and the generated files did not. `ecr account apply` |
+| `ecr doctor` says a managed file is `stale` | `accounts.toml` moved on and the generated files did not. `ecr account apply` — though `ecr serve` now does this for you at startup, so a `stale` line on a running server means the file was written after it started |
+| Mail stops being filed straight after upgrading ecr | It should no longer be possible: `ecr serve` regenerates what it has moved past at startup. On a build before that, `ecr account apply` then `ecr notmuch new`. The symptom is `ecr notmuch count tag:new` above zero with a `tag:inbox` that has stopped advancing |
+| `ecr doctor` says `theme presets` are older than this ecr | A palette gained a colour role in a release and seeding never overwrites a file you already have, so the client falls back to a built-in colour for it. Delete the named file to get the current one, or add the listed roles to your edited copy |
 | `ecr doctor` says a managed file was `edited` | Somebody edited a generated file. Put the change in `accounts.toml`; the next apply backs the edit up and replaces it |
 | `notmuch` in your shell disagrees with ecr | Managed mode puts the notmuch config in ecr's directory. `ecr notmuch <args>` |
 | Sync fails with `selected SASL mechanism(s) not available`, and `mbsync` run by hand works | ecr ran a different `mbsync`. `systemctl --user show -pEnvironment ecr` and compare the first `mbsync` on that `PATH` with `command -v mbsync` in your shell; the XOAUTH2 plugin comes from your own wrapper, not from ecr. Pinning `mbsync_bin` in `server.toml` settles it |
