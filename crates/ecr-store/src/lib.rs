@@ -28,6 +28,7 @@ pub mod smtp;
 pub mod store;
 pub mod themes;
 pub mod tools;
+pub mod watch;
 
 pub use error::{Error, Result};
 pub use notmuch::Notmuch;

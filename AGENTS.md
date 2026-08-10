@@ -833,6 +833,17 @@ notmuch cannot enumerate the values at all — so the server scans `List-Id`
 headers off recent message files. When the prefix is missing, the sidebar says
 so rather than showing rows that would match nothing, and `ecr doctor` warns.
 
+A row is a card, and the gap between two of them is **inside** `ROW_HEIGHT`.
+That constant is the pitch the virtual scroller counts in, so a margin it does
+not know about puts every row slightly below where `index * ROW_HEIGHT` says it
+is and the error compounds down the list. The rule and the lift are one
+`box-shadow` rather than a `border`: a border eats two pixels out of a box sized
+to the pixel for a third line of preview, and the line clips on exactly the rows
+that have one. The card's *surface* is a utility class on the row, not a
+declaration in `.row-card` — components.css is unlayered and Tailwind's
+utilities live in `@layer utilities`, so a `background` there would outrank
+`bg-obligation-bg` and the cursor would stop being visible.
+
 The list formats its own dates. `ThreadSummary.timestamp` drives
 `state/datetime.ts`, not notmuch's `date_relative` — that string is a sentence
 ("now", "April 01"), never the same width, and never says what time a message
@@ -894,6 +905,20 @@ rather than silently discarding a bad line. Edits go through `withValue`, which
 replaces one value and leaves every other byte alone, so a toggle on the
 settings page never costs the user the comments they wrote. localStorage holds
 only a copy, for starting before the server answers.
+
+**The device's half stores only what it changes, and the keybindings are why.**
+`ecr.client` used to hold the *resolved* binding list — every shipped default of
+the day it was written, indistinguishable afterwards from a deliberate choice.
+`mergeBindings` keys on the action, so when a release rebinds a key both the old
+binding and the new default survive and the engine takes the first: `Space`
+became `toggleSelectNext` and went on picking a row without stepping to the next
+one, for ever, on every device that had ever saved anything. Not on a fresh one,
+which is every fixture and every suite. `customBindings` is the inverse of
+`mergeBindings` and is applied on the way in and on the way out, so the defaults
+are re-derived from the running code each session; the pre-0.6 `bindings` field
+is skipped rather than migrated, because a snapshot cannot say which of its
+entries anybody chose, and what a reader really customized is in the shared
+file's `[keybindings]`, which is read every session anyway.
 
 The palette is a second TOML file, linked from the first: `theme =
 "themes/ecr-dark.toml"`, relative to settings.toml's own directory. Ten presets

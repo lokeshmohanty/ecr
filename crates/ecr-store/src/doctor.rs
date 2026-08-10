@@ -353,17 +353,7 @@ fn managed_checks(paths: &MailPaths) -> Vec<Check> {
         Check::warn("imap push", "no account can be watched")
             .with_hint("new mail appears when something syncs; give an account an IMAP host")
     } else {
-        Check::ok(
-            "imap push",
-            format!(
-                "{} watched with IDLE",
-                watched
-                    .iter()
-                    .map(|id| id.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-        )
+        push_check(paths, &watched)
     });
 
     // Drift is the failure this whole check exists for: the reader edited
@@ -557,6 +547,105 @@ async fn account_tag_check(paths: &MailPaths, accounts: &[ecr_core::account::Acc
         .with_hint(
             "it is on disk but hidden from every account view; retag it by path with `notmuch tag +<account> -- path:\"<account>/**\" and not tag:<account>`",
         )
+}
+
+/// Whether push is actually working, rather than whether it was asked for.
+///
+/// The old answer came out of `accounts.toml` alone, which reports an
+/// *intention*: it said "watched with IDLE" just as cheerfully for a server
+/// being refused by every one of those hosts, and for no server running at all.
+/// Given that this is the check somebody reads when mail has stopped arriving,
+/// that is the least useful thing it could have said.
+///
+/// A running server writes what its watches are doing to `watch.json`, and the
+/// care here is all in not over-reading it. An absent or stale report is *no
+/// answer*, never a bad one — doctor runs perfectly legitimately with no server
+/// up, and the configuration is still worth stating then. Only a fresh report
+/// can turn this into a complaint.
+fn push_check(paths: &MailPaths, watched: &[&String]) -> Check {
+    const NAME: &str = "imap push";
+
+    let configured: Vec<&str> = watched.iter().map(|id| id.as_str()).collect();
+    let report = crate::watch::read(&paths.ecr_state_dir).filter(|report| report.fresh());
+
+    let Some(report) = report else {
+        return Check::ok(
+            NAME,
+            format!(
+                "{} configured; no running server is reporting",
+                configured.join(", ")
+            ),
+        );
+    };
+
+    let failing = report.failing();
+    if !failing.is_empty() {
+        let detail: Vec<String> = failing
+            .iter()
+            .map(|(id, watch)| {
+                format!(
+                    "{id} ({}, for {})",
+                    watch.problem.as_deref().unwrap_or("no reason given"),
+                    ago(crate::watch::now() - watch.since)
+                )
+            })
+            .collect();
+
+        // A warning rather than a failure: push stopping does not lose mail, it
+        // delays it, and the periodic reconcile still fetches. Refusing to start
+        // the server over it would take away the client that could say so.
+        return Check::warn(NAME, format!("not connected: {}", detail.join("; "))).with_hint(
+            "mail still arrives on the 30-minute reconcile, just not immediately; an account \
+             refused for hours is usually its token — `ecr oauth status <account>`",
+        );
+    }
+
+    // Watched by the accounts file but absent from a fresh report: the server
+    // read the accounts when it started and this one was added since.
+    let unwatched: Vec<&str> = configured
+        .iter()
+        .filter(|id| !report.accounts.contains_key(**id))
+        .copied()
+        .collect();
+    if !unwatched.is_empty() {
+        return Check::warn(
+            NAME,
+            format!("added since the server started: {}", unwatched.join(", ")),
+        )
+        .with_hint(
+            "restart `ecr serve` to watch it; until then its mail arrives on the reconcile",
+        );
+    }
+
+    let connecting = report.connecting();
+    if !connecting.is_empty() {
+        return Check::ok(
+            NAME,
+            format!(
+                "connecting: {}",
+                connecting
+                    .iter()
+                    .map(|id| id.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        );
+    }
+
+    Check::ok(
+        NAME,
+        format!("{} connected with IDLE", configured.join(", ")),
+    )
+}
+
+/// A duration a person can read. Doctor is read at a glance and `for 8113s` is
+/// not a length of time anybody has an instinct about.
+fn ago(seconds: i64) -> String {
+    match seconds {
+        s if s < 90 => format!("{s}s"),
+        s if s < 5400 => format!("{}m", s / 60),
+        s => format!("{}h", s / 3600),
+    }
 }
 
 /// Presets on disk that an older ecr wrote and this one would write differently.
@@ -1006,5 +1095,150 @@ mod tests {
             check.detail
         );
         assert!(check.detail.contains("read"), "{}", check.detail);
+    }
+
+    mod push {
+        use super::*;
+        use crate::watch::{now, Report, Watch};
+
+        fn watch(connected: bool, problem: Option<&str>, since: i64) -> Watch {
+            Watch {
+                connected,
+                since,
+                problem: problem.map(str::to_string),
+            }
+        }
+
+        fn with_report(report: Option<Report>) -> (tempfile::TempDir, MailPaths) {
+            let (home, paths) = paths_with_flags(None);
+            if let Some(report) = report {
+                crate::watch::write(&paths.ecr_state_dir, &report).unwrap();
+            }
+            (home, paths)
+        }
+
+        fn report_of(accounts: &[(&str, Watch)], updated_at: i64) -> Report {
+            Report {
+                pid: 1,
+                updated_at,
+                accounts: accounts
+                    .iter()
+                    .map(|(id, w)| ((*id).to_string(), w.clone()))
+                    .collect(),
+            }
+        }
+
+        /// Doctor runs perfectly legitimately with no server up, and the old
+        /// check's real sin was answering that case as though push were working.
+        /// It has to say what is configured *and* that nobody is confirming it.
+        #[test]
+        fn no_running_server_is_no_answer_rather_than_a_bad_one() {
+            let (_home, paths) = with_report(None);
+            let main = "main".to_string();
+
+            let check = push_check(&paths, &[&main]);
+
+            assert_eq!(check.status, CheckStatus::Ok);
+            assert!(check.detail.contains("main"), "{}", check.detail);
+            assert!(
+                check.detail.contains("no running server"),
+                "{}",
+                check.detail
+            );
+        }
+
+        /// A report outlives the process that wrote it, so an abandoned one must
+        /// read as nobody speaking rather than as the last thing anybody said.
+        #[test]
+        fn a_report_nobody_is_refreshing_is_not_believed() {
+            let (_home, paths) = with_report(Some(report_of(
+                &[("main", watch(true, None, now()))],
+                now() - crate::watch::STALE_AFTER - 1,
+            )));
+            let main = "main".to_string();
+
+            let check = push_check(&paths, &[&main]);
+
+            assert_eq!(check.status, CheckStatus::Ok);
+            assert!(
+                check.detail.contains("no running server"),
+                "{}",
+                check.detail
+            );
+        }
+
+        #[test]
+        fn a_live_connection_is_reported_as_connected() {
+            let (_home, paths) = with_report(Some(report_of(
+                &[("main", watch(true, None, now()))],
+                now(),
+            )));
+            let main = "main".to_string();
+
+            let check = push_check(&paths, &[&main]);
+
+            assert_eq!(check.status, CheckStatus::Ok);
+            assert!(check.detail.contains("connected"), "{}", check.detail);
+        }
+
+        /// The whole point: a server that is up while every one of its watches
+        /// is being refused used to report exactly as a healthy one did.
+        #[test]
+        fn a_refused_watch_is_reported_with_its_reason_and_how_long() {
+            let (_home, paths) = with_report(Some(report_of(
+                &[("main", watch(false, Some("IDLE was refused"), now() - 7200))],
+                now(),
+            )));
+            let main = "main".to_string();
+
+            let check = push_check(&paths, &[&main]);
+
+            assert_eq!(check.status, CheckStatus::Warn);
+            assert!(
+                check.detail.contains("IDLE was refused"),
+                "{}",
+                check.detail
+            );
+            assert!(check.detail.contains("2h"), "{}", check.detail);
+        }
+
+        /// A watch dials on a loop, so there is always a window between starting
+        /// and being up. Calling that a fault would make the check cry wolf on
+        /// every restart.
+        #[test]
+        fn a_watch_still_dialling_is_not_a_complaint() {
+            let (_home, paths) = with_report(Some(report_of(
+                &[("main", watch(false, None, now()))],
+                now(),
+            )));
+            let main = "main".to_string();
+
+            let check = push_check(&paths, &[&main]);
+
+            assert_eq!(check.status, CheckStatus::Ok);
+            assert!(check.detail.contains("connecting"), "{}", check.detail);
+        }
+
+        /// The accounts file is read once, when the server starts. An account
+        /// added after that is watched by nothing until it is restarted, and
+        /// nothing else in the system would say so.
+        #[test]
+        fn an_account_the_running_server_never_read_is_named() {
+            let (_home, paths) = with_report(Some(report_of(
+                &[("main", watch(true, None, now()))],
+                now(),
+            )));
+            let (main, work) = ("main".to_string(), "work".to_string());
+
+            let check = push_check(&paths, &[&main, &work]);
+
+            assert_eq!(check.status, CheckStatus::Warn);
+            assert!(check.detail.contains("work"), "{}", check.detail);
+            assert!(
+                check.hint.as_deref().unwrap_or("").contains("restart"),
+                "{:?}",
+                check.hint
+            );
+        }
     }
 }

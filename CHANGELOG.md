@@ -9,6 +9,24 @@ release; both are frozen at v1.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`Space` steps to the next thread again.** It picks a row and moves down, and
+  has since 0.5.0 — but only on a device that had never saved a setting. The
+  device's copy of the settings stored the *resolved* keybinding list, so it
+  froze whatever the defaults were the day it was written, and a later release
+  that rebinds a key was shadowed by it for ever. Only what a device actually
+  changes is stored now, and the defaults are re-derived from the running
+  version each session. Editing `[keybindings]` in settings.toml had stopped
+  reaching such a device for the same reason, and works again.
+
+### Changed
+
+- **The thread list reads as cards.** Each row carries a hairline and a soft
+  shadow with a gap between, so where one thread ends and the next begins is
+  visible rather than inferred from where the text stops. The row under the
+  cursor is ringed in the accent as well as filled.
+
 ## [0.5.0] — 2026-08-09
 
 ### Added

@@ -14,8 +14,46 @@ use crate::state::AppState;
 use ecr_core::account::AccountId;
 use ecr_core::managed::{ManagedAccount, ManagedAccounts};
 use ecr_store::managed::accounts::Accounts;
+use ecr_store::watch::{self, Watch};
+use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::task::JoinSet;
+
+/// What every watch is doing, shared with the task that writes it down.
+///
+/// A `std::sync::Mutex` rather than tokio's: every hold is a map update with no
+/// await inside it, and the async lock would only add a scheduling point to
+/// something that never blocks.
+type Watches = Arc<Mutex<BTreeMap<String, Watch>>>;
+
+fn set(watches: &Watches, id: &str, connected: bool, problem: Option<String>) {
+    let Ok(mut map) = watches.lock() else { return };
+
+    // `since` is when the state last *changed*, so a watch that has been up for
+    // an hour does not read as having reconnected a second ago. It is the whole
+    // difference between a laptop that slept and a credential that is wrong.
+    let changed = map
+        .get(id)
+        .map(|watch| watch.connected != connected)
+        .unwrap_or(true);
+    let since = match changed {
+        true => watch::now(),
+        false => map
+            .get(id)
+            .map(|watch| watch.since)
+            .unwrap_or_else(watch::now),
+    };
+
+    map.insert(
+        id.to_string(),
+        Watch {
+            connected,
+            since,
+            problem,
+        },
+    );
+}
 
 /// After a failure. Long enough not to hammer a server that is refusing us, and
 /// short enough that a laptop waking up does not sit disconnected for an hour.
@@ -50,17 +88,37 @@ pub fn spawn(state: AppState) -> Option<JoinSet<()>> {
         return None;
     }
 
+    // Every watched account is present from the start, connected by nothing
+    // yet. An account missing from the report is one that is not being watched
+    // at all, which is a different thing to report and must stay tellable.
+    let watches: Watches = Arc::new(Mutex::new(
+        watched
+            .iter()
+            .map(|(id, _)| {
+                (
+                    id.clone(),
+                    Watch {
+                        connected: false,
+                        since: watch::now(),
+                        problem: None,
+                    },
+                )
+            })
+            .collect(),
+    ));
+
     let mut tasks = JoinSet::new();
     for (id, account) in watched {
         let state = state.clone();
-        tasks.spawn(watch_one(state, id, account));
+        tasks.spawn(watch_one(state, id, account, Arc::clone(&watches)));
     }
+    tasks.spawn(report(state.clone(), Arc::clone(&watches)));
 
-    tracing::info!(accounts = tasks.len(), "watching IMAP for new mail");
+    tracing::info!(accounts = tasks.len() - 1, "watching IMAP for new mail");
     Some(tasks)
 }
 
-async fn watch_one(state: AppState, id: String, account: ManagedAccount) {
+async fn watch_one(state: AppState, id: String, account: ManagedAccount, watches: Watches) {
     let folder = account
         .folder(ecr_core::managed::FolderRole::Inbox)
         .unwrap_or_else(|| "INBOX".to_string());
@@ -68,9 +126,13 @@ async fn watch_one(state: AppState, id: String, account: ManagedAccount) {
     loop {
         let profiles = state.store.paths().oauth_profiles();
 
-        match ecr_store::imap::wait_for_mail(&profiles, &account, &folder).await {
+        let established = || set(&watches, &id, true, None);
+        match ecr_store::imap::wait_for_mail(&profiles, &account, &folder, established).await {
             Ok(()) => {
                 tracing::debug!(account = %id, "IMAP says there is something to fetch");
+                // Still up: the wait ended because something arrived or the
+                // renewal window elapsed, and the next iteration redials.
+                set(&watches, &id, true, None);
                 sync_one(&state, &id).await;
             }
             Err(err) => {
@@ -79,8 +141,43 @@ async fn watch_one(state: AppState, id: String, account: ManagedAccount) {
                 // laptop that slept reconnects, and a server that is down
                 // recovers on its own.
                 tracing::warn!(account = %id, %err, "IMAP watch dropped; retrying");
+                set(&watches, &id, false, Some(err.to_string()));
                 tokio::time::sleep(RETRY).await;
             }
+        }
+    }
+}
+
+/// Writes down what the watches are doing, for a process that is not this one.
+///
+/// `ecr doctor` runs on its own and could otherwise only report what was
+/// *configured* — a line that is equally true of a server being refused by
+/// every one of these hosts, and of no server running at all. The file is
+/// rewritten on a heartbeat rather than only when something changes, because
+/// the reader's question is "is this still true?", and only a timestamp that
+/// keeps moving can answer it.
+async fn report(state: AppState, watches: Watches) {
+    let path = state.store.paths().ecr_state_dir.clone();
+    let mut ticker = tokio::time::interval(watch::HEARTBEAT);
+
+    loop {
+        ticker.tick().await;
+
+        let accounts = match watches.lock() {
+            Ok(map) => map.clone(),
+            Err(_) => continue,
+        };
+
+        let report = watch::Report {
+            pid: std::process::id(),
+            updated_at: watch::now(),
+            accounts,
+        };
+
+        // A report that cannot be written is not worth failing anything over —
+        // doctor falls back to saying nobody is reporting, which is true.
+        if let Err(err) = watch::write(&path, &report) {
+            tracing::debug!(%err, "could not write the IMAP watch report");
         }
     }
 }

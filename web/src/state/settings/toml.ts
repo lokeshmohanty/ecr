@@ -558,6 +558,27 @@ export function mergeBindings(custom: Binding[]): Binding[] {
 }
 
 /**
+ * The inverse: what a merged list actually customizes.
+ *
+ * A device that stores the merged list stores a *snapshot of the day's
+ * defaults* alongside the customizations, and cannot tell them apart later. So
+ * a release that rebinds a key is shadowed for ever on every device that had
+ * saved anything — and shadowed silently, because `mergeBindings` keys on the
+ * action, so the stale binding and the new default both survive and the engine
+ * takes the first. That is how `Space` kept picking a row without stepping to
+ * the next one after it became `toggleSelectNext`. Only this is worth keeping.
+ */
+export function customBindings(bindings: Binding[]): Binding[] {
+	const shipped = new Set(DEFAULT_BINDINGS.map(signature));
+	return bindings.filter((binding) => !shipped.has(signature(binding)));
+}
+
+function signature(binding: Binding): string {
+	const panes = (binding.panes ?? PANE_ORDER).join(",");
+	return `${binding.keys}|${actionToText(binding.action)}|${panes}`;
+}
+
+/**
  * Packages ecr used to drive, and what replaced each.
  *
  * An upgrade must not leave a permanent error in the status bar for a section

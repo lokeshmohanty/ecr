@@ -263,10 +263,18 @@ pub async fn probe(profiles: &Profiles, account: &ManagedAccount) -> Probe {
 /// Answers `Ok(())` when there is something to sync and an error when the
 /// connection could not be kept. It deliberately says nothing about *what*
 /// arrived: the caller runs mbsync, which is what actually knows.
+///
+/// `established` is called once the server has accepted IDLE, which is the only
+/// moment anybody outside can learn that this watch is up. Without it the sole
+/// evidence a caller has is the *return*, and a healthy watch does not return
+/// for the length of the renewal window — so a watch that connected a second ago
+/// and one that will never connect look identical for the next twenty minutes.
+/// That is precisely the distinction `ecr doctor` exists to report.
 pub async fn wait_for_mail(
     profiles: &Profiles,
     account: &ManagedAccount,
     folder: &str,
+    established: impl FnOnce(),
 ) -> Result<()> {
     let mut probe = Probe::default();
     let credential = credential(profiles, account).await?;
@@ -284,6 +292,8 @@ pub async fn wait_for_mail(
     idle.init()
         .await
         .map_err(|err| Error::Managed(format!("IDLE was refused: {err}")))?;
+
+    established();
 
     let (wait, interrupt) = idle.wait_with_timeout(IDLE_RENEW);
     let outcome = wait.await;

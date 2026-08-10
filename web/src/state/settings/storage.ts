@@ -2,7 +2,7 @@
  * The local copy. The server holds the real file; this is what lets the client
  * paint before the network answers, and keep working when it does not.
  */
-import { mergeBindings } from "./toml";
+import { customBindings, mergeBindings } from "./toml";
 import { DEFAULT_PACKAGES } from "../packages";
 import {
 	DEFAULT_PREFERENCES,
@@ -76,7 +76,15 @@ export function withClient(settings: Settings): Settings {
 	return {
 		...withDevice,
 		preferences: { ...withDevice.preferences, ...client.preferences },
-		bindings: client.bindings,
+		// Both halves are customizations over the shipped table, so they are
+		// merged rather than one replacing the other: a device that binds nothing
+		// of its own must still get the file's `[keybindings]`, and the defaults
+		// have to be re-derived here rather than carried across from whenever
+		// this device last saved.
+		bindings: mergeBindings([
+			...client.bindings,
+			...customBindings(settings.bindings),
+		]),
 	};
 }
 

@@ -6,6 +6,7 @@ import {
 	SERVER_KEYS,
 	defaultSettings,
 	loadClientSettings,
+	mergeBindings,
 	preferencesInScope,
 	saveClientSettings,
 	saveSettings,
@@ -95,30 +96,69 @@ describe("a device with settings of its own", () => {
 		expect(stored.preferences.theme).toBe("themes/nord.toml");
 	});
 
-	it("restores a default binding missing from a stale device copy", () => {
-		// A device that saved its bindings when the file dropped an action keeps a
-		// snapshot missing it. Loading heals the gap rather than leaving the key dead.
-		const stale = defaultSettings().bindings.filter(
-			(b) =>
-				b.action.kind !== "toggleSelectNext" &&
-				b.action.kind !== "visualSelect" &&
-				b.action.kind !== "tagPrompt",
-		);
-		saveClientSettings({
-			preferences: { theme: "themes/x.toml" },
-			bindings: stale,
-		});
+	it("stores no binding it did not itself change", () => {
+		// The resolved list is defaults plus customizations, and once written down
+		// the two are indistinguishable. Only what differs is the device's.
+		saveSettings(defaultSettings());
 
-		const loaded = loadClientSettings();
-		expect(
-			loaded.bindings.some((b) => b.action.kind === "toggleSelectNext"),
-		).toBe(true);
-		expect(loaded.bindings.some((b) => b.action.kind === "visualSelect")).toBe(
-			true,
+		const stored = JSON.parse(localStorage.getItem("ecr.client") ?? "{}");
+		expect(stored.keybindings).toEqual([]);
+		expect(loadClientSettings().bindings).toEqual([]);
+	});
+
+	it("keeps a binding that is not a shipped default", () => {
+		const settings = defaultSettings();
+		settings.bindings = [
+			{ keys: "e", action: { kind: "archive" }, description: "archive", panes: ["list"] },
+			...settings.bindings,
+		];
+		saveSettings(settings);
+
+		expect(loadClientSettings().bindings).toEqual([
+			{ keys: "e", action: { kind: "archive" }, description: "archive", panes: ["list"] },
+		]);
+	});
+
+	it("takes a changed default over the one a stale device froze", () => {
+		// The bug this replaces: Space was `toggleSelect`, became
+		// `toggleSelectNext`, and every device that had ever saved anything held a
+		// copy of the old table. `mergeBindings` keys on the action, so both
+		// survived and the engine took the first — Space picked a row and stopped
+		// there, for ever, on the one device that could not be told why.
+		localStorage.setItem(
+			"ecr.client",
+			JSON.stringify({
+				preferences: { theme: "themes/nord.toml" },
+				bindings: [
+					{
+						keys: " ",
+						action: { kind: "toggleSelect" },
+						description: "select this row",
+						panes: ["list"],
+					},
+				],
+			}),
 		);
-		expect(loaded.bindings.some((b) => b.action.kind === "tagPrompt")).toBe(
-			true,
+
+		const space = withClient(defaultSettings()).bindings.filter(
+			(b) => b.keys === " " && b.panes?.includes("list"),
 		);
+		expect(space).toHaveLength(1);
+		expect(space[0]?.action.kind).toBe("toggleSelectNext");
+	});
+
+	it("gives a device that binds nothing the shared file's keybindings", () => {
+		saveClientSettings({ preferences: { theme: "themes/x.toml" }, bindings: [] });
+
+		const shared = defaultSettings();
+		shared.bindings = mergeBindings([
+			{ keys: "e", action: { kind: "archive" }, description: "archive", panes: ["list"] },
+		]);
+
+		const archive = withClient(shared).bindings.filter(
+			(b) => b.action.kind === "archive" && b.panes?.includes("list"),
+		);
+		expect(archive.map((b) => b.keys)).toEqual(["e"]);
 	});
 });
 

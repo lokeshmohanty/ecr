@@ -8,12 +8,19 @@ import { windowRange } from "./window";
 import { isNarrow } from "./narrow";
 import { LONG_PRESS, drag, stillPressing, type Swipe } from "./row-gesture";
 
-// Every row is exactly this tall, and the virtual scroller's arithmetic is
-// built on that — the height below is set from this constant, so the two cannot
-// drift. It leaves room for a third line of preview; a row whose preview the
-// index has not read yet simply has space at the bottom rather than a different
-// height, which is what keeps the scroll position honest.
-const ROW_HEIGHT = 76;
+// Every row occupies exactly this much of the column, and the virtual
+// scroller's arithmetic is built on that — the height below is set from these
+// constants, so the two cannot drift. The card leaves room for a third line of
+// preview; a row whose preview the index has not read yet simply has space at
+// the bottom rather than a different height, which is what keeps the scroll
+// position honest.
+//
+// The gap is part of the pitch rather than a margin on top of it: a margin the
+// scroller does not know about puts every row a little lower than
+// `index * ROW_HEIGHT` says it is, and the error compounds down the list until
+// the wrong thread is scrolled to.
+const ROW_GAP = 6;
+const ROW_HEIGHT = 76 + ROW_GAP;
 
 export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
   const [scroller, setScroller] = createSignal<HTMLDivElement | null>(null);
@@ -371,16 +378,22 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
 
   return (
     <div
-      class="row-grid touch-target relative mx-1.5 cursor-pointer rounded-lg py-2 pl-2 pr-2.5"
+      class="row-grid row-card touch-target relative mx-1.5 cursor-pointer rounded-lg py-2 pl-2 pr-2.5"
       style={{
-        height: `${ROW_HEIGHT}px`,
+        height: `${ROW_HEIGHT - ROW_GAP}px`,
+        "margin-bottom": `${ROW_GAP}px`,
         transform: offset() === 0 ? undefined : `translateX(${offset()}px)`,
         // Sliding sideways must not also drag the row out of the list.
         "touch-action": "pan-y",
       }}
       classList={{
+        "row-card-selected": selected(),
         "bg-obligation-bg text-ink": selected(),
         "bg-neutral-bg": !selected() && picked(),
+        // The card's own surface, so the rule and the shadow have something to
+        // sit on. It is a utility rather than a rule in `.row-card` because the
+        // two above have to be able to win — see components.css.
+        "bg-card": !selected() && !picked(),
         "hover:bg-neutral-bg": !selected(),
       }}
       onTouchStart={onTouchStart}

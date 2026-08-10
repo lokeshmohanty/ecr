@@ -9,8 +9,8 @@
  * JSON rather than TOML because nobody hand-edits it: there is no file to open
  * on a phone, and the settings page is the way in.
  */
-import { DEFAULT_BINDINGS, type Binding } from "../../keymap/engine";
-import { mergeBindings } from "./toml";
+import { type Binding } from "../../keymap/engine";
+import { customBindings } from "./toml";
 import { isNarrow } from "../../ui/narrow";
 import { knownSections } from "../views";
 import {
@@ -21,6 +21,18 @@ import {
 } from "./schema";
 
 const STORAGE_KEY = "ecr.client";
+
+/**
+ * What is actually on disk. `keybindings` replaced `bindings`, which held the
+ * resolved list; the name changed so an old copy is skipped rather than read
+ * back as a set of deliberate choices.
+ */
+interface StoredSettings {
+	preferences: Partial<Preferences>;
+	keybindings: Binding[];
+	/** Written by ecr 0.5 and earlier. Read by nothing. */
+	bindings?: Binding[];
+}
 
 /**
  * Where a phone disagrees with the shipped defaults before anyone has touched
@@ -42,13 +54,19 @@ export function deviceDefaults(): Partial<Preferences> {
 
 export interface ClientSettings {
 	preferences: Partial<Preferences>;
+	/**
+	 * Only what this device binds differently from the shipped defaults — never
+	 * the resolved list. See `customBindings`: storing the resolved list freezes
+	 * the defaults of the day it was written, and a later release cannot tell
+	 * them from a choice.
+	 */
 	bindings: Binding[];
 }
 
 export function defaultClientSettings(): ClientSettings {
 	return {
 		preferences: { ...preferencesInScope(DEFAULT_PREFERENCES, "client"), ...deviceDefaults() },
-		bindings: [...DEFAULT_BINDINGS],
+		bindings: [],
 	};
 }
 
@@ -66,12 +84,17 @@ export function loadClientSettings(): ClientSettings {
 		const raw = localStorage.getItem(STORAGE_KEY);
 		if (!raw) return defaultClientSettings();
 
-		const parsed = JSON.parse(raw) as Partial<ClientSettings>;
+		const parsed = JSON.parse(raw) as Partial<StoredSettings>;
 		return {
 			// Only the keys this side owns: a key that changed scope in a later
 			// release must not be resurrected from an old device's copy.
 			preferences: pickClient(parsed.preferences ?? {}),
-			bindings: mergeBindings(parsed.bindings ?? []),
+			// `parsed.bindings` — the old field — is deliberately not read. It held
+			// the resolved list, so it cannot say which of its entries anybody
+			// chose, and every default it froze outranked the current one. What a
+			// reader really customized is in the shared file's `[keybindings]`,
+			// which is read every session, so dropping the snapshot loses nothing.
+			bindings: customBindings(parsed.keybindings ?? []),
 		};
 	} catch {
 		return defaultClientSettings();
@@ -84,8 +107,8 @@ export function saveClientSettings(client: ClientSettings): void {
 			STORAGE_KEY,
 			JSON.stringify({
 				preferences: pickClient(client.preferences),
-				bindings: client.bindings,
-			}),
+				keybindings: customBindings(client.bindings),
+			} satisfies StoredSettings),
 		);
 	} catch {
 		// A full or disabled storage is not worth failing the edit over.

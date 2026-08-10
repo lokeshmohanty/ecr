@@ -20,6 +20,34 @@
   align-items: center;
 }
 
+/*
+ * A thread is a card, so where one message ends and the next begins is a thing
+ * you see rather than a thing you work out from where the text stops. The rule
+ * and the lift are one `box-shadow`: a real border would eat two pixels out of
+ * the content box, and the row is sized to the pixel for a third line of
+ * preview — the line would clip on exactly the rows that have one.
+ *
+ * The surface is a class on the row, not a declaration here. components.css is
+ * unlayered and Tailwind's utilities are in `@layer utilities`, so a
+ * `background` here would outrank `bg-obligation-bg` and the cursor would stop
+ * being visible.
+ */
+.row-card {
+  box-shadow:
+    0 0 0 1px var(--color-rule-soft),
+    0 1px 3px rgb(0 0 0 / 0.28);
+  transition:
+    box-shadow 120ms ease,
+    background-color 120ms ease;
+}
+
+/* The row under the cursor sits above the others rather than beside them. */
+.row-card-selected {
+  box-shadow:
+    0 0 0 1px var(--color-obligation),
+    0 2px 6px rgb(0 0 0 / 0.38);
+}
+
 /* The list's own header, which has no tape and no sender. */
 .list-header-grid {
   display: grid;

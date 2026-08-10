@@ -736,7 +736,11 @@ export function createAppStore() {
 						...parsed.preferences,
 						...preferencesInScope(settings().preferences, "client"),
 					},
-					bindings: settings().bindings,
+					// Not the resolved list this client is already running: `[keybindings]`
+					// is edited in this very pane, so carrying it across would make the
+					// section the one part of the file an edit cannot reach.
+					// `withClient` folds in whatever this device binds of its own.
+					bindings: withClient(parsed).bindings,
 				},
 				text,
 			);

@@ -480,6 +480,24 @@ happens to arrive.
 Both are skipped under `--read-only` and `--no-watch`, which is what that flag
 means: do not go looking on your own.
 
+**`ecr doctor`'s `imap push` line reports the connections, not the
+configuration.** A running server writes what each watch is doing to
+`~/.local/state/ecr/watch.json` on a one-minute heartbeat, and doctor reads it,
+so the line distinguishes four situations that used to look identical:
+
+| The line says | What it means |
+|---|---|
+| `… connected with IDLE` | the connections are up right now |
+| `… connecting` | dialling; normal for a few seconds after a restart |
+| `not connected: <account> (<reason>, for <time>)` | the server is up and being refused. Mail still arrives on the 30-minute reconcile. Refused for hours is usually the token — `ecr oauth status <account>` |
+| `… configured; no running server is reporting` | nobody is confirming it. Either no server is running, or one is running that predates this file |
+
+The heartbeat is what makes the difference: the report outlives the process that
+wrote it, so a timestamp that has stopped moving reads as *nobody is saying*
+rather than as the last thing anybody said. An account added to `accounts.toml`
+after the server started is named too — the accounts file is read once, at
+startup, so it is watched by nothing until `ecr serve` is restarted.
+
 A manual sync follows the view on screen, because syncing an account fetches
 every one of its folders and doing all of them to refresh the one being read is
 most of a minute of somebody else's mail. A view that names no account — a
