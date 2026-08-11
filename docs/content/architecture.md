@@ -202,6 +202,14 @@ sandboxed frame cannot send an `Authorization` header and a root-relative URL
 would resolve against the web origin, the client absolutizes part URLs and
 appends the token before handing the HTML to the frame.
 
+OpenPGP is the exception to all of that decoding: a signature covers the bytes
+that were *transmitted*, so `pgp::detect` reads the raw file and never a parsed
+message. It has a second half that is easy to miss — **mbsync stores a maildir
+with bare newlines**, and a detached signature covers the CRLF form, so
+verifying what is on disk reports every signed message as altered. The
+canonical form is checked first, with the stored bytes tried when it is not
+good, so a signer who signed the LF form is still believed.
+
 ## Writes
 
 All notmuch writes serialize behind a mutex — Xapian is single-writer.
@@ -274,7 +282,12 @@ stay empty behind the prompt that just fixed it. See
   container only exists after data arrives — so it rendered nothing.
 - **Keymap.** A pure module with an explicit mode state machine. One rule
   prevents the stuck-mode class of bugs: while a text field holds focus, only
-  Escape and Ctrl chords are ours. Transient overlays claim Escape before the
+  Escape and Ctrl chords are ours — and of the chords, only the ones that move
+  between panes, the pinned split or the conversation. `C-u` and `C-e` are how
+  a shell user rubs out a line, and while the app claimed them the message
+  behind an open composer scrolled instead. A count may be typed before a key
+  (`4j`); the engine carries it and `App.tsx` decides which actions repeat,
+  because repeating one that toggles stages nothing at all. Transient overlays claim Escape before the
   keymap sees it: help closes, a visual range is abandoned, and with no range
   on screen Escape clears what `Space` picked and what is staged. The keymap
   itself reports idle-normal Escape as ignored, so those clearances live in

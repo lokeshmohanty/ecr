@@ -79,6 +79,10 @@ export function ReadingPane(props: { store: AppStore; onBack?: () => void }) {
 								props.store.setDetailScroller(el);
 							}}
 							class="scroll-y flex-1"
+							/* Three panes scroll and they all carry `scroll-y`. This is the
+							   one the detail-pane chords move, and a test about a chord that
+							   escaped an open composer has to name it. */
+							data-thread-scroll
 						>
 							<For each={loaded().messages}>
 								{(message, index) => (

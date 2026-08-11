@@ -31,6 +31,7 @@ import type {
 	Account,
 	Check,
 	Draft,
+	OutboxEntry,
 	ServerEvent,
 	ThreadSummary,
 	MailFolder,
@@ -59,6 +60,7 @@ import {
 	type ViewGroup,
 } from "./views";
 import { parseAddress, type AddressEntry } from "./suggest";
+import { signatureFor } from "./signature";
 import { effectiveFormat, toggled, type MessageFormat } from "./format";
 import { layoutFor, viewportWidth } from "../ui/narrow";
 import { parsePairing } from "./pairing";
@@ -835,6 +837,114 @@ export function createAppStore() {
 		}
 	}
 
+	/**
+	 * What is written but not gone.
+	 *
+	 * **Nothing showed this, and that is the whole bug it exists for.** A
+	 * message queued behind the undo hold, or one the server could not send,
+	 * lived in a directory nobody looked at: the composer closed, the row never
+	 * appeared in Sent — that copy comes back from the provider, minutes later
+	 * or never — and the only account of what had happened to it was a line in
+	 * the server's log. The client did not even listen for `outbox:changed`.
+	 *
+	 * Keyed on `endpoint()` like every other resource, and refetched from a
+	 * revision the event bumps, because what changes it is the server sending
+	 * a message rather than anything this client did.
+	 */
+	const [outboxRevision, setOutboxRevision] = createSignal(0);
+
+	const [outbox, { refetch: refetchOutbox }] = createResource(
+		() => [endpoint(), outboxRevision()] as const,
+		async ([server]) => {
+			if (!server) return [] as OutboxEntry[];
+			try {
+				return await api.outbox();
+			} catch {
+				// Read while the list pane renders: a resource that lets a failure
+				// out takes the client down with it.
+				return [] as OutboxEntry[];
+			}
+		},
+		{ initialValue: [] as OutboxEntry[] },
+	);
+
+	/** Sends a waiting message now rather than when its backoff says. */
+	async function retrySend(id: string) {
+		try {
+			await api.retrySend(id);
+			setStatus("trying again");
+		} catch (error) {
+			setStatus(error instanceof Error ? error.message : "could not retry");
+		}
+		setOutboxRevision((r) => r + 1);
+	}
+
+	/**
+	 * Takes a waiting message out of the queue by id.
+	 *
+	 * Apart from `unsend()`, which is the undo button and knows the one message
+	 * it is about. This is the outbox's own, for a message that has been sitting
+	 * there long enough that the button is gone.
+	 */
+	async function unsendQueued(id: string) {
+		try {
+			await api.unsend(id);
+			setStatus("unsent");
+		} catch (error) {
+			setStatus(error instanceof Error ? error.message : "too late to unsend");
+		}
+		setOutboxRevision((r) => r + 1);
+	}
+
+	/**
+	 * What the outbox event means for somebody who is not looking at it.
+	 *
+	 * A failure is announced and a success is not: mail leaving is what was
+	 * asked for, and a notification per message would be noise. A failure is
+	 * the opposite — the reader believes it is gone, and nothing else will ever
+	 * tell them otherwise.
+	 */
+	let announcedFailures = new Set<string>();
+
+	async function announceOutbox() {
+		try {
+			const waiting = await api.outbox();
+			const failed = waiting.filter((entry) => entry.last_error);
+
+			for (const entry of failed) {
+				if (announcedFailures.has(entry.id)) continue;
+				announcedFailures.add(entry.id);
+				setStatus(`could not send: ${entry.last_error}`);
+				void notify(
+					`could not send “${entry.subject || "(no subject)"}”`,
+					entry.last_error ?? "",
+				);
+			}
+
+			// Anything that left the queue can be announced again if it comes
+			// back, and the set does not grow for the life of the session.
+			const present = new Set(waiting.map((entry) => entry.id));
+			announcedFailures = new Set(
+				[...announcedFailures].filter((id) => present.has(id)),
+			);
+		} catch {
+			// A notification must never be able to stop the queue it is about.
+		}
+	}
+
+	/**
+	 * The signature to start a message from this address with.
+	 *
+	 * Only managed accounts have one: a *discovered* account is a directory
+	 * under the maildir root and nothing more, so there is nowhere for it to be
+	 * written. Empty when ecr manages nothing, which is the same answer as an
+	 * account that has not set one.
+	 */
+	function signature(address: string | undefined): string {
+		const accounts = Object.values(managed()?.accounts.account ?? {});
+		return signatureFor(address, accounts);
+	}
+
 	/** Every address the given account may send as, its own first. */
 	function identitiesFor(address: string | undefined) {
 		if (!address) return [];
@@ -1053,6 +1163,20 @@ export function createAppStore() {
 	/** Forgets them, so the next list is what the query actually matches now. */
 	function releaseHeld() {
 		setHeld({ query: "", rows: [] });
+	}
+
+	/**
+	 * Ask the query again. Not a sync: this is the list the server already has,
+	 * refetched, which is what `r` is for — a sync is minutes of talking to a
+	 * provider for a reader who wanted to see a row that has already arrived.
+	 *
+	 * Held rows go with it. They exist so a message being read does not vanish
+	 * from under the cursor, and a reader who asks for the list again is asking
+	 * for what the query matches now.
+	 */
+	function refreshList() {
+		releaseHeld();
+		bumpRevision();
 	}
 
 	// Leaving a view drops what it was holding, rather than parking it until the
@@ -1889,18 +2013,25 @@ export function createAppStore() {
 
 		const at = list.findIndex((a) => a.id === currentAccount());
 		const next = list[(at + delta + list.length * 2) % list.length];
-		if (!next) return;
+		if (next) selectAccount(next.id);
+	}
 
-		setExpandedGroup(next.id);
-		const group = tree().find((g) => g.account === next.id);
-		selectQuery(group?.views[0]?.query ?? `tag:${next.id}`);
+	/**
+	 * Goes to one account by name, the same way cycling goes to the next one.
+	 * `ALL_ACCOUNTS` is a group like any other here, which is what makes it
+	 * reachable from the switcher rather than only by cycling past the end.
+	 */
+	function selectAccount(id: string) {
+		setExpandedGroup(id);
+		const group = tree().find((g) => g.account === id);
+		selectQuery(group?.views[0]?.query ?? `tag:${id}`);
 
 		const row = sidebarRows().findIndex(
-			(r) => r.kind === "group" && r.group === next.id,
+			(r) => r.kind === "group" && r.group === id,
 		);
 		if (row >= 0) setSidebarIndex(row);
 
-		setStatus(`account ${next.id}`);
+		setStatus(id === ALL_ACCOUNTS ? "all accounts" : `account ${id}`);
 	}
 
 	/**
@@ -1993,6 +2124,10 @@ export function createAppStore() {
 					void announceNewMail();
 				}
 				bumpRevision();
+				break;
+			case "outbox_changed":
+				void announceOutbox();
+				setOutboxRevision((r) => r + 1);
 				break;
 			case "error":
 				setStatus(event.detail);
@@ -2104,6 +2239,7 @@ export function createAppStore() {
 		items,
 		held,
 		releaseHeld,
+		refreshList,
 		current,
 		move,
 		marks,
@@ -2128,6 +2264,11 @@ export function createAppStore() {
 		moveMessage,
 		canProtect,
 		identitiesFor,
+		signature,
+		outbox,
+		refetchOutbox,
+		retrySend,
+		unsendQueued,
 		unsendable,
 		unsend,
 		sendingAccount,
@@ -2147,6 +2288,7 @@ export function createAppStore() {
 		toggleCollapsed,
 		setAllCollapsed,
 		cycleAccount,
+		selectAccount,
 		composeDraft,
 		subscribe,
 	};

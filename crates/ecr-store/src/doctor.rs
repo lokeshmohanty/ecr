@@ -150,6 +150,8 @@ pub async fn run_with_paths(paths: &MailPaths) -> Doctor {
         checks.push(account_tag_check(paths, &accounts).await);
     }
 
+    checks.extend(account_key_checks(&accounts).await);
+
     let oauth_profiles: Vec<(String, String)> = accounts
         .iter()
         .filter_map(|a| discovery::oauth_profile(paths, a).map(|p| (a.id.to_string(), p)))
@@ -214,6 +216,54 @@ fn pgp_check() -> Check {
              existing keyring and agent",
         ),
     }
+}
+
+/// An account's own key, when it has one that has stopped working.
+///
+/// **Silent about an account with no key**, which is the ordinary case and not
+/// a thing to fix. The state worth a warning is the one that cannot be read
+/// from the outside: a key that is right there in the keyring and whose
+/// encryption subkey expired, so the address looks configured, gpg refuses at
+/// the moment of sending, and the error arrives with the message still in the
+/// composer. Asked here, it is a line in doctor instead.
+async fn account_key_checks(accounts: &[ecr_core::account::Account]) -> Vec<Check> {
+    use crate::pgp::{Capability, KeyState};
+
+    if crate::pgp::installed().is_none() {
+        return Vec::new();
+    }
+
+    let mut checks = Vec::new();
+    for account in accounts {
+        let Some(address) = account.address.as_deref() else {
+            continue;
+        };
+
+        let mut stale = Vec::new();
+        for (capability, what) in [
+            (Capability::Encrypt, "be encrypted to"),
+            (Capability::Sign, "sign"),
+        ] {
+            if crate::pgp::key_can(address, capability).await == KeyState::Unusable {
+                stale.push(what);
+            }
+        }
+
+        if !stale.is_empty() {
+            checks.push(
+                Check::warn(
+                    format!("openpgp {}", account.id),
+                    format!("the key for {address} can no longer {}", stale.join(" or ")),
+                )
+                .with_hint(
+                    "every subkey that could has expired, been revoked or been disabled, \
+                     so gpg refuses at the moment of sending. `gpg --edit-key` to extend it, \
+                     or send without OpenPGP",
+                ),
+            );
+        }
+    }
+    checks
 }
 
 /// What actually reaches the server when you read, archive or delete something.

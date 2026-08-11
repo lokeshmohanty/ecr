@@ -9,7 +9,61 @@ release; both are frozen at v1.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- **The outbox is visible.** A strip above the thread list shows what has been
+  written and has not gone, why it has not gone when a send failed, and
+  offers *try again* and *discard*. A failure is announced as a notification
+  too. Before this the queue was a directory nobody could see: the composer
+  closed, Sent stays empty until the provider's own copy syncs back, and the
+  only account of a failed send was a line in the server's log.
+- **Per-account signatures.** `accounts.toml` has carried a `signature` field
+  since managed mode arrived and nothing read it. The accounts tab in settings
+  now edits it, and opening a composer writes it into the body under a `-- `
+  line — above the quoted conversation in a reply, so it is not buried under
+  the thread and copied again on every round. It is text in the composer, so
+  one message can go without it by deleting it there.
+- **`A` switches account.** A list of the accounts, each behind the first
+  letter of its name, with `0` for all accounts. `]a`/`[a` still step through
+  them one at a time, loading a mailbox at each stop.
+- **`T` toggles *prefer html*** for every message, where `t` switches the one
+  being read.
+- **Counts before a key, as in vim.** `4j`, `10k`, `3J`. They apply to the
+  motions and the scrolls, and are ignored by anything where repeating is not
+  what was meant — `4d` stages one delete rather than toggling it twice.
+- **`ecr doctor` warns about a key that can no longer encrypt or sign.** An
+  expired encryption subkey looks like a working account until the moment a
+  message is sent, and gpg's own account of it names no address and no reason.
+
 ### Fixed
+
+- **Signed mail is no longer reported as altered.** mbsync writes maildir files
+  with bare newlines, but a detached signature covers the CRLF form that
+  crossed the wire — so gpg answered BADSIG and the client said *this message
+  has been altered* about every signed message in the database, which is the
+  strongest accusation it can make. The canonical form is verified first, with
+  the stored bytes still tried when it is not good. A message that really was
+  altered still fails.
+- **Chords no longer act on the pane behind an open composer.** `C-u`, `C-d`,
+  `C-e` and `C-y` scrolled the message being replied to while the caret sat in
+  a textarea that never saw the keystroke — they are the keys a vim or shell
+  user reaches for to rub out a line. Mid-edit the app now keeps only the
+  chords that move between panes and the pinned split.
+- **A selected row is visible.** A `v` range was filled with the palette's
+  `neutral_bg`, which is also the hover colour, so a selection was
+  indistinguishable from a row the pointer was over. Selection is `proved`,
+  which is the role that means it, and the cursor keeps its own ring.
+- **`q` and `ZQ` close settings.** The pane said so and swallowed both.
+- **Why gpg refused to encrypt.** The error was gpg's summary line —
+  `sign+encrypt failed: General error` — which names no recipient, no key and
+  no reason, and reads as a bug in ecr rather than as a key that needs
+  renewing. It now names the address and what is wrong with its key.
+
+### Changed
+
+- **`r` refreshes the list and replies only in the detail pane.** It is the
+  reflex for refresh everywhere a list is on screen, and answering a thread
+  nobody has opened is not what it was pressed for.
 
 - **`Space` steps to the next thread again.** It picks a row and moves down, and
   has since 0.5.0 — but only on a device that had never saved a setting. The

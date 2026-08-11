@@ -176,6 +176,74 @@ async fn a_message_altered_in_transit_does_not_verify() {
     );
 }
 
+/// **The bytes on disk are not the bytes that were signed, and this is what
+/// that costs.** mbsync writes a maildir with bare newlines, so every signed
+/// message ecr has ever read was checked against an LF copy of a signature
+/// covering the CRLF form — gpg answered BADSIG and the client said *this
+/// message has been altered*, which is the strongest accusation it can make,
+/// about mail that is perfectly good.
+///
+/// The message here is stored the way isync stores one. It cannot be caught by
+/// any fixture that keeps its CRLFs, and it cannot be reasoned out of the
+/// splitting code, which is correct.
+#[tokio::test]
+async fn a_signature_survives_being_stored_in_a_maildir_with_bare_newlines() {
+    let Some(keyring) = Keyring::new() else {
+        eprintln!("gpg is not installed; skipping");
+        return;
+    };
+    let _scope = keyring.scope().await;
+
+    let on_the_wire = signed_message(&keyring, PART);
+    let as_stored: Vec<u8> = on_the_wire
+        .into_iter()
+        .filter(|&byte| byte != b'\r')
+        .collect();
+
+    let Some(Protection::Signed { signed, signature }) = pgp::detect(&as_stored) else {
+        panic!("a signed message was not detected as one");
+    };
+    assert!(
+        !signed.contains(&b'\r'),
+        "the fixture kept its CRLFs and proves nothing"
+    );
+
+    match pgp::verify(&signed, &signature).await.unwrap() {
+        Signature::Good { signer, .. } => assert!(signer.contains("Ada"), "{signer}"),
+        other => panic!("a stored message read as altered: {other:?}"),
+    }
+}
+
+/// And the half that makes the one above safe. Canonicalising before verifying
+/// must not turn "these bytes were changed" into "close enough" — a verifier
+/// that answers Good for tampered mail is worse than none.
+#[tokio::test]
+async fn canonicalising_does_not_rescue_a_message_that_really_was_altered() {
+    let Some(keyring) = Keyring::new() else {
+        eprintln!("gpg is not installed; skipping");
+        return;
+    };
+    let _scope = keyring.scope().await;
+
+    let raw = signed_message(&keyring, PART);
+    let tampered: Vec<u8> = String::from_utf8(raw)
+        .unwrap()
+        .replace("hello, world", "hello, w0rld")
+        .bytes()
+        .filter(|&byte| byte != b'\r')
+        .collect();
+
+    let Some(Protection::Signed { signed, signature }) = pgp::detect(&tampered) else {
+        panic!("not detected as signed");
+    };
+
+    let verdict = pgp::verify(&signed, &signature).await.unwrap();
+    assert!(
+        !verdict.is_good(),
+        "a tampered message verified once canonicalised: {verdict:?}"
+    );
+}
+
 /// A key nobody has is the ordinary state of mail from a stranger, and it has
 /// to be told apart from a forgery. Reported as broken, it teaches people to
 /// ignore the indicator entirely.

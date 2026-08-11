@@ -7,6 +7,7 @@ import { formatListDate } from "../state/datetime";
 import { windowRange } from "./window";
 import { isNarrow } from "./narrow";
 import { LONG_PRESS, drag, stillPressing, type Swipe } from "./row-gesture";
+import { Outbox } from "./Outbox";
 
 // Every row occupies exactly this much of the column, and the virtual
 // scroller's arithmetic is built on that — the height below is set from these
@@ -79,6 +80,8 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
           {items().length}/{props.store.threads()?.total ?? 0}
         </span>
       </header>
+
+      <Outbox store={props.store} />
 
       <div
         ref={attach}
@@ -387,14 +390,19 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
         "touch-action": "pan-y",
       }}
       classList={{
+        // The cursor is the ring and the selection is the fill, so a row that
+        // is both still reads as both. `neutral_bg` is the palette's hover, so
+        // a selection painted in it was invisible next to an unselected row —
+        // `proved` is the role that means selected, in every theme.
         "row-card-selected": selected(),
-        "bg-obligation-bg text-ink": selected(),
-        "bg-neutral-bg": !selected() && picked(),
+        "row-card-picked": picked() && !selected(),
+        "bg-proved-bg text-ink": picked(),
+        "bg-obligation-bg text-ink": selected() && !picked(),
         // The card's own surface, so the rule and the shadow have something to
         // sit on. It is a utility rather than a rule in `.row-card` because the
         // two above have to be able to win — see components.css.
         "bg-card": !selected() && !picked(),
-        "hover:bg-neutral-bg": !selected(),
+        "hover:bg-neutral-bg": !selected() && !picked(),
       }}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}

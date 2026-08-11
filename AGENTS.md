@@ -338,6 +338,72 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   are the client-side belt to this braces — every other route to a refetch,
   including another client's writes, still exists.
 
+- **The bytes in the maildir are not the bytes that were signed.** mbsync
+  writes maildir files with bare newlines, and a detached signature over a MIME
+  entity covers the CRLF form that crossed the wire — so `gpg --verify` against
+  what is on disk answered BADSIG for every `multipart/signed` message in the
+  database, and the client painted that as *this message has been altered*,
+  which is the strongest accusation it can make. `pgp::verify` canonicalises
+  first and falls back to the stored bytes when the canonical form is not good,
+  so a signer who signed the LF form is still believed and a message that
+  really was altered still fails. None of this is reachable by reasoning about
+  the splitting code, which is correct: only a fixture stored the way isync
+  stores one shows it, which is
+  `a_signature_survives_being_stored_in_a_maildir_with_bare_newlines`.
+
+- **gpg's last line is the one that says nothing.** `sign+encrypt failed:
+  General error` names no recipient, no key and no reason, and is identical
+  whether an address has no key or an encryption subkey that expired — so
+  reporting it sends a reader hunting through ecr for a fault in their own
+  keyring. `INV_RECP <code> <recipient>` on the status fd is the answer to the
+  same question and names both; gpg's prose lines are appended because nothing
+  in the status interface distinguishes an expired subkey from a revoked one.
+  Doctor asks the same question ahead of time, and asks the *secret* keyring
+  about signing and the public one about encryption: an address whose public
+  key merely exists was never going to sign anything, and warning that it
+  cannot is noise on top of a real warning.
+
+- **A Ctrl chord is matched before the app checks whether a text field has
+  focus.** That is deliberate and it is what lets focus leave an open composer
+  without discarding it — but it also handed the app `C-u`, `C-d`, `C-e` and
+  `C-y`, which are what a vim or shell user presses to rub out a line. The
+  message behind the composer scrolled while the caret sat in a textarea that
+  never saw the keystroke, which reads as the composer dropping keys and has
+  nothing on screen connecting it to a binding for the pane underneath.
+  `ESCAPE_HATCHES` in `App.tsx` is an allowlist — panes, the pinned split, the
+  conversation cursor — because a chord added later should fail by staying out
+  of a typist's way rather than by stealing their key. No unit test can see
+  this: the keymap answers the same either way, and what differs is whether a
+  real textarea received the event. `web/e2e/compose.spec.ts` parks the reading
+  pane's scroller between its ends first, because at the top every chord that
+  scrolls up passes by doing nothing.
+
+- **`neutral_bg` is the hover colour, so nothing may be *selected* in it.** A
+  `v` range was filled with it and was therefore invisible beside any row the
+  pointer happened to be over. `proved` is the palette's role for selected — it
+  says so in every theme file — and the row under the cursor keeps the
+  obligation ring while taking the selection's fill, so a row that is both
+  reads as both. `just visual` did **not** catch the original: pixelmatch's
+  perceptual threshold puts `neutral_bg` and `proved_bg` under the 0.2% ratio
+  the suite fails at, and no state in it has a live range on screen — state 21
+  stages a delete, which clears the range. `verify-marks` is what asserts on
+  the class.
+
+- **The client did not listen for `outbox:changed`, and that is why a sent
+  message vanished.** The server has published it since the queue existed; the
+  event name was simply missing from the list in `Api.events`, and nothing
+  rendered `GET /api/v1/outbox` either. So a message queued behind the undo
+  hold, or one msmtp refused, left no trace a reader could find: the composer
+  closes, and Sent stays empty because that copy comes back from the provider
+  minutes later or never. `ui/Outbox.tsx` is a strip above the list rather than
+  a mailbox, because the question is asked in the seconds after pressing send
+  and nowhere else. `outbox::retry` puts the attempt count back to zero on
+  purpose — the backoff parks a message a day away after enough failures, so a
+  reader who has just fixed the password would otherwise press *try again* and
+  watch nothing happen. Cancelling a message that is already `.sending` is
+  refused, correctly, so anything that clicks *discard* has to tolerate that
+  race rather than assume one click is enough.
+
 - **ecr ships no notmuch, mbsync or msmtp, and the only thing its wrapper puts
   on PATH is ecr.** Not even behind the reader's own, as a fallback for a
   machine that has none: two copies of isync at the same version are not the
@@ -686,6 +752,11 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   count bug above was invisible against a warm one.
   `playwright` and `@playwright/test` must stay pinned to the *same* version, or
   the runner loads two copies and refuses to collect any test.
+  **The fixture's msmtp config names no host, so every send from it fails** —
+  which is what makes `outbox.spec.ts` possible without a stub, and it queues
+  through the API rather than the composer because what is under test is the
+  client's account of a queue. A send request carries the draft *flattened*
+  into it, not nested under `draft`.
 - Integration tests build a throwaway notmuch database from `fixtures/` in a
   tempdir. They must never touch the real maildir.
 - **Pointing `HOME` at the demo directory is not enough to isolate a suite.**
@@ -721,8 +792,19 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
 
 Three panes — `sidebar`, `list`, `detail` — with `h`/`l` moving focus. Bindings
 are pane-scoped: `Enter` opens a thread in the list and selects a view in the
-sidebar. `web/src/keymap/engine.ts` owns the table; a binding without `panes`
-is global.
+sidebar, and `r` refreshes the list where a list is on screen and replies where
+a message is. `web/src/keymap/engine.ts` owns the table; a binding without
+`panes` is global. **A pane-scoped key needs a pane-scoped hint**: the status
+bar's `r:` is chosen from `store.pane()`, because a hint is read exactly where
+it would be wrong.
+
+**A count may be typed before a key**, as in vim: `4j`, `10k`. The engine only
+*carries* it — `Outcome.count` — because it has no idea what an action does,
+and the dispatcher decides. `REPEATABLE` in `App.tsx` is that decision: the
+motions and the scrolls, and nothing that toggles, since `4d` would stage a
+delete twice and leave nothing staged. A key bound to nothing abandons the
+count, the way vim does; `0` is only a digit once something has been counted,
+so it stays free to be bound.
 
 **How many of the three are on screen is `store.layout()`, and the line is a
 setting rather than a breakpoint.** `layoutFor` in `ui/narrow.ts` is the whole
@@ -789,6 +871,19 @@ labels, so a header keyword cannot be edited away, and each *value* is its own
 single-line surface running the same engine. `Tab` walks them and wraps into
 the body. Attachments ride along base64 in the same request that sends the
 draft, capped at 25MB by `ecr-core`.
+
+**The signature goes into the composer, not onto the message.** `openCompose`
+is the one funnel every draft arrives through, so it is where the account's
+`signature` is written in, under a `-- ` line the client adds rather than the
+setting carrying — and *above* the quoted conversation in a reply, or it sits
+where nobody reads it and is copied again on every round of the thread.
+Because it is text on screen, one message can go without it by deleting it,
+which is the whole reason for preferring this to appending at send. An alias
+may carry its own and falls back to the account's; the rule is written twice,
+in `state/signature.ts` and in `ManagedAccount::signature_for`, and the TS side
+says so. Changing the From address *mid-draft* does not swap it: the editor
+reads `initial` once, and rewriting a buffer somebody is typing in is worse
+than a signature that is one edit out of date.
 
 The composer is also what a **`mailto:` link** opens. ecr registers the scheme
 on both platforms — `MimeType` in the desktop entry, a `SENDTO`/`VIEW` intent

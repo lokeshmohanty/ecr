@@ -288,6 +288,13 @@ export class Api {
     });
   }
 
+  /** Sends a waiting message now instead of when its backoff says. */
+  async retrySend(id: string): Promise<void> {
+    await this.request(`/api/v1/outbox/${encodeURIComponent(id)}/retry`, {
+      method: "POST",
+    });
+  }
+
   async rsvp(
     messageId: string,
     account: string,
@@ -495,6 +502,7 @@ export class Api {
       "sync:started",
       "sync:progress",
       "sync:finished",
+      "outbox:changed",
       "error",
     ];
 

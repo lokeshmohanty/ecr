@@ -124,6 +124,37 @@ pub fn cancel(state_dir: &Path, id: &str) -> bool {
     existed
 }
 
+/// Makes a waiting message due now. Answers whether there was one.
+///
+/// **The attempt count goes back to zero**, and that is the point rather than
+/// tidiness: the backoff doubles, and after enough failures `defer` parks a
+/// message a day away — so a reader who has just fixed the password and asked
+/// for it to go would otherwise watch it sit there until tomorrow, with a
+/// button that appeared to do nothing. The last error is kept, because it is
+/// still the reason it is here until something replaces it.
+///
+/// A message that is currently `.sending` is not touched: it has been claimed,
+/// and putting a second copy of it in the queue is how one gets sent twice.
+pub fn retry(state_dir: &Path, id: &str) -> bool {
+    let dir = dir(state_dir);
+    let path = dir.join(format!("{id}.json"));
+
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return false;
+    };
+    let Ok(mut entry) = serde_json::from_str::<Queued>(&text) else {
+        return false;
+    };
+
+    entry.due = now();
+    entry.attempts = 0;
+
+    let Ok(json) = serde_json::to_vec_pretty(&entry) else {
+        return false;
+    };
+    std::fs::write(&path, json).is_ok()
+}
+
 /// The next message that is due, claimed so nothing else takes it.
 ///
 /// Claiming is renaming the metadata aside before the body is read: whatever

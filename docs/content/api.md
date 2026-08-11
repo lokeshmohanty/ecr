@@ -28,7 +28,10 @@ unauthenticated and logs a warning.
 | GET | `/folders` | Every maildir folder, as move destinations |
 | POST | `/messages/{id}/move` | `{ folder }`. A rename into that folder's `cur/`. `400` for a folder that does not exist — ecr never creates one |
 | POST | `/sync` | `{ accounts: [] }` → `SyncReport`. Empty means all |
-| POST | `/send` | `{ account, to, cc, bcc, subject, body, in_reply_to, references, attachments }` |
+| POST | `/send` | `{ account, to, cc, bcc, subject, body, in_reply_to, references, attachments }`, plus `hold` (seconds) or `at` (unix seconds). The draft is flattened into the request, not nested |
+| GET | `/outbox` | What is queued: `{ id, account, due, subject, to, attempts, last_error }` |
+| DELETE | `/outbox/{id}` | Takes a message back. `400` once it has been claimed for sending — it may already be delivered |
+| POST | `/outbox/{id}/retry` | Makes it due now and resets the attempt count, so the backoff starts over |
 | GET | `/config` | `{ path, raw }`. An absent settings file is `raw: ""`, not a `404` |
 | PUT | `/config` | `{ raw }`. Written only if it parses; `422 invalid_toml` carries `line` and `column` |
 | GET | `/themes` | `{ dir, presets: [{ path, name, builtin }] }`. Seeds the shipped presets |
@@ -58,8 +61,14 @@ tags:changed    { revision, ids }
 sync:started    { accounts }
 sync:progress   { line }
 sync:finished   { new_messages, revision }
+outbox:changed  {}
 error           { detail }
 ```
+
+`outbox:changed` carries nothing on purpose — a client asks `/outbox` for the
+state rather than being handed a copy that may already be out of date by the
+time it is read. A client that does not subscribe to it shows a queue that
+never changes, which is how a failed send became invisible.
 
 ## Errors
 

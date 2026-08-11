@@ -48,6 +48,16 @@
     0 2px 6px rgb(0 0 0 / 0.38);
 }
 
+/*
+ * A row in the selection, cursor elsewhere. The ring is what carries it on a
+ * light palette, where `proved_bg` is a tint the eye can miss against `card`.
+ */
+.row-card-picked {
+  box-shadow:
+    0 0 0 1px var(--color-proved),
+    0 1px 3px rgb(0 0 0 / 0.28);
+}
+
 /* The list's own header, which has no tape and no sender. */
 .list-header-grid {
   display: grid;

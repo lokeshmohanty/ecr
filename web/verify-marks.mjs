@@ -106,9 +106,13 @@ await press("X");
 await press("g", "g");
 await press("v", "j", "j");
 let rows = await rowClasses();
+// `proved` is the palette's role for *selected*, and the fill is what a range
+// is drawn with — `neutral_bg` used to be, which is also the hover, so a range
+// was invisible next to a row the pointer happened to be over. The cursor row
+// inside a range keeps its own ring and takes the selection's fill.
 const inRange = rows.filter((c) => {
 	const set = new Set(c.split(/\s+/));
-	return set.has("bg-obligation-bg") || set.has("bg-neutral-bg");
+	return set.has("bg-obligation-bg") || set.has("bg-proved-bg");
 }).length;
 check(
 	"v extends a range as the cursor moves",

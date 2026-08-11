@@ -540,6 +540,30 @@ pub async fn unsend(
     Ok(Json(serde_json::json!({ "cancelled": id })))
 }
 
+/// Sends a waiting message now rather than when its backoff says.
+///
+/// The one thing a reader can do about a failure they have just fixed. It
+/// publishes `OutboxChanged` the way the drain does, so the pane that offered
+/// the button updates from the same signal as everything else rather than
+/// having to guess when to look again.
+pub async fn retry_send(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> ApiResult<Json<serde_json::Value>> {
+    reject_if_read_only(&state)?;
+
+    if !ecr_store::outbox::retry(&state.store.paths().ecr_state_dir, &id) {
+        return Err(ApiError::BadRequest(
+            "that message is no longer waiting — it has already been sent".into(),
+        ));
+    }
+
+    state
+        .events
+        .publish(crate::events::ServerEvent::OutboxChanged);
+    Ok(Json(serde_json::json!({ "queued": id })))
+}
+
 #[derive(Deserialize)]
 pub struct RsvpRequest {
     pub account: String,

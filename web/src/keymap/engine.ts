@@ -37,6 +37,9 @@ export type Action =
 	| { kind: "prevMessage" }
 	| { kind: "loadRemote" }
 	| { kind: "togglePlain" }
+	| { kind: "togglePreferHtml" }
+	| { kind: "refresh" }
+	| { kind: "switchAccount" }
 	| { kind: "saveQuery" }
 	| { kind: "enterCommand" }
 	| { kind: "enterSearch" }
@@ -290,8 +293,25 @@ export const DEFAULT_BINDINGS: Binding[] = [
 		description: "html or plain text",
 		panes: ["detail"],
 	},
+	// The same question asked of every message rather than this one: `t` is a
+	// choice about what is on screen, `T` changes the preference it starts
+	// from. Global, because it is a setting and not a thing about the message.
+	{
+		keys: "T",
+		action: { kind: "togglePreferHtml" },
+		description: "prefer html for every message",
+	},
 	{
 		keys: "q",
+		action: { kind: "closeRight" },
+		description: "close the pane",
+		panes: ["detail"],
+	},
+	// The settings pane is edited like a buffer, so it is left like one. Inside
+	// the shared file's editor the sequence is the vim state machine's own; this
+	// is the same key on the tabs that are switches rather than text.
+	{
+		keys: "ZQ",
 		action: { kind: "closeRight" },
 		description: "close the pane",
 		panes: ["detail"],
@@ -328,10 +348,32 @@ export const DEFAULT_BINDINGS: Binding[] = [
 	},
 
 	{ keys: "c", action: { kind: "compose" }, description: "compose" },
-	{ keys: "r", action: { kind: "reply", all: false }, description: "reply" },
+	// `r` means two things, and which one depends on where the cursor is. In
+	// the list it is the reader's reflex for *refresh* — every other client
+	// they have used binds it there — and answering a thread they have not
+	// opened yet is not what they asked for. Reply belongs where a message is
+	// on screen. Both are `r` because a pane-scoped binding is exactly the
+	// mechanism for a key that means the local thing.
+	{
+		keys: "r",
+		action: { kind: "refresh" },
+		description: "refresh the list",
+		panes: ["sidebar", "list"],
+	},
+	{
+		keys: "r",
+		action: { kind: "reply", all: false },
+		description: "reply",
+		panes: ["detail"],
+	},
 	{ keys: "R", action: { kind: "reply", all: true }, description: "reply all" },
 	{ keys: "F", action: { kind: "forward" }, description: "forward" },
 	{ keys: "s", action: { kind: "sync" }, description: "sync" },
+	{
+		keys: "A",
+		action: { kind: "switchAccount" },
+		description: "switch account",
+	},
 	{ keys: "]a", action: { kind: "nextAccount" }, description: "next account" },
 	{
 		keys: "[a",
@@ -363,7 +405,14 @@ export interface KeyEvent {
 }
 
 export type Outcome =
-	| { type: "action"; action: Action; consumed: true }
+	/**
+	 * `count` is the digits typed before the key, as in vim: `4j`. It is
+	 * carried rather than applied here because the engine has no idea what an
+	 * action does — repeating a motion four times is what was asked for, and
+	 * repeating "stage delete" four times toggles it twice and stages nothing.
+	 * Who honours a count is the dispatcher's decision.
+	 */
+	| { type: "action"; action: Action; count?: number; consumed: true }
 	| { type: "pending"; sequence: string; consumed: true }
 	| { type: "cancelled"; consumed: true }
 	| { type: "ignored"; consumed: false };
@@ -374,22 +423,28 @@ export type Outcome =
  */
 export const SEQUENCE_TIMEOUT = 1500;
 
+/** How many times one key may be asked to repeat. */
+const COUNT_LIMIT = 999;
+
 export class Keymap {
 	private bindings: Binding[];
 	private pending = "";
 	private pendingAt = 0;
+	private count = "";
 
 	constructor(bindings: Binding[] = DEFAULT_BINDINGS) {
 		this.bindings = bindings;
 	}
 
+	/** What is on screen as unfinished input: the count and the partial keys. */
 	get sequence(): string {
-		return this.pending;
+		return this.count + this.pending;
 	}
 
 	reset(): void {
 		this.pending = "";
 		this.pendingAt = 0;
+		this.count = "";
 	}
 
 	replace(bindings: Binding[]): void {
@@ -434,7 +489,7 @@ export class Keymap {
 		}
 
 		if (event.key === "Escape") {
-			const wasPending = this.pending !== "";
+			const wasPending = this.sequence !== "";
 			this.reset();
 			return wasPending || mode !== "normal" || editing
 				? { type: "cancelled", consumed: true }
@@ -445,8 +500,24 @@ export class Keymap {
 			return { type: "ignored", consumed: false };
 		}
 
-		if (this.pending && now - this.pendingAt > SEQUENCE_TIMEOUT) {
+		if (this.sequence !== "" && now - this.pendingAt > SEQUENCE_TIMEOUT) {
 			this.reset();
+		}
+
+		// A digit before a key is a count, as in vim. `0` is the exception, and
+		// only while nothing has been counted yet: on its own it is a key like
+		// any other and could be bound, but inside `10` it is a digit.
+		if (
+			this.pending === "" &&
+			event.key >= "0" &&
+			event.key <= "9" &&
+			!(event.key === "0" && this.count === "")
+		) {
+			if (this.count.length < String(COUNT_LIMIT).length) {
+				this.count += event.key;
+			}
+			this.pendingAt = now;
+			return { type: "pending", sequence: this.sequence, consumed: true };
 		}
 
 		const scoped = this.inPane(pane);
@@ -457,20 +528,30 @@ export class Keymap {
 			scoped.find((b) => b.keys === candidate && b.panes) ??
 			scoped.find((b) => b.keys === candidate);
 		if (exact) {
+			const count = this.count === "" ? undefined : Number(this.count);
 			this.reset();
-			return { type: "action", action: exact.action, consumed: true };
+			return count === undefined
+				? { type: "action", action: exact.action, consumed: true }
+				: { type: "action", action: exact.action, count, consumed: true };
 		}
 
 		if (scoped.some((b) => b.keys.startsWith(candidate))) {
 			this.pending = candidate;
 			this.pendingAt = now;
-			return { type: "pending", sequence: candidate, consumed: true };
+			return { type: "pending", sequence: this.sequence, consumed: true };
 		}
 
 		// `zq` is not a binding, but `q` is. Rather than swallow the key that
 		// ended a dead sequence, abandon the prefix and try the key on its own.
+		// The count survives it: it was typed before the prefix and belongs to
+		// whatever key finally lands.
 		if (this.pending) {
+			const count = this.count;
 			this.reset();
+			this.count = count;
+			// And the clock with it, or the retry's own staleness check reads a
+			// count restored a microsecond ago as one typed and abandoned.
+			this.pendingAt = now;
 			return this.handle(event, mode, editing, pane, now);
 		}
 

@@ -87,11 +87,14 @@ function accountName(store: AppStore): string {
 export function StatusBar(props: { store: AppStore }) {
   const markCount = () => Object.keys(props.store.marks).length;
 
-  const hints = [
+  // `r` is pane-scoped, so the hint has to be too: advertising *reply* over the
+  // list, where the key refreshes, is a hint that is wrong exactly where
+  // somebody reads it.
+  const hints = () => [
     ["h/l", "pane"],
     ["j/k", "nav"],
     ["Enter", "open"],
-    ["r", "reply"],
+    props.store.pane() === "detail" ? ["r", "reply"] : ["r", "refresh"],
     ["c", "compose"],
     ["x", "execute"],
     ["/", "search"],
@@ -163,7 +166,7 @@ export function StatusBar(props: { store: AppStore }) {
         something that is also in `?`.
       */}
       <span class="hint-row hidden min-w-0 flex-1 gap-3 overflow-hidden md:flex">
-        <For each={hints}>
+        <For each={hints()}>
           {([key, label]) => (
             <span class="shrink-0 text-ink-3">
               <kbd>{key}</kbd>:{label}

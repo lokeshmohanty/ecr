@@ -113,7 +113,20 @@ describe("the detail-pane bindings survive the file", () => {
 
   it("keeps reply and reply-all distinct", () => {
     const bindings = roundTrip().bindings;
-    expect(bindings.find((b) => b.keys === "r")?.action).toEqual({ kind: "reply", all: false });
+    const reply = bindings.find((b) => b.keys === "r" && b.action.kind === "reply");
+    expect(reply?.action).toEqual({ kind: "reply", all: false });
     expect(bindings.find((b) => b.keys === "R")?.action).toEqual({ kind: "reply", all: true });
+  });
+
+  /**
+   * `r` is two bindings on the same key in different panes, so a file that
+   * carries only one of them silently drops refresh or drops reply — and which
+   * one survives depends on the order they happen to be written in.
+   */
+  it("carries both of the r bindings, each with its panes", () => {
+    const rs = roundTrip().bindings.filter((b) => b.keys === "r");
+    expect(rs.map((b) => b.action.kind).sort()).toEqual(["refresh", "reply"]);
+    expect(rs.find((b) => b.action.kind === "refresh")?.panes).toEqual(["sidebar", "list"]);
+    expect(rs.find((b) => b.action.kind === "reply")?.panes).toEqual(["detail"]);
   });
 });

@@ -91,6 +91,7 @@ pub fn router_with_cors(state: AppState, allowed_origins: Option<Vec<String>>) -
         .route("/api/v1/messages/{id}/move", post(routes::move_message))
         .route("/api/v1/outbox", get(routes::outbox))
         .route("/api/v1/outbox/{id}", axum::routing::delete(routes::unsend))
+        .route("/api/v1/outbox/{id}/retry", post(routes::retry_send))
         .route("/api/v1/events", get(routes::events))
         .route("/api/v1/config", get(routes::config))
         .route("/api/v1/config", put(routes::save_config))

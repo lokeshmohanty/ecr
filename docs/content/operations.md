@@ -226,6 +226,12 @@ where there is more than one, and the server refuses a `From:` the account does
 not own rather than quietly rewriting it. Signatures fall back from the alias to
 the account; an alias with an empty one has deliberately none.
 
+A signature is written **into the composer** when a message is opened, under a
+`-- ` line ecr adds — and above the quoted conversation in a reply, so it is
+not buried under the thread and carried down the page on every round. What is
+on screen is what is sent, so one message can go without it by deleting it
+there. Changing the From address after the composer is open does not swap it.
+
 Rules are notmuch queries that tag new mail, edited on the Accounts tab and
 rendered into the `post-new` hook. They run top to bottom, see only mail that
 has just arrived, and by default take what they match out of the inbox — filing
@@ -266,6 +272,27 @@ Replies go through the same outbox as everything else, so one is visible before
 it goes and can be taken back. Who has been told is recorded in
 `~/.local/state/ecr/vacation-sent.json`; `ecr account vacation forget` clears
 it, which answers everybody again.
+
+### The outbox
+
+Everything sent goes through a queue in `~/.local/state/ecr/outbox`, held ten
+seconds by default — that hold is what undo is. While anything is in it, a
+strip above the thread list says so: what it is, when it goes, and, when a send
+has failed, **why**, with *try again* and *discard* beside it. A failure is
+also announced as a notification, because the reader believes the message is
+gone and nothing else will tell them otherwise.
+
+That strip is the only place the queue is visible, deliberately: a message on
+its way is not something to go and look for. It matters most for a failure,
+because **Sent will not show the message either** — that copy comes back from
+the provider when the account next syncs, which is minutes later, or never for
+a provider that does not keep one.
+
+*Try again* sends now rather than when the backoff says, and puts the attempt
+count back to zero: the wait doubles with each failure and eventually parks a
+message a day away, so a password that has just been fixed would otherwise look
+like a button that does nothing. A message already being sent cannot be
+discarded — it may have been delivered — so try again a moment later.
 
 ### What reaches the server when you file something
 
@@ -322,6 +349,13 @@ fail is worse than not offering it. It is chosen per message and never
 inherited, including on a reply to an encrypted message: encryption needs a
 public key for every recipient, and a reply silently protected that then cannot
 be sent fails at the moment the writer has stopped looking at it.
+
+A key that has stopped working is the failure worth knowing about early, so
+`ecr doctor` warns when an account's own key can no longer be encrypted to or
+sign — an expired encryption subkey looks like a working account right up to
+the moment a message is sent, and gpg's own account of it (`sign+encrypt
+failed: General error`) names no address and no reason. ecr names the recipient
+and what is wrong with their key instead.
 
 **Encryption does not hide the subject line, or who the message is to.** That
 is not a shortcut in ecr — it is what PGP/MIME is. Only the body and the

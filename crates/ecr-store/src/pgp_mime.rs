@@ -215,17 +215,12 @@ fn split_headers(raw: &[u8]) -> Result<(String, Vec<u8>)> {
 }
 
 /// Canonical CRLF, without doubling one that is already there.
+///
+/// The same function the verifier canonicalises with, deliberately: the two
+/// directions have to agree about what "the bytes that were signed" means, and
+/// two copies of this are two chances for them to stop agreeing.
 fn crlf(bytes: &[u8]) -> Vec<u8> {
-    let mut out = Vec::with_capacity(bytes.len() + bytes.len() / 16);
-    let mut previous = 0u8;
-    for &byte in bytes {
-        if byte == b'\n' && previous != b'\r' {
-            out.push(b'\r');
-        }
-        out.push(byte);
-        previous = byte;
-    }
-    out
+    crate::pgp::canonical_crlf(bytes)
 }
 
 /// A boundary that cannot occur in armour.

@@ -101,7 +101,44 @@ pub fn detect(raw: &[u8]) -> Option<Protection> {
 }
 
 /// Checks a detached signature over some bytes.
+///
+/// **The canonical form is tried first, and that is the whole of this
+/// function.** A detached signature over a MIME entity covers the CRLF form
+/// that crossed the wire (RFC 3156), but mbsync writes maildir files with bare
+/// newlines — so the bytes on disk are *not* the bytes that were signed, and
+/// gpg answers BADSIG for perfectly good mail. The client renders that as *this
+/// message has been altered*, which is the strongest accusation it can make,
+/// about every signed message in the database.
+///
+/// The stored bytes are still tried when the canonical form is not good: a
+/// signer that signed the LF form produced a signature that is genuinely over
+/// those bytes, and refusing it because it disagrees with the specification
+/// helps nobody. Whichever verdict is better is the one reported.
 pub async fn verify(signed: &[u8], signature: &[u8]) -> Result<Signature> {
+    let canonical = canonical_crlf(signed);
+    let verdict = verify_exact(&canonical, signature).await?;
+    if confirms_a_signer(&verdict) || canonical == signed {
+        return Ok(verdict);
+    }
+
+    let stored = verify_exact(signed, signature).await?;
+    Ok(if confirms_a_signer(&stored) {
+        stored
+    } else {
+        verdict
+    })
+}
+
+/// Whether a verdict says a real key signed these exact bytes — expiry and
+/// revocation included, which are facts about the key rather than the bytes.
+fn confirms_a_signer(verdict: &Signature) -> bool {
+    matches!(
+        verdict,
+        Signature::Good { .. } | Signature::Expired { .. } | Signature::Revoked { .. }
+    )
+}
+
+async fn verify_exact(signed: &[u8], signature: &[u8]) -> Result<Signature> {
     let dir = tempfile::tempdir()?;
     let data = dir.path().join("data");
     let sig = dir.path().join("data.asc");
@@ -110,6 +147,20 @@ pub async fn verify(signed: &[u8], signature: &[u8]) -> Result<Signature> {
 
     let status = run(&["--verify", path(&sig)?, path(&data)?], &[]).await?;
     Ok(read_signature(&status))
+}
+
+/// Canonical CRLF, without doubling one that is already there.
+pub(crate) fn canonical_crlf(bytes: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(bytes.len() + bytes.len() / 16);
+    let mut previous = 0u8;
+    for &byte in bytes {
+        if byte == b'\n' && previous != b'\r' {
+            out.push(b'\r');
+        }
+        out.push(byte);
+        previous = byte;
+    }
+    out
 }
 
 /// What came out of an armoured blob.
@@ -262,12 +313,174 @@ pub async fn encrypt(
     let status = run(&borrowed, body).await?;
 
     if status.stdout.is_empty() {
-        return Err(Error::Managed(format!(
-            "gpg encrypted nothing: {}",
-            status.stderr.lines().last().unwrap_or("no reason given")
-        )));
+        return Err(Error::Managed(why_it_refused(&status)));
     }
     Ok(status.stdout)
+}
+
+/// Why gpg produced nothing, in terms of the thing the sender can act on.
+///
+/// gpg's *last* stderr line is its summary — `sign+encrypt failed: General
+/// error` — and it is the one line that says nothing at all: it names no
+/// recipient, no key and no reason, and it is identical whether an address has
+/// no key, an expired one, or the passphrase could not be had. Reporting it
+/// sent a reader looking for a bug in ecr over a subkey of their own that
+/// expired eighteen months ago.
+///
+/// `INV_RECP <code> <recipient>` is the documented answer to the same question,
+/// and it names both. The prose lines are still appended, because gpg says
+/// *unusable public key* there and nothing in the status interface distinguishes
+/// an expired subkey from a revoked one.
+fn why_it_refused(status: &Status) -> String {
+    let refused: Vec<String> = status
+        .lines
+        .iter()
+        .filter_map(|line| line.strip_prefix("INV_RECP "))
+        .map(|rest| {
+            let mut fields = rest.splitn(2, ' ');
+            let code = fields.next().unwrap_or("");
+            let recipient = fields.next().unwrap_or("that recipient").trim();
+            format!("{recipient} ({})", invalid_recipient(code))
+        })
+        .collect();
+
+    // Everything gpg said in prose except the summary, which is the line that
+    // carries no information.
+    let said: Vec<&str> = status
+        .stderr
+        .lines()
+        .filter(|line| line.starts_with("gpg: ") && !line.contains("failed: General error"))
+        .collect();
+
+    if refused.is_empty() {
+        return format!(
+            "gpg encrypted nothing: {}",
+            if said.is_empty() {
+                status
+                    .stderr
+                    .lines()
+                    .last()
+                    .unwrap_or("no reason given")
+                    .to_string()
+            } else {
+                said.join("; ")
+            }
+        );
+    }
+
+    format!(
+        "no usable key for {}. Every recipient needs one that can still receive: \
+         encrypting to the others and sending anyway delivers a message this one cannot open. {}",
+        refused.join(", "),
+        said.join("; ")
+    )
+    .trim_end()
+    .to_string()
+}
+
+/// The reason codes of `INV_RECP`, from GnuPG's `doc/DETAILS`.
+fn invalid_recipient(code: &str) -> &'static str {
+    match code {
+        "0" => "no usable key — most often an encryption subkey that has expired",
+        "1" => "no key for that address",
+        "2" => "more than one key matches, so gpg will not guess",
+        "3" => "the key cannot be used for encryption",
+        "4" => "the key has been revoked",
+        "5" => "the key has expired",
+        "6" => "no revocation list",
+        "7" => "the revocation list has expired",
+        "8" => "no revocation list signature",
+        "9" => "the key is not trusted",
+        "10" => "the key is unusable",
+        "11" => "the address is not a valid one",
+        "12" => "the key is disabled",
+        "13" => "the key was refused by a policy",
+        _ => "gpg gave no reason",
+    }
+}
+
+/// Whether a key can still do a thing — for doctor, which asks before the
+/// sender does.
+///
+/// Reads a listing rather than trying an encryption: a trial run needs
+/// something to encrypt and would prompt for the secret key on the signing
+/// half, and doctor may not be attached to a terminal.
+///
+/// **Signing is asked of the secret keyring and encryption of the public one**,
+/// because they are different questions about the same address. Encrypting to
+/// yourself needs a public key; signing as yourself needs the secret half, and
+/// an address whose public key merely exists cannot sign anything. Asking one
+/// keyring both questions reported *cannot sign* about an address that was
+/// never going to, which is noise on top of a real warning.
+pub async fn key_can(key: &str, capability: Capability) -> KeyState {
+    let listing = match capability {
+        Capability::Encrypt => run(&["--list-keys", "--with-colons", key], &[]).await,
+        Capability::Sign => run(&["--list-secret-keys", "--with-colons", key], &[]).await,
+    };
+    let listing = match listing {
+        Ok(status) if !status.stdout.is_empty() => {
+            String::from_utf8_lossy(&status.stdout).into_owned()
+        }
+        _ => return KeyState::Missing,
+    };
+
+    let wanted = match capability {
+        Capability::Encrypt => 'e',
+        Capability::Sign => 's',
+    };
+
+    // A key's own capabilities are in field 12, and a subkey's are its own —
+    // which is the whole reason this is not one flag on the primary key. The
+    // *lowercase* letters are what this key can do; the uppercase ones on the
+    // primary summarise the whole keyring entry, expired subkeys included, so
+    // reading those answers "can encrypt" about a key that cannot.
+    let mut usable = false;
+    let mut existed = false;
+    for line in listing.lines() {
+        let fields: Vec<&str> = line.split(':').collect();
+        if fields
+            .first()
+            .is_none_or(|kind| !matches!(*kind, "pub" | "sub" | "sec" | "ssb"))
+        {
+            continue;
+        }
+        let Some(capabilities) = fields.get(11) else {
+            continue;
+        };
+        if !capabilities.contains(wanted) {
+            continue;
+        }
+        existed = true;
+        // Field 2 is validity: `e` expired, `r` revoked, `i` invalid, `d`
+        // disabled. Anything else can still be used.
+        if !matches!(fields.get(1), Some(&"e" | &"r" | &"i" | &"d")) {
+            usable = true;
+        }
+    }
+
+    match (usable, existed) {
+        (true, _) => KeyState::Usable,
+        (false, true) => KeyState::Unusable,
+        (false, false) => KeyState::Missing,
+    }
+}
+
+/// What a key may be asked to do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Capability {
+    Encrypt,
+    Sign,
+}
+
+/// Whether a key can do it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyState {
+    Usable,
+    /// A key exists and once could, but every one of those subkeys has expired,
+    /// been revoked or been disabled. This is the state that reads as a bug in
+    /// the mail client rather than as a key that needs renewing.
+    Unusable,
+    Missing,
 }
 
 /// Whether a key that can decrypt or sign is available at all.
@@ -634,6 +847,41 @@ abc\r\n\
             stdout: Vec::new(),
             stderr: String::new(),
         }
+    }
+
+    /// The line gpg ends with is the line that says nothing. Reporting it sent
+    /// a reader hunting for a bug in ecr over an encryption subkey of their own
+    /// that had expired — the error named no address, no key and no reason, and
+    /// is identical for a recipient who simply has no key at all.
+    #[test]
+    fn the_refusal_names_the_recipient_and_not_gpgs_summary() {
+        let mut refused = status(&["INV_RECP 0 ada@example.com", "FAILURE sign-encrypt 1"]);
+        refused.stderr = "gpg: error retrieving 'ada@example.com' via Local: Unusable public key\n\
+                          gpg: ada@example.com: skipped: General error\n\
+                          gpg: [stdin]: sign+encrypt failed: General error\n"
+            .to_string();
+
+        let said = why_it_refused(&refused);
+        assert!(said.contains("ada@example.com"), "{said}");
+        assert!(said.contains("Unusable public key"), "{said}");
+        assert!(!said.contains("sign+encrypt failed"), "{said}");
+    }
+
+    /// A recipient gpg has never heard of is a different thing to say, and the
+    /// reason code is the only place the difference is written down.
+    #[test]
+    fn a_recipient_with_no_key_is_not_reported_as_an_expired_one() {
+        let said = why_it_refused(&status(&["INV_RECP 1 grace@example.org"]));
+        assert!(said.contains("grace@example.org"), "{said}");
+        assert!(said.contains("no key for that address"), "{said}");
+    }
+
+    /// Nothing to go on is still better than nothing said.
+    #[test]
+    fn a_refusal_with_no_status_line_still_carries_what_gpg_printed() {
+        let mut quiet = status(&[]);
+        quiet.stderr = "gpg: signing failed: No secret key\n".to_string();
+        assert!(why_it_refused(&quiet).contains("No secret key"));
     }
 
     /// The client draws a padlock from this and nothing else, so the wire tag

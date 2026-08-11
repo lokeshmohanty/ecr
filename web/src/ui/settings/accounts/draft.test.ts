@@ -8,6 +8,7 @@ const draft: Draft = {
 	provider: "gmail",
 	imap: "",
 	smtp: "",
+	signature: "",
 	primary: true,
 	enabled: true,
 };
@@ -117,5 +118,31 @@ describe("hostPort", () => {
 			"mail.example.com:1993",
 		);
 		expect(shown(undefined)).toBe("");
+	});
+});
+
+describe("the signature", () => {
+	/**
+	 * Absent, not empty. The field is optional in accounts.toml, and an empty
+	 * string would put a bare `-- ` under every message from an account whose
+	 * signature had been cleared.
+	 */
+	it("is dropped rather than written blank", () => {
+		expect(accountFrom({ ...draft, signature: "  " }, "main").signature).toBeUndefined();
+	});
+
+	it("is carried through when there is one", () => {
+		expect(accountFrom({ ...draft, signature: "Ada\nEngines" }, "main").signature).toBe(
+			"Ada\nEngines",
+		);
+	});
+
+	/** An edit that does not touch the signature must not clear it. */
+	it("replaces what the account had", () => {
+		const saved = accountFrom({ ...draft, signature: "new" }, "main", {
+			...existing,
+			signature: "old",
+		});
+		expect(saved.signature).toBe("new");
 	});
 });

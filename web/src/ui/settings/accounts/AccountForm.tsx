@@ -1,6 +1,6 @@
 import { For, Show, createSignal } from "solid-js";
 import type { ManagedAccount, ManagedProvider } from "../../../api/types";
-import { Field, TextInput } from "../fields";
+import { Field, TextArea, TextInput } from "../fields";
 import { accountFrom, shown } from "./draft";
 
 const PROVIDERS: { id: ManagedProvider; label: string; note: string }[] = [
@@ -52,6 +52,9 @@ export function AccountForm(props: {
 	const [enabled, setEnabled] = createSignal(
 		props.existing?.account.enabled ?? true,
 	);
+	const [signature, setSignature] = createSignal(
+		props.existing?.account.signature ?? "",
+	);
 
 	const generic = () => provider() === "generic";
 
@@ -67,6 +70,7 @@ export function AccountForm(props: {
 					provider: provider(),
 					imap: imap(),
 					smtp: smtp(),
+					signature: signature(),
 					primary: primary(),
 					enabled: enabled(),
 				},
@@ -105,6 +109,23 @@ export function AccountForm(props: {
 
 			<Field label="Your name" hint="what goes on the From: line">
 				<TextInput value={name()} onInput={setName} />
+			</Field>
+
+			{/*
+        Written into the composer when a message is written from this address,
+        above the `-- ` the client adds — so what is on screen is what is
+        sent, and one message can be sent without it by deleting it there.
+      */}
+			<Field
+				label="Signature"
+				hint="added to the bottom of a new message from this address"
+			>
+				<TextArea
+					value={signature()}
+					rows={4}
+					placeholder={"Ada Lovelace\nAnalytical Engines"}
+					onInput={setSignature}
+				/>
 			</Field>
 
 			<Field label="Provider">

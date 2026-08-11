@@ -29,11 +29,29 @@ describe("single keys", () => {
 
 	it("distinguishes case", () => {
 		const map = new Keymap();
-		expect(press(map, "r")).toMatchObject({
+		expect(press(map, "r", { pane: "detail" })).toMatchObject({
 			action: { kind: "reply", all: false },
 		});
 		expect(press(map, "R")).toMatchObject({
 			action: { kind: "reply", all: true },
+		});
+	});
+
+	/**
+	 * `r` means the local thing. In the list it is the reflex for refresh, and
+	 * answering a thread nobody has opened is not what was asked for; beside a
+	 * message on screen it is reply.
+	 */
+	it("r refreshes the list and replies in the detail pane", () => {
+		const map = new Keymap();
+		expect(press(map, "r", { pane: "list" })).toMatchObject({
+			action: { kind: "refresh" },
+		});
+		expect(press(map, "r", { pane: "sidebar" })).toMatchObject({
+			action: { kind: "refresh" },
+		});
+		expect(press(map, "r", { pane: "detail" })).toMatchObject({
+			action: { kind: "reply", all: false },
 		});
 	});
 
@@ -47,6 +65,77 @@ describe("single keys", () => {
 		expect(press(map, " ")).toMatchObject({
 			action: { kind: "toggleSelectNext" },
 		});
+	});
+});
+
+describe("counts", () => {
+	it("carries the digits typed before a key", () => {
+		const map = new Keymap();
+		expect(press(map, "4")).toMatchObject({ type: "pending", sequence: "4" });
+		expect(press(map, "j")).toMatchObject({
+			action: { kind: "next" },
+			count: 4,
+		});
+	});
+
+	it("reads more than one digit", () => {
+		const map = new Keymap();
+		press(map, "1");
+		press(map, "2");
+		expect(press(map, "k")).toMatchObject({ count: 12 });
+	});
+
+	/**
+	 * `0` is a key like any other until something has been counted. Swallowing
+	 * it as a count would make it unbindable for ever, and vim does not: `10j`
+	 * is ten lines, `0` on its own is the start of the line.
+	 */
+	it("leaves a leading zero free to be bound", () => {
+		const map = new Keymap();
+		expect(press(map, "0")).toEqual({ type: "ignored", consumed: false });
+
+		press(map, "1");
+		press(map, "0");
+		expect(press(map, "j")).toMatchObject({ count: 10 });
+	});
+
+	it("reports no count when none was typed", () => {
+		expect(press(new Keymap(), "j")).not.toHaveProperty("count");
+	});
+
+	it("Escape abandons a count as it abandons a sequence", () => {
+		const map = new Keymap();
+		press(map, "4");
+		expect(press(map, "Escape")).toMatchObject({ type: "cancelled" });
+		expect(press(map, "j")).not.toHaveProperty("count");
+	});
+
+	/** A count typed and then left alone must not attach to the next key. */
+	it("times out with the sequence it was typed in", () => {
+		const map = new Keymap();
+		press(map, "4", { now: 0 });
+		expect(press(map, "j", { now: SEQUENCE_TIMEOUT + 1 })).not.toHaveProperty(
+			"count",
+		);
+	});
+
+	/** The count belongs to whatever key finally lands, prefix or no prefix. */
+	it("survives a sequence that turns out to be dead", () => {
+		const map = new Keymap();
+		press(map, "3", { pane: "detail" });
+		press(map, "z", { pane: "detail" });
+		expect(press(map, "j", { pane: "detail" })).toMatchObject({
+			action: { kind: "scrollDown" },
+			count: 3,
+		});
+	});
+
+	/** A key bound to nothing cancels the count, the way vim does. */
+	it("is abandoned by a key that does nothing", () => {
+		const map = new Keymap();
+		press(map, "3");
+		press(map, "Q");
+		expect(press(map, "j")).not.toHaveProperty("count");
 	});
 });
 
@@ -259,6 +348,8 @@ describe("modifiers", () => {
 
 describe("every default binding is reachable in its own pane", () => {
 	const panes: Pane[] = ["sidebar", "list", "detail"];
+	/** Keys whose name is more than one character but which are one keystroke. */
+	const NAMED = new Set(["Enter", "Tab", "Escape", "Backspace"]);
 
 	it("resolves each bound sequence to its action", () => {
 		for (const pane of panes) {
@@ -267,8 +358,13 @@ describe("every default binding is reachable in its own pane", () => {
 				// Chords are matched whole, not as a key sequence.
 				if (binding.keys.startsWith("C-")) continue;
 				map.reset();
-				const keys =
-					binding.keys === "Enter" ? ["Enter"] : binding.keys.split("");
+				// A named key is one keystroke however many characters it is
+				// spelled with. Splitting `Tab` into T, a, b passed until `T`
+				// became a binding of its own, and then read as the *sequence*
+				// being unreachable rather than as the test spelling it wrong.
+				const keys = NAMED.has(binding.keys)
+					? [binding.keys]
+					: binding.keys.split("");
 				let outcome = null;
 				for (const key of keys) outcome = press(map, key, { pane });
 

@@ -11,6 +11,7 @@ export interface Draft {
 	provider: ManagedProvider;
 	imap: string;
 	smtp: string;
+	signature: string;
 	primary: boolean;
 	enabled: boolean;
 }
@@ -66,6 +67,10 @@ export function accountFrom(
 		create: existing?.create ?? "near",
 		expunge: existing?.expunge ?? "none",
 		remove: existing?.remove ?? "none",
+		// Empty is *absent*, not an empty signature: the field is optional in
+		// accounts.toml, and writing "" would put a blank line and a `-- ` under
+		// every message from an account whose signature was cleared.
+		signature: draft.signature.trim() === "" ? undefined : draft.signature,
 		primary: draft.primary,
 		enabled: draft.enabled,
 	};

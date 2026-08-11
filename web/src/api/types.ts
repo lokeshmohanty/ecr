@@ -251,6 +251,8 @@ export type ServerEvent =
   | { type: "sync_started"; accounts: string[] }
   | { type: "sync_progress"; line: string }
   | { type: "sync_finished"; new_messages: number; revision: Revision }
+  /** Something left the outbox, or failed to. Carries nothing: the client asks. */
+  | { type: "outbox_changed" }
   | { type: "error"; detail: string };
 
 /**

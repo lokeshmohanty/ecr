@@ -31,6 +31,9 @@ import { parseMailto } from "./state/mailto";
 import { takeLaunchMailto } from "./api/platform";
 import { isNarrow } from "./ui/narrow";
 import { ActionBar } from "./ui/ActionBar";
+import { AccountSwitcher } from "./ui/AccountSwitcher";
+import { accountKeys } from "./state/account-keys";
+import { withSignature } from "./state/signature";
 
 /** A key belongs to a text field whenever one of these has focus. */
 function isEditing(target: EventTarget | null): boolean {
@@ -39,11 +42,53 @@ function isEditing(target: EventTarget | null): boolean {
 	return tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable;
 }
 
+/**
+ * The chords the app may take out of a text field's mouth.
+ *
+ * Ctrl chords are matched before the "is a text field focused" check, which is
+ * what makes it possible to leave an open composer without discarding it. The
+ * cost of that is every *other* chord: `C-u` rubs out a line and `C-e` goes to
+ * the end of it for anyone who has ever used a shell, and both were bound to
+ * scrolling the message behind the composer — so the pane moved while the
+ * caret sat in a textarea that never saw the keystroke. Nothing on screen
+ * connects that to a binding for the pane underneath; it reads as the composer
+ * dropping keys.
+ *
+ * So mid-edit the app keeps only what moves the keyboard's owner — the panes,
+ * the pinned split, the conversation cursor — and everything that acts on
+ * content is the editor's. An allowlist rather than a list of exclusions,
+ * because a chord added later should fail by staying out of the way of
+ * somebody typing rather than by stealing their key.
+ */
+const ESCAPE_HATCHES = new Set<Action["kind"]>([
+	"focusLeft",
+	"focusRight",
+	"togglePinned",
+	"focusPinned",
+	"nextMessage",
+	"prevMessage",
+]);
+
+/** The actions a count in front of them means something for. */
+const REPEATABLE = new Set<Action["kind"]>([
+	"next",
+	"prev",
+	"nextMessage",
+	"prevMessage",
+	"scrollDown",
+	"scrollUp",
+	"toggleSelectNext",
+	"nextAccount",
+	"prevAccount",
+]);
+
 export function App() {
 	const store = createAppStore();
 	const keymap = new Keymap(store.settings().bindings);
 
 	const [showHelp, setShowHelp] = createSignal(false);
+	const [switching, setSwitching] = createSignal(false);
+	const accountRows = () => accountKeys(store.accounts() ?? []);
 
 	const configured = () => store.connection().baseUrl !== "";
 	const composing = () => store.right().kind === "compose";
@@ -123,7 +168,8 @@ export function App() {
 
 	function onKeyDown(event: KeyboardEvent) {
 		// Ctrl chords always reach the app, even mid-edit, so focus can leave an
-		// open composer without discarding it.
+		// open composer without discarding it — but only the ones that are about
+		// leaving. See ESCAPE_HATCHES.
 		if (event.ctrlKey && !event.metaKey && !event.altKey) {
 			const outcome = keymap.handle(
 				{ key: event.key, ctrl: true },
@@ -131,7 +177,10 @@ export function App() {
 				false,
 				store.pane(),
 			);
-			if (outcome.type === "action") {
+			if (
+				outcome.type === "action" &&
+				(!isEditing(event.target) || ESCAPE_HATCHES.has(outcome.action.kind))
+			) {
 				event.preventDefault();
 				void dispatch(outcome.action);
 				return;
@@ -139,16 +188,58 @@ export function App() {
 		}
 
 		// Otherwise the editor owns every key while it is open.
-		if (
-			fullPane() ||
-			(composing() && store.pane() === "detail" && store.pinnedOpen())
-		)
+		if (composing() && store.pane() === "detail" && store.pinnedOpen()) return;
+
+		// Settings covers the pane, so every binding behind it would act on a
+		// thread nobody can see — but swallowing the lot took the way out with
+		// it, and the page says `q` closes it. The key that closes the pane is
+		// the one exception; a field with focus still owns its own typing.
+		if (fullPane()) {
+			if (isEditing(event.target)) return;
+
+			const outcome = keymap.handle(
+				{
+					key: event.key,
+					ctrl: event.ctrlKey,
+					alt: event.altKey,
+					meta: event.metaKey,
+				},
+				store.mode(),
+				false,
+				store.pane(),
+			);
+			store.setPendingKeys(keymap.sequence);
+
+			if (outcome.type === "action" && outcome.action.kind === "closeRight") {
+				event.preventDefault();
+				closeRight();
+			}
 			return;
+		}
 
 		if (event.key === "Escape" && showHelp()) {
 			event.preventDefault();
 			setShowHelp(false);
 			return;
+		}
+
+		// The switcher is one keystroke wide: while it is up, a letter it lists
+		// is that account and nothing else. It is read before the keymap
+		// deliberately — `m` is not bound to anything today, but a menu whose
+		// keys can be shadowed by a future binding is a menu that lies.
+		if (switching() && !isEditing(event.target)) {
+			if (event.key === "Escape") {
+				event.preventDefault();
+				setSwitching(false);
+				return;
+			}
+			const row = accountRows().find((r) => r.key === event.key);
+			if (row) {
+				event.preventDefault();
+				setSwitching(false);
+				store.selectAccount(row.id);
+				return;
+			}
 		}
 
 		// A range being drawn is abandoned by Escape. The keymap reports Escape in
@@ -201,16 +292,47 @@ export function App() {
 
 		if (outcome.type === "action") {
 			event.preventDefault();
-			void dispatch(outcome.action);
+			void repeat(outcome.action, outcome.count);
 		}
+	}
+
+	/**
+	 * `4j` is four moves, and `4d` is one delete.
+	 *
+	 * A count means *do this again* only where doing it again means something.
+	 * Staging a tag toggles, so four of them stage nothing at all; opening a
+	 * thread four times opens it once and looks like a hang. The motions and
+	 * the scrolls are the actions where repetition is the whole point, so they
+	 * are the ones that honour it, and everything else quietly ignores the
+	 * count rather than doing something surprising with it.
+	 */
+	async function repeat(action: Action, count?: number) {
+		const times = count && REPEATABLE.has(action.kind) ? Math.min(count, 999) : 1;
+		for (let i = 0; i < times; i++) await dispatch(action);
 	}
 
 	function threadMessages(): Message[] {
 		return store.thread()?.messages ?? [];
 	}
 
+	/**
+	 * The one way a composer opens — compose, reply, forward and a `mailto:`
+	 * link all arrive here, which is why the signature goes in at this point
+	 * rather than in each of them.
+	 *
+	 * It goes into the *text*, not onto the message at send time, so what is on
+	 * screen is what is sent and one message can go without it by deleting it
+	 * there. The address it belongs to is the one the draft names, falling back
+	 * to whichever account the reply is being sent from.
+	 */
 	function openCompose(draft: Draft, label: string) {
-		store.setRight({ kind: "compose", draft, label });
+		const from = draft.from ?? store.sendingAccount()?.address ?? undefined;
+		const signed = {
+			...draft,
+			body: withSignature(draft.body, store.signature(from)),
+		};
+
+		store.setRight({ kind: "compose", draft: signed, label });
 		store.setPinnedOpen(true);
 		store.setPane("detail");
 	}
@@ -354,6 +476,32 @@ export function App() {
 				if (message) store.setStatus(store.toggleFormat(message.id));
 				break;
 			}
+
+			// Straight through `setSettings`, never `withValue`: this one is
+			// device-scoped, and routing a client-scoped change through the shared
+			// file's text discards the very change being made.
+			case "togglePreferHtml": {
+				const settings = store.settings();
+				const next = !settings.preferences.preferHtml;
+				store.setSettings({
+					...settings,
+					preferences: { ...settings.preferences, preferHtml: next },
+				});
+				store.setStatus(next ? "html preferred" : "plain text preferred");
+				break;
+			}
+
+			// What `s` does is ask the server to talk to the provider, which is
+			// minutes of network for a reader who only wanted to see the row
+			// that has just arrived. `r` asks the list again and nothing else.
+			case "refresh":
+				store.refreshList();
+				store.setStatus("refreshed");
+				break;
+
+			case "switchAccount":
+				setSwitching(true);
+				break;
 
 			case "archive":
 				store.mark("archive");
@@ -700,6 +848,18 @@ export function App() {
 						bindings={keymap.describe(store.pane())}
 						pane={store.pane()}
 						onClose={() => setShowHelp(false)}
+					/>
+				</Show>
+
+				<Show when={switching()}>
+					<AccountSwitcher
+						rows={accountRows()}
+						current={store.currentAccount()}
+						onPick={(id) => {
+							setSwitching(false);
+							store.selectAccount(id);
+						}}
+						onClose={() => setSwitching(false)}
 					/>
 				</Show>
 			</div>

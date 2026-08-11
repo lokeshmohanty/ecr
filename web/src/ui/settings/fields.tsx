@@ -62,6 +62,24 @@ export function TextInput(props: {
 	);
 }
 
+/** The same, for a value with newlines in it. */
+export function TextArea(props: {
+	value: string;
+	placeholder?: string;
+	rows?: number;
+	onInput: (value: string) => void;
+}) {
+	return (
+		<textarea
+			class="w-full resize-y rounded border border-rule bg-paper px-2 py-1 text-sm"
+			rows={props.rows ?? 3}
+			value={props.value}
+			placeholder={props.placeholder}
+			onInput={(event) => props.onInput(event.currentTarget.value)}
+		/>
+	);
+}
+
 /** The ordinary bordered button the settings pages use for an action. */
 export function Action(props: {
 	label: string;
