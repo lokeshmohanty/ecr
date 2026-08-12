@@ -755,7 +755,7 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   something uncommitted. Do not `--approve` in that state on someone else's
   behalf: approving bakes whatever else is in the working tree into the
   baselines, and the next person inherits it as the intended look.
-- **`just visual` is the regression net for anything you can see.** 31 states
+- **`just visual` is the regression net for anything you can see.** 33 states
   against the fixture maildir, compared pixel by pixel. Real mail cannot be a
   baseline — it changes. Review `screenshots/visual/diff` before approving.
   The last three are the phone, at the CSS viewport of a real device rather
@@ -763,6 +763,17 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   no cutout and cannot be given one, so the suite writes the `--safe-*`
   variables the chrome reads. Without that, the one layout that exists only for
   Android is the one nothing can render.
+- **No state in it waits out a duration, and none may be added that does.** Each
+  waits for the client to settle — nothing in flight, no `loading…`, fonts
+  loaded, the DOM still for 250ms — and one that never gets there fails as
+  *never settled* rather than as a diff. While the waits were fixed numbers,
+  chosen against an idle machine, a busy one produced pixel diffs that were only
+  a client caught mid-render, and a real regression was indistinguishable from
+  them in the output: `22-tag-prompt` under load reported 2.28% changed, all of
+  it the message iframe's height not yet measured. Two baselines were approved
+  from unsettled renders before the cause was understood. A `waitForTimeout`
+  added back here re-opens that, and it fails in the one direction nobody
+  checks — the suite still passes on the machine it was written on.
 - **`just verify-ux` covers what a screenshot cannot**: contrast ratios,
   accessible names, touch targets, whether state is announced and whether a
   refused action says so.

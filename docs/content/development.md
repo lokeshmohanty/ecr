@@ -153,6 +153,24 @@ picks `/run/current-system/sw/bin/google-chrome-stable` instead. `just visual`
 pins its own browser through `ECR_CHROME`, because two browser builds rasterise
 the same glyph differently.
 
+**Visual regression** (`just visual`) photographs 33 states against the fixture
+maildir and compares them pixel by pixel. Nothing in it waits out a duration:
+each state waits for the client to *settle* — no request outstanding, no
+`loading…` on screen, the fonts loaded and the DOM unchanged for 250ms — and a
+state that never gets there fails as **never settled**, naming itself. That is
+the difference between a suite you can believe and one you cannot: the states
+used to sleep for a number chosen against an idle machine, and under load five
+of them reported diffs that were only a client caught mid-render, which is
+indistinguishable in the output from a real regression. A new state should end
+by waiting on the thing it is a picture of, and needs an explicit `settle` in the
+middle only where a later keystroke depends on an earlier one having landed —
+opening a thread before replying to it, for instance.
+
+`--approve` re-renders and rewrites all 33, so accepting one deliberate change
+means copying that file out of `screenshots/visual/current/` rather than
+approving the run. If the whole suite moves at once, suspect the browser or the
+fonts before the UI.
+
 **End-to-end** (`just e2e`) is the `@playwright/test` suite in `web/e2e/`. A
 worker-scoped fixture builds its own demo maildir and runs a server on port
 8501, so it does not collide with the `verify-*` recipes. Each worker starts
@@ -188,8 +206,8 @@ anything serving it must be launched with `NOTMUCH_CONFIG`, `NOTMUCH_PROFILE` an
 [`paths`](@/architecture.md) ranks the environment variable above the XDG
 location, which is right for someone who exported it on purpose and wrong for a
 test that inherited it: the dev shell exports `NOTMUCH_CONFIG`, so a launcher
-that only overrode `HOME` served the real mailbox. `just visual` compared 31
-baselines against a live inbox that way, and `just verify-marks` writes tags. A
+that only overrode `HOME` served the real mailbox. `just visual` compared every
+baseline against a live inbox that way, and `just verify-marks` writes tags. A
 new suite that serves the demo directory must copy that `env -u` prefix.
 
 It must also set `XDG_STATE_HOME` alongside `XDG_CONFIG_HOME`. That is the same

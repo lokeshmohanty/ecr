@@ -62,8 +62,16 @@ cleanup() { [ -n "${SRV:-}" ] && kill "$SRV" 2>/dev/null; wait 2>/dev/null; }
 trap cleanup EXIT
 
 pid=$(ss -tlnp 2>/dev/null | grep ":$PORT " | grep -oP 'pid=\K[0-9]+' | head -1)
-[ -n "$pid" ] && kill "$pid" 2>/dev/null
-sleep 0.5
+if [ -n "$pid" ]; then
+  kill "$pid" 2>/dev/null
+  # Waited for rather than slept off: a predecessor still holding the port makes
+  # the new server exit at once with "address already in use", which arrives as
+  # the suite having lost a server it never started.
+  for _ in $(seq 1 40); do
+    ss -tln 2>/dev/null | grep -q ":$PORT " || break
+    sleep 0.25
+  done
+fi
 
 "$ROOT/scripts/demo-env.sh" "$DEMO" > /dev/null || exit 1
 cargo build -q -p ecr-cli || exit 1
@@ -78,10 +86,45 @@ env -u NOTMUCH_CONFIG -u NOTMUCH_PROFILE -u MBSYNCRC \
   > /tmp/ecr-visual-server.log 2>&1 &
 SRV=$!
 
+# The server's own liveness is checked alongside health, because the two
+# failures need different answers and used to give the same one: a server that
+# exited during startup left this loop spinning out its full thirty seconds and
+# then handed node a URL nothing was listening on, so every state failed at once
+# and the report was about the UI. The log is where the reason is.
+ready=
 for _ in $(seq 1 60); do
-  curl -sf "http://127.0.0.1:$PORT/api/v1/health" > /dev/null && break
+  if ! kill -0 "$SRV" 2> /dev/null; then
+    echo "  the server exited during startup:" >&2
+    tail -20 /tmp/ecr-visual-server.log >&2
+    exit 1
+  fi
+  curl -sf "http://127.0.0.1:$PORT/api/v1/health" > /dev/null && ready=1 && break
   sleep 0.5
 done
 
+if [ -z "$ready" ]; then
+  echo "  the server never answered /api/v1/health on $PORT:" >&2
+  tail -20 /tmp/ecr-visual-server.log >&2
+  exit 1
+fi
+
 node web/visual.mjs "http://127.0.0.1:$PORT" "$@"
-exit $?
+status=$?
+
+# A server that died mid-run takes every state after it down, and the states
+# fail for reasons that read as the client's. Saying so here is the difference
+# between a harness fault and a regression; without it the run reports a wall of
+# changed states and nothing names the cause.
+#
+# Asked of the port rather than of the pid: a background child that has exited
+# is a zombie until this shell reaps it, and `kill -0` succeeds on a zombie — so
+# the pid answers "alive" for exactly the server this is meant to catch. Health
+# also covers a server that is still running and no longer answering.
+if ! curl -sf "http://127.0.0.1:$PORT/api/v1/health" > /dev/null; then
+  echo >&2
+  echo "  the server stopped answering before the run finished — the failures above are its, not the UI's:" >&2
+  tail -20 /tmp/ecr-visual-server.log >&2
+  exit 1
+fi
+
+exit $status

@@ -35,10 +35,108 @@ const ROW = "[class*='row-grid'][class*='cursor-pointer']";
 /** The device this was built against: 1240x2772 at 560dpi, so 3.5 CSS to one. */
 const PHONE = { width: 354, height: 792 };
 
+/**
+ * How still the page must be before it is photographed, and how long it is
+ * given to get there.
+ *
+ * Nothing in this suite waits out a duration any more, and that is the point.
+ * Every state used to sleep for a number between 120 and 1800ms, chosen by
+ * hand against an idle machine, and then take the screenshot whether or not the
+ * client had arrived: under CPU contention five states — `08-marks-queued`,
+ * `21-list-range-selected`, `22-tag-prompt`, `29-mobile-selection` and
+ * `31-auth-refused` — reported diffs that were nothing but a client caught
+ * mid-render. That is the worst failure this suite can have. A real regression
+ * and a busy machine are indistinguishable in the output, so the verdict stops
+ * meaning anything, and two baselines were approved from unsettled renders
+ * before the cause was understood.
+ *
+ * No single number can be right for both a laptop under load and CI, so the
+ * wait is for the condition the number was standing in for: no request
+ * outstanding, no indicator up, and the DOM unchanged for `QUIET`. A slow
+ * machine takes longer rather than lying, and a state that genuinely never
+ * settles fails as itself instead of as a pixel diff.
+ */
+const QUIET = 250;
+const SETTLE_TIMEOUT = 20_000;
+
+/**
+ * Installed in every page before its own scripts run: the record of when the
+ * page last did anything.
+ *
+ * `fetch` is wrapped rather than watched from node because what matters is
+ * whether the *client* is still waiting, which Playwright's own idle notions
+ * answer badly here — the client holds an `EventSource` open for the life of
+ * the page, so a network-idle wait is either never satisfied or satisfied for
+ * the wrong reason. `EventSource` is not `fetch`, so it is invisible to this
+ * and stays that way deliberately.
+ */
+const WATCH_ACTIVITY = () => {
+  const activity = { last: performance.now(), inflight: 0 };
+  window.__ecrSettle = activity;
+
+  const bump = () => {
+    activity.last = performance.now();
+  };
+
+  new MutationObserver(bump).observe(document, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    characterData: true,
+  });
+
+  const inner = window.fetch;
+  window.fetch = (...args) => {
+    activity.inflight += 1;
+    bump();
+    let pending;
+    try {
+      pending = inner(...args);
+    } catch (error) {
+      activity.inflight -= 1;
+      throw error;
+    }
+    return pending.finally(() => {
+      activity.inflight -= 1;
+      bump();
+    });
+  };
+};
+
+/**
+ * Resolves once the page has stopped changing.
+ *
+ * The loading indicator is named explicitly rather than left to `QUIET`,
+ * because `createDelayed` keeps it up for a floor of 300ms *after* the request
+ * it describes has landed — so the last mutation is the word being removed, and
+ * a quiet period shorter than that floor races it. That is the same coin flip
+ * this whole helper exists to remove, one layer down.
+ */
+const settle = async (page, { quiet = QUIET, timeout = SETTLE_TIMEOUT } = {}) => {
+  await page.waitForFunction(
+    (ms) => {
+      const activity = window.__ecrSettle;
+      if (!activity || activity.inflight > 0) return false;
+      if (document.fonts.status !== "loaded") return false;
+      if (document.body?.textContent?.includes("loading…")) return false;
+      return performance.now() - activity.last >= ms;
+    },
+    quiet,
+    { timeout, polling: "raf" },
+  );
+};
+
+/** One painted frame — what a keystroke needs, rather than a tenth of a second. */
+const frame = (page) =>
+  page.evaluate(
+    () =>
+      new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+
 const press = async (page, ...keys) => {
   for (const key of keys) {
     await page.keyboard.press(key);
-    await page.waitForTimeout(120);
+    await frame(page);
   }
 };
 
@@ -46,7 +144,7 @@ const chord = async (page, key) => {
   await page.keyboard.down("Control");
   await page.keyboard.press(key);
   await page.keyboard.up("Control");
-  await page.waitForTimeout(200);
+  await frame(page);
 };
 
 /**
@@ -64,7 +162,6 @@ const STATES = [
     description: "a thread open in the detail pane",
     async setup(page) {
       await press(page, "Enter");
-      await page.waitForTimeout(1800);
     },
   },
   {
@@ -83,7 +180,6 @@ const STATES = [
           .find((b) => b.textContent.toLowerCase().includes("main"))
           ?.click();
       });
-      await page.waitForTimeout(1200);
     },
   },
   {
@@ -92,7 +188,6 @@ const STATES = [
     async setup(page) {
       await press(page, "/");
       await page.keyboard.type("tag:un");
-      await page.waitForTimeout(500);
     },
   },
   {
@@ -101,7 +196,6 @@ const STATES = [
     async setup(page) {
       await press(page, ":");
       await page.keyboard.type("sync");
-      await page.waitForTimeout(300);
     },
   },
   {
@@ -109,7 +203,6 @@ const STATES = [
     description: "the keybinding overlay for the focused pane",
     async setup(page) {
       await press(page, "?");
-      await page.waitForTimeout(400);
     },
   },
   {
@@ -117,7 +210,6 @@ const STATES = [
     description: "rows marked but not yet executed",
     async setup(page) {
       await press(page, "a", "j", "d", "j", "f");
-      await page.waitForTimeout(400);
     },
   },
   {
@@ -125,9 +217,11 @@ const STATES = [
     description: "a reply pinned below the thread it answers",
     async setup(page) {
       await press(page, "Enter");
-      await page.waitForTimeout(1600);
+      // Reply reads the thread that is open, so this is not impatience being
+      // smoothed over: pressing `r` before the messages are in hand answers the
+      // wrong thing, or nothing.
+      await settle(page);
       await press(page, "r");
-      await page.waitForTimeout(1200);
     },
   },
   {
@@ -135,11 +229,10 @@ const STATES = [
     description: "the pinned draft collapsed to its bar",
     async setup(page) {
       await press(page, "Enter");
-      await page.waitForTimeout(1600);
+      await settle(page);
       await press(page, "r");
-      await page.waitForTimeout(1000);
+      await settle(page);
       await chord(page, "b");
-      await page.waitForTimeout(400);
     },
   },
   {
@@ -147,7 +240,6 @@ const STATES = [
     description: "a new message",
     async setup(page) {
       await press(page, "c");
-      await page.waitForTimeout(1000);
     },
   },
   {
@@ -155,12 +247,10 @@ const STATES = [
     description: "package management",
     async setup(page) {
       await press(page, ",");
-      await page.waitForTimeout(900);
       // Settings open on the device tab, so a state that does not pick its own
       // tab photographs the wrong one — which is how both of these spent a
       // release claiming to cover a page they never showed.
       await page.getByRole("button", { name: "Packages" }).click();
-      await page.waitForTimeout(600);
     },
   },
   {
@@ -168,7 +258,6 @@ const STATES = [
     description: "the settings this device keeps to itself",
     async setup(page) {
       await press(page, ",");
-      await page.waitForTimeout(900);
     },
   },
   {
@@ -176,9 +265,7 @@ const STATES = [
     description: "the shared file in the editor",
     async setup(page) {
       await press(page, ",");
-      await page.waitForTimeout(700);
       await page.getByRole("button", { name: "Shared file" }).click();
-      await page.waitForTimeout(800);
     },
   },
   {
@@ -188,7 +275,6 @@ const STATES = [
       await press(page, "/");
       await page.keyboard.type("tag:nonesuch-xyzzy");
       await press(page, "Enter");
-      await page.waitForTimeout(1400);
     },
   },
   {
@@ -196,9 +282,8 @@ const STATES = [
     description: "a message forced to plain text",
     async setup(page) {
       await press(page, "Enter");
-      await page.waitForTimeout(1800);
+      await settle(page);
       await press(page, "l", "t");
-      await page.waitForTimeout(1400);
     },
   },
   {
@@ -213,7 +298,6 @@ const STATES = [
     viewport: PHONE,
     async setup(page) {
       await press(page, "Enter");
-      await page.waitForTimeout(1800);
     },
   },
   {
@@ -222,7 +306,6 @@ const STATES = [
     viewport: { width: 900, height: 760 },
     async setup(page) {
       await press(page, "Enter");
-      await page.waitForTimeout(1800);
     },
   },
   {
@@ -230,13 +313,14 @@ const STATES = [
     description: "a block cursor reading inside the message",
     async setup(page) {
       await press(page, "Enter");
-      await page.waitForTimeout(1800);
+      // View mode flattens whichever document is on screen, so it has to be on
+      // screen: entering it against a pane still waiting for its body attaches
+      // the cursor to nothing.
+      await settle(page);
       await press(page, "l");
       await press(page, "Enter");
-      await page.waitForTimeout(500);
       await press(page, "w");
       await press(page, "w");
-      await page.waitForTimeout(300);
     },
   },
   {
@@ -244,39 +328,32 @@ const STATES = [
     description: "a visual selection inside the message",
     async setup(page) {
       await press(page, "Enter");
-      await page.waitForTimeout(1800);
+      await settle(page);
       await press(page, "l");
       await press(page, "Enter");
-      await page.waitForTimeout(500);
       await press(page, "v");
       for (const _ of [0, 1, 2, 3, 4, 5]) await press(page, "l");
-      await page.waitForTimeout(300);
     },
   },
   {
     name: "21-list-range-selected",
     description: "a v range over the list, with a delete staged on it",
     async setup(page) {
-      await page.waitForTimeout(600);
       await press(page, "v");
       await press(page, "j");
       await press(page, "j");
       await press(page, "d");
-      await page.waitForTimeout(400);
     },
   },
   {
     name: "22-tag-prompt",
     description: "the prompt that stages any tag on the selection",
     async setup(page) {
-      await page.waitForTimeout(600);
       await press(page, "Space");
       await press(page, "j");
       await press(page, "Space");
       await press(page, "t");
-      await page.waitForTimeout(300);
       await page.keyboard.type("+ho");
-      await page.waitForTimeout(400);
     },
   },
   {
@@ -284,13 +361,12 @@ const STATES = [
     description: "a draft carrying a file",
     async setup(page) {
       await press(page, "c");
-      await page.waitForTimeout(900);
+      await settle(page);
       await page.setInputFiles('input[type="file"]', {
         name: "agenda.pdf",
         mimeType: "application/pdf",
         buffer: Buffer.from("%PDF-1.4 minutes of the meeting"),
       });
-      await page.waitForTimeout(500);
     },
   },
 
@@ -305,7 +381,6 @@ const STATES = [
     viewport: PHONE,
     async setup(page) {
       await page.getByRole("button", { name: "Views" }).click();
-      await page.waitForTimeout(700);
     },
   },
   {
@@ -315,7 +390,6 @@ const STATES = [
     insets: { top: 48, bottom: 24 },
     async setup(page) {
       await press(page, "Enter");
-      await page.waitForTimeout(1800);
     },
   },
   {
@@ -325,7 +399,6 @@ const STATES = [
     insets: { top: 48, bottom: 24 },
     async setup(page) {
       await press(page, "c");
-      await page.waitForTimeout(900);
     },
   },
   {
@@ -335,7 +408,6 @@ const STATES = [
     insets: { top: 48, bottom: 24 },
     async setup(page) {
       await press(page, ",");
-      await page.waitForTimeout(1200);
     },
   },
   {
@@ -352,11 +424,9 @@ const STATES = [
     insets: { top: 48, bottom: 24 },
     async setup(page) {
       await page.getByRole("button", { name: "Select" }).click();
-      await page.waitForTimeout(400);
       const rows = page.locator(ROW);
       await rows.nth(0).click();
       await rows.nth(2).click();
-      await page.waitForTimeout(500);
     },
   },
   {
@@ -366,7 +436,6 @@ const STATES = [
     insets: { top: 48, bottom: 24 },
     async setup(page) {
       await page.locator(ROW).first().click();
-      await page.waitForTimeout(1800);
     },
   },
   {
@@ -394,8 +463,7 @@ const STATES = [
               }),
             }),
       );
-      await page.reload({ waitUntil: "networkidle" });
-      await page.waitForTimeout(1200);
+      await page.reload({ waitUntil: "domcontentloaded" });
     },
   },
   {
@@ -407,7 +475,9 @@ const STATES = [
     viewport: { width: 900, height: 760 },
     async setup(page) {
       await press(page, "Enter");
-      await page.waitForTimeout(1800);
+      // The thread has to be there for the drawer to be over it, which is the
+      // whole of what this state says.
+      await settle(page);
       await press(page, "h", "h");
     },
   },
@@ -455,6 +525,7 @@ for (const state of STATES) {
   await context.clock.setFixedTime(new Date("2026-08-01T12:30:00Z"));
 
   const page = await context.newPage();
+  await page.addInitScript(WATCH_ACTIVITY);
   await page.addInitScript((base) => {
     try {
       localStorage.setItem("ecr.connection", JSON.stringify({ baseUrl: base, token: "" }));
@@ -479,18 +550,33 @@ for (const state of STATES) {
     }, state.insets);
   }
 
-  await page.goto(url, { waitUntil: "networkidle" });
+  // `domcontentloaded`, not `networkidle`: the client opens an `EventSource` and
+  // keeps it open, so network idle here is a wait on something that does not
+  // happen. What the load has to reach is a settled client, which is asked for
+  // directly below.
+  await page.goto(url, { waitUntil: "domcontentloaded" });
   await page.waitForSelector(ROW, { timeout: 20000 }).catch(() => {});
-  await page.waitForTimeout(900);
 
-  await state.setup(page);
-  await page.waitForTimeout(500);
+  // A state that cannot be reached is reported as itself. Photographing it
+  // anyway is what produced diffs nobody could account for, and the failure is
+  // the useful half: it names the state and says what it was still waiting for.
+  try {
+    await settle(page);
+    await state.setup(page);
+    await settle(page);
+  } catch (error) {
+    await context.close();
+    const why = String(error).split("\n")[0];
+    failures.push(`${state.name}: never settled — ${why}`);
+    console.log(`  FAIL ${state.name} — never settled`);
+    continue;
+  }
 
   // Caret blink and any in-flight transition would otherwise flap the diff.
   await page.addStyleTag({
     content: `*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; }`,
   });
-  await page.waitForTimeout(200);
+  await frame(page);
 
   const file = `${state.name}.png`;
   const shot = await page.screenshot({ path: join(CURRENT, file) });
