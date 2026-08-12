@@ -10,6 +10,7 @@ import type { Invite, Message, RsvpAnswer } from "../api/types";
 import { pgpBadge as describePgp } from "./pgp-badge";
 import type { AppStore } from "../state/store";
 import { absolutizePartUrls } from "./body-urls";
+import { createDelayed } from "./delayed";
 import { toggleLabel } from "../state/format";
 import { linkify } from "./linkify";
 import { followLink } from "./follow-link";
@@ -18,7 +19,42 @@ import { attachViewCursor, type ViewTarget } from "./view-mode";
 
 export function ReadingPane(props: { store: AppStore; onBack?: () => void }) {
 	let scroller: HTMLDivElement | undefined;
-	const thread = () => props.store.thread();
+	/**
+	 * The open thread, and only if it is the one that was asked for.
+	 *
+	 * `createResource` keeps the value it last resolved while a new key is in
+	 * flight — it does not clear to `undefined`, which is easy to assume and
+	 * wrong. So a plain read answers the *previous* thread for the whole of the
+	 * fetch, and the pane spent that time showing another conversation's subject
+	 * and another conversation's messages under the row the reader had just
+	 * opened. It looks smooth, which is why it survived: nothing blanks and
+	 * nothing flickers, it is simply the wrong mail, for about seven hundred
+	 * milliseconds against a cold body.
+	 */
+	const thread = () => {
+		const loaded = props.store.thread();
+		return loaded && loaded.id === props.store.openThread() ? loaded : undefined;
+	};
+
+	/**
+	 * The row it was opened from, to stand in until it arrives.
+	 *
+	 * Everything the header draws — the subject, and how many messages there are
+	 * — is already in the summary the list is holding, so there is nothing to
+	 * wait for: the header is painted at once and only the messages arrive late.
+	 *
+	 * Keyed on `openThread()` rather than `current()`, because the list cursor
+	 * can walk on while the fetch is out and the header must name the thread
+	 * being opened rather than the row the cursor has since reached.
+	 */
+	const opening = () => {
+		const id = props.store.openThread();
+		if (!id) return undefined;
+		return props.store.items().find((row) => row.id === id);
+	};
+
+	/* Only a fetch slow enough to be worth admitting to. */
+	const settling = createDelayed(() => props.store.thread.loading);
 
 	// Keep the keyboard-selected message in view when J/K walk the thread.
 	createEffect(() => {
@@ -34,44 +70,42 @@ export function ReadingPane(props: { store: AppStore; onBack?: () => void }) {
 			<Show
 				when={thread()}
 				fallback={
-					<div class="flex flex-1 items-center justify-center text-ink-3">
-						select a thread to read
-					</div>
+					/*
+					 * Nothing open is a different state from one being fetched, and
+					 * only the first of them is *select a thread to read*.
+					 */
+					<Show
+						when={opening()}
+						fallback={
+							<div class="flex flex-1 items-center justify-center text-ink-3">
+								select a thread to read
+							</div>
+						}
+					>
+						{(summary) => (
+							<>
+								<ThreadHeader
+									subject={summary().subject}
+									count={summary().total}
+									onBack={props.onBack}
+								/>
+								<div class="scroll-y flex-1">
+									<Show when={settling()}>
+										<div class="px-4 py-3 text-ink-3">loading…</div>
+									</Show>
+								</div>
+							</>
+						)}
+					</Show>
 				}
 			>
 				{(loaded) => (
 					<>
-						<header class="flex shrink-0 items-start gap-3 border-b border-rule px-4 py-3">
-							{/* Touch has no h/l, so the way back has to be visible. */}
-							<button
-								type="button"
-								class="touch-target -ml-1 shrink-0 rounded px-2 py-1 text-ink-3 hover:bg-neutral-bg md:hidden"
-								aria-label="Back to the list"
-								onClick={() => props.onBack?.()}
-							>
-								‹ list
-							</button>
-
-							<div class="min-w-0 flex-1">
-								<h1 class="text-base text-ink">
-									{loaded().subject || "(no subject)"}
-								</h1>
-								<div class="text-xs text-ink-3">
-									{loaded().messages.length} message
-									{loaded().messages.length === 1 ? "" : "s"}
-									{/*
-                  Keys only where there are keys. On a phone these named three
-                  things you cannot do, right under the subject, and the actions
-                  they stand for are on the bar at the bottom instead.
-                */}
-									<span class="hidden md:inline">
-										{" · "}
-										<kbd>J</kbd>/<kbd>K</kbd> message · <kbd>za</kbd> fold ·{" "}
-										<kbd>r</kbd> reply
-									</span>
-								</div>
-							</div>
-						</header>
+						<ThreadHeader
+							subject={loaded().subject}
+							count={loaded().messages.length}
+							onBack={props.onBack}
+						/>
 
 						<div
 							ref={(el) => {
@@ -100,6 +134,52 @@ export function ReadingPane(props: { store: AppStore; onBack?: () => void }) {
 				)}
 			</Show>
 		</>
+	);
+}
+
+/**
+ * One header for both the fetched thread and the summary standing in for it.
+ *
+ * Shared rather than duplicated because the whole point is that nothing moves
+ * when the real thread arrives: two copies of this markup would drift, and the
+ * drift would show up as the subject jumping a pixel at the exact moment the
+ * pane is supposed to look like it had already finished.
+ */
+function ThreadHeader(props: {
+	subject: string;
+	count: number;
+	onBack?: () => void;
+}) {
+	return (
+		<header class="flex shrink-0 items-start gap-3 border-b border-rule px-4 py-3">
+			{/* Touch has no h/l, so the way back has to be visible. */}
+			<button
+				type="button"
+				class="touch-target -ml-1 shrink-0 rounded px-2 py-1 text-ink-3 hover:bg-neutral-bg md:hidden"
+				aria-label="Back to the list"
+				onClick={() => props.onBack?.()}
+			>
+				‹ list
+			</button>
+
+			<div class="min-w-0 flex-1">
+				<h1 class="text-base text-ink">{props.subject || "(no subject)"}</h1>
+				<div class="text-xs text-ink-3">
+					{props.count} message
+					{props.count === 1 ? "" : "s"}
+					{/*
+            Keys only where there are keys. On a phone these named three
+            things you cannot do, right under the subject, and the actions
+            they stand for are on the bar at the bottom instead.
+          */}
+					<span class="hidden md:inline">
+						{" · "}
+						<kbd>J</kbd>/<kbd>K</kbd> message · <kbd>za</kbd> fold ·{" "}
+						<kbd>r</kbd> reply
+					</span>
+				</div>
+			</div>
+		</header>
 	);
 }
 
@@ -162,6 +242,13 @@ function MessageView(props: {
 				});
 		},
 	);
+
+	/*
+	 * A body that is already cached arrives in about twelve milliseconds, and a
+	 * word painted for twelve milliseconds is a flash rather than an
+	 * explanation. Below the threshold the message simply appears.
+	 */
+	const fetching = createDelayed(() => body.loading);
 
 	// Reading it is what marks it read: the body has to have loaded and stayed
 	// on screen, not merely been scrolled past.
@@ -367,7 +454,11 @@ function MessageView(props: {
 						fallback={
 							<Show
 								when={unreadable()}
-								fallback={<div class="text-ink-3">loading…</div>}
+								fallback={
+									<Show when={fetching()}>
+										<div class="text-ink-3">loading…</div>
+									</Show>
+								}
 							>
 								{(reason) => (
 									<div class="text-xs break-words text-blocking" role="alert">

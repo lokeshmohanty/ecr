@@ -107,6 +107,33 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   in a `createSignal` holding an immutable record, replaced whole per response.
   This class of bug is invisible to unit tests and to a warm browser; the cold
   fixture environment is what exposes it.
+- **`createResource` keeps its last value while a *new key* is in flight — it
+  does not clear to `undefined`.** Which is the opposite of what the code reads
+  like, and both mistakes it invites are live. Assuming it clears leads to
+  defending against a blank that never happens: `threads()` and `threads.latest`
+  are the same value here, so "fixing" the list to hold its page across a
+  mailbox change is a no-op with a confident comment on it. Assuming it *tracks*
+  is worse, and is what the reading pane did — a plain read answered the
+  **previous** thread for the whole fetch, so the pane showed one
+  conversation's subject and messages under the row that had just been opened,
+  for about seven hundred milliseconds against a cold body. Nothing blanks and
+  nothing flickers; it is simply the wrong mail, which is why it survived. So
+  the pane compares `loaded.id` against `openThread()` and stands the list's own
+  summary in until they agree — the subject and the message count are already in
+  hand, so there is nothing to wait for and only the messages arrive late.
+  `web/e2e/blank.spec.ts` holds every thread request open for half a second,
+  because at fixture speed the wrong subject is on screen for less than a frame
+  and any test of it passes whatever the client does.
+- **A keyboard-driven state must not be transitioned.** The cursor ring *is*
+  `.row-card`'s `box-shadow` and the cursor fill *is* its background, so a
+  120ms ease on either animated the one thing a keystroke moves: the list paints
+  a row in about a millisecond and then spent eight frames easing it in, and
+  holding `j` drew a trail of half-faded rows rather than a cursor. The same
+  goes for `.query-input`, which `/` and `:` land in. A hover-only rule is not
+  the way out — hover and selection change the same two properties, so it would
+  animate the keyboard path again on any machine with a mouse. Measured speed
+  and felt speed are different things, and this one is invisible to every suite:
+  a screenshot is taken after the transition settles.
 - **Reply picks the account from the message tags**, never `accounts()[0]` —
   that answered Gmail threads from the work address because it sorts first.
 - **WebKitGTK lays out at a negative scale if nothing set the screen DPI.** It

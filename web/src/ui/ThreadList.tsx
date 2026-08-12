@@ -5,6 +5,7 @@ import type { AppStore } from "../state/store";
 import { badgesFor } from "../state/store";
 import { formatListDate } from "../state/datetime";
 import { windowRange } from "./window";
+import { createDelayed } from "./delayed";
 import { isNarrow } from "./narrow";
 import { LONG_PRESS, drag, stillPressing, type Swipe } from "./row-gesture";
 import { Outbox } from "./Outbox";
@@ -29,6 +30,15 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
   const [viewport, setViewport] = createSignal(0);
 
   const items = createMemo(() => props.store.items());
+
+  /*
+   * Only a wait long enough to be worth reporting. The list holds the previous
+   * page across a refetch now, so this is reached only when there is genuinely
+   * nothing to show — a first load, or a query that matches nothing — and even
+   * then a fetch that lands inside the threshold should swap content rather
+   * than blink a word at the reader.
+   */
+  const settling = createDelayed(() => props.store.threads.loading);
 
   const attach = (element: HTMLDivElement) => {
     setScroller(element);
@@ -96,7 +106,7 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
           fallback={
             <div class="flex h-full items-center justify-center p-6 text-center">
               <Show
-                when={!props.store.threads.loading}
+                when={!settling()}
                 fallback={<span class="text-ink-3">loading…</span>}
               >
                 {/*

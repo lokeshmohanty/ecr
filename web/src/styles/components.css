@@ -32,13 +32,21 @@
  * `background` here would outrank `bg-obligation-bg` and the cursor would stop
  * being visible.
  */
+/*
+ * Nothing here transitions, and that is the point. The cursor ring *is* this
+ * box-shadow and the cursor fill *is* this background, so a transition on
+ * either animates the one thing a keystroke moves: the list paints a row in
+ * about a millisecond and then spent 120ms easing it in, which is eight frames
+ * of the cursor being somewhere it no longer is. Holding `j` drew a trail of
+ * half-faded rows rather than a cursor. Hover is left instant too — a separate
+ * rule for it could only transition `background-color`, which is the selection
+ * fill as well, so it would animate the keyboard path all over again on any
+ * machine with a mouse.
+ */
 .row-card {
   box-shadow:
     0 0 0 1px var(--color-rule-soft),
     0 1px 3px rgb(0 0 0 / 0.28);
-  transition:
-    box-shadow 120ms ease,
-    background-color 120ms ease;
 }
 
 /* The row under the cursor sits above the others rather than beside them. */
@@ -125,14 +133,18 @@
  * `border-0` sits in @layer utilities and loses to them — so the chrome has to
  * come off here, by selector.
  */
+/*
+ * Untransitioned for the same reason `.row-card` is: `:focus` here is reached
+ * by keystroke — `/` and `:` both land in this field — and easing the fill and
+ * the text colour makes the field look like it is still deciding whether it has
+ * the caret. A hover-only transition cannot be had either, because the two
+ * states change the same two properties.
+ */
 .query-input {
   border: 0;
   background: transparent;
   border-radius: 0.25rem;
   color: var(--color-ink-3);
-  transition:
-    color 120ms ease,
-    background-color 120ms ease;
 }
 
 .query-input:hover {
