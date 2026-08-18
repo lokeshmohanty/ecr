@@ -55,5 +55,10 @@ vparser = "1.2.1"
 roxmltree = "0.21.1"
 
 tempfile = "3"
+htmd = "0.5.5"
 
 [dev-dependencies]
+# The index audit is tested by forging the state it exists to catch — an index
+# standing at notmuch's revision while holding the wrong rows — which nothing
+# in the public API can produce, because producing it is the bug.
+rusqlite = { version = "0.39", features = ["bundled"] }

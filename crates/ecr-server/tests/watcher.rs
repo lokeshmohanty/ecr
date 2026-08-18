@@ -40,7 +40,7 @@ async fn a_tag_write_is_not_a_delivery_but_a_delivered_file_is() {
         .post(
             "/api/v1/tags",
             serde_json::json!({
-                "ops": [{"id": "msg1@example.com", "add": [], "remove": ["unread"]}]
+                "ops": [{"target": {"message": "msg1@example.com"}, "add": [], "remove": ["unread"]}]
             }),
         )
         .await;

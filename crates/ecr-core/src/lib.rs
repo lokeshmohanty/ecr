@@ -15,6 +15,6 @@ pub use doctor::{Check, CheckStatus, ConfigKind, ConfigSource, Doctor, ResolvedC
 pub use managed::{Auth, ManagedAccount, ManagedAccounts, Provider};
 pub use message::{
     Address, Body, BodyFormat, Disposition, Message, MessageId, Part, PartId, PartMeta, Query,
-    SyncReport, TagOp, Thread, ThreadId, ThreadSummary,
+    SyncReport, TagOp, TagTarget, Thread, ThreadId, ThreadSummary,
 };
 pub use revision::Revision;

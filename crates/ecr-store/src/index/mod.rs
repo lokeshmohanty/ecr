@@ -30,7 +30,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 pub use freshness::Freshness;
-pub use sync::{refresh, refresh_incremental, Refreshed};
+pub use sync::{refresh, refresh_incremental, verify, Refreshed};
 
 /// What the index holds, for `ecr doctor`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -110,6 +110,15 @@ impl MessageIndex {
             let count: i64 =
                 conn.query_row("SELECT COUNT(*) FROM messages", [], |row| row.get(0))?;
             Ok(count as u64)
+        })
+    }
+
+    /// Every message id the index holds, for the deep half of the audit.
+    pub fn message_ids(&self) -> Result<BTreeSet<String>> {
+        self.with(|conn| {
+            let mut stmt = conn.prepare("SELECT id FROM messages")?;
+            let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+            Ok(rows.collect::<rusqlite::Result<BTreeSet<String>>>()?)
         })
     }
 

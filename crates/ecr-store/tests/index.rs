@@ -276,3 +276,170 @@ async fn turning_the_index_off_leaves_every_answer_unchanged() {
         );
     }
 }
+
+/// A message notmuch no longer has must not survive in the index, and the
+/// number of rows is not enough to notice that it did.
+///
+/// The count was the only deletion check there was, it ran *before* the
+/// catch-up, and it only fired when the index held *more* than notmuch. One
+/// delivery in the same run is enough to defeat all three: the index is level
+/// with notmuch when the check runs, then catches up to the new message and
+/// ends the refresh holding one row too many — with the deleted mail still in
+/// every list that asks for it.
+#[tokio::test]
+async fn a_message_notmuch_no_longer_has_does_not_survive_a_delivery() {
+    let fixture = fixture_or_skip!();
+    let (store, _) = build(&fixture).await;
+
+    let doomed = std::fs::read_dir(fixture.inbox().join("cur"))
+        .expect("inbox")
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .find(|p| p.is_file())
+        .expect("a fixture message");
+    let gone = store
+        .notmuch()
+        .search_threads(&Query::new("*"))
+        .await
+        .expect("search")
+        .len();
+
+    std::fs::write(
+        fixture.inbox().join("cur").join("arrived-too:2,"),
+        "From: new@example.com\nTo: test@example.com\nSubject: Arrived too\n\
+         Message-ID: <arrived-too@example.com>\nDate: Wed, 01 Apr 2026 12:00:00 +0000\n\n\
+         Body.\n",
+    )
+    .expect("deliver");
+    std::fs::remove_file(&doomed).expect("delete a message");
+    store.notmuch().index_new().await.expect("notmuch new");
+
+    store.refresh_index().await.expect("refresh");
+
+    let indexed = store
+        .search_threads(&Query::new("*"))
+        .await
+        .expect("search");
+    let direct = store
+        .notmuch()
+        .search_threads(&Query::new("*"))
+        .await
+        .expect("notmuch search");
+
+    assert_eq!(
+        comparable(indexed),
+        comparable(direct),
+        "the index answered with mail notmuch no longer has"
+    );
+    assert!(gone > 0);
+}
+
+/// The state a real index was found in, and the reason for the deep audit.
+///
+/// It stood at notmuch's exact uuid and lastmod while holding 826 messages
+/// fewer and 169 messages more than notmuch did — a lost chunk and a run of
+/// deletions, each invisible to `lastmod:`, and close enough in size that the
+/// count did not give it away either. Nothing corrected it: every refresh
+/// after that started at `lastmod + 1` and found nothing to do, so the stale
+/// rows answered every list for as long as the file existed. Threads carrying
+/// one could not be marked read or deleted, because the row's `unread` was
+/// beyond the reach of any write and its id — newest in the thread — was the
+/// one the client named.
+#[tokio::test]
+async fn an_index_that_agrees_on_the_count_but_not_the_contents_is_rebuilt() {
+    let fixture = fixture_or_skip!();
+    let (store, _) = build(&fixture).await;
+
+    let before = comparable(
+        store
+            .search_threads(&Query::new("*"))
+            .await
+            .expect("search"),
+    );
+    let path = MessageIndex::path_for(&fixture.paths);
+
+    // One real message dropped and one message notmuch has never heard of put
+    // in its place, so the row count still agrees to the message. The revision
+    // is left exactly where it was, which is what a lost write and a deletion
+    // both do.
+    {
+        let conn = rusqlite::Connection::open(&path).expect("open the index");
+        conn.execute("DELETE FROM messages WHERE id = ?", ["msg1@example.com"])
+            .expect("drop a row");
+        conn.execute(
+            "INSERT INTO messages (id, thread, timestamp, subject, author, path)
+             VALUES ('ghost@example.com', '0000000000000001', 9999999999, 'Ghost', 'Nobody', NULL)",
+            [],
+        )
+        .expect("insert a ghost");
+    }
+
+    let refreshed = store
+        .verify_index()
+        .await
+        .expect("verify")
+        .expect("an index");
+
+    assert!(
+        refreshed.rebuilt,
+        "the audit did not notice an index holding the wrong messages"
+    );
+    assert_eq!(
+        comparable(
+            store
+                .search_threads(&Query::new("*"))
+                .await
+                .expect("search")
+        ),
+        before,
+        "the rebuild did not restore what notmuch holds"
+    );
+    assert!(
+        store
+            .search_threads(&Query::new("subject:ghost"))
+            .await
+            .expect("search")
+            .is_empty(),
+        "a message notmuch has never had was still being answered with"
+    );
+}
+
+/// A read cannot rebuild — there is a request waiting on it — so what it does
+/// instead is stop using the index at all. Answers stay right; they are merely
+/// paid for with a notmuch process until something rebuilds it.
+#[tokio::test]
+async fn a_read_that_finds_the_index_wrong_takes_it_out_of_service() {
+    let fixture = fixture_or_skip!();
+    let (store, _) = build(&fixture).await;
+
+    let before = comparable(
+        store
+            .search_threads(&Query::new("*"))
+            .await
+            .expect("search"),
+    );
+    let path = MessageIndex::path_for(&fixture.paths);
+    {
+        let conn = rusqlite::Connection::open(&path).expect("open the index");
+        conn.execute("DELETE FROM messages WHERE id = ?", ["msg1@example.com"])
+            .expect("drop a row");
+    }
+
+    // The window a read trusts the index for without asking notmuch anything.
+    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+
+    assert_eq!(
+        comparable(
+            store
+                .search_threads(&Query::new("*"))
+                .await
+                .expect("search")
+        ),
+        before,
+        "a read was answered out of an index missing a message"
+    );
+    assert!(
+        store.index_condemned(),
+        "the index was left in service after answering wrongly"
+    );
+}

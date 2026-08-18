@@ -155,12 +155,38 @@ wrong way.
 Freshness rides on the same `Revision` as everything else. `lastmod:a..b` names
 exactly the messages a refresh has to re-read, so catching up is bounded by
 what changed rather than by the size of the database. Each chunk lands with the
-watermark it covers, so an interrupted refresh resumes. Deletions are the one
-thing `lastmod:` cannot name — a removed message leaves nothing behind — so a
-message count that disagrees with notmuch's forces a rebuild.
+watermark it covers, so an interrupted refresh resumes.
+
+**A watermark cannot say whether the index is right, only how far it has got,
+and that distinction is load-bearing.** `lastmod:` names what *changed*. It
+names nothing for a message that was deleted — the message is simply gone — and
+nothing for a message a refresh failed to write. Either way the index goes on
+claiming notmuch's exact uuid and lastmod, so every refresh after that starts at
+`lastmod + 1`, finds nothing to do, and the wrong contents answer every read for
+as long as the file exists. An index was found in precisely that state: 826
+messages short, 169 messages notmuch had dropped still in it, at notmuch's exact
+revision. Deleted mail went on showing; worse, a thread carrying one of those
+stale rows could be neither marked read nor deleted, because the row's `unread`
+was beyond the reach of any write and its id — newest in its thread — was the one
+the client named in the tag operation, which `notmuch tag --batch` matched
+against nothing and exited 0 on.
+
+So **every refresh ends with an audit**, a second and independent question asked
+of a database that is standing still: `index/sync.rs`'s `audit`. Comparing the
+message count against `notmuch count --exclude=false` costs one process and
+catches anything that changed how many messages there are, which is every
+delivery and every deletion; `ecr serve` additionally compares the id sets
+outright at startup, which is the only check that sees a missed write and a
+deletion cancelling out in the count. Any disagreement rebuilds. A refresh that
+*cannot* rebuild — one running inside a read — **condemns** the index instead:
+it answers nothing at all from then on, every read goes to notmuch, and a task
+behind the server rebuilds it within the minute. What is at stake while that
+happens is speed, never correctness.
 
 A read trusts the index for two seconds before asking notmuch whether the
-database has moved. Every writer ecr knows about says so directly: its own tag
+database has moved — and asks for the message count in the same process, since
+`notmuch count` answers both and the revision alone is what could not see any of
+the above. Every writer ecr knows about says so directly: its own tag
 writes and syncs invalidate immediately, and the watcher refreshes the index
 *before* publishing `mail:changed`, because the clients that event wakes ask
 for the new page at once and an index that has not caught up would answer the
@@ -175,8 +201,10 @@ they did before the index existed. A read never rebuilds for the same reason: a
 rebuild costs far more than the notmuch call it would save.
 
 `index = false` in `server.toml` turns it off, and `ecr doctor` reports its
-size and how far behind it is. Neither is a failure: without it every read is
-slower and every answer is the same.
+size, how far behind it is, and whether it holds a different number of messages
+than notmuch does. Only the last of those is worth acting on, and restarting
+`ecr serve` is the whole of the action: the rest is not a failure, because
+without an index every read is slower and every answer is the same.
 
 ## Message content
 
@@ -191,6 +219,22 @@ HTML is sanitized server-side with `ammonia`: scripts and event handlers are
 removed, `cid:` references are rewritten to `/api/v1/messages/{id}/parts/{n}`,
 and remote images are stripped and counted unless explicitly allowed. `w3m` is
 no longer a dependency.
+
+**The plain-text view is the markup read as text, not the `text/plain` part.**
+`crates/ecr-store/src/markdown.rs` converts the HTML to Markdown, and the
+`text/plain` half of a `multipart/alternative` is only the fallback. It used to
+be the first choice, and neither of the two things it can be was a reading of
+the message: on a message with no text part it is `mail-parser`'s flattening of
+the markup, which runs block elements together — `<div>one</div><div>two</div>`
+arrives as `onetwo` — and on one that has a text part it is usually whatever
+generated the HTML saying the message cannot be displayed, with a URL. Headings,
+emphasis, lists, quotes and links survive as the punctuation they were always
+written as; `script`, `style` and `img` are dropped, the last because real mail
+is built out of tracking pixels and spacer gifs with no alt text and every one
+of them would otherwise be a line of URL between the sentences. It is around
+5ms for a 28KB message and is computed once per cached parse, so the reader
+waits for it on the first read of a message and never again. None of it is a
+security boundary — the result is inserted as text and never as markup.
 
 The client renders the result in an `<iframe sandbox srcdoc>`, so the sanitizer
 has a second layer beneath it. `allow-scripts` is the flag that matters and is
@@ -322,6 +366,15 @@ stay empty behind the prompt that just fixed it. See
   reshuffled — a list being read is not reordered because a message's tags
   changed. A message physically removed from the maildir fires `mail:changed`,
   which does refresh the list.
+- **A row is a conversation, so a row action writes the conversation.** The
+  staging queue in `state/store/marks.ts` is keyed by thread and `markToOps`
+  emits `{ target: { thread } }`, which the server turns into one `--
+  thread:"…"` batch line. Keying it on the thread's *newest message* meant `d`
+  deleted one message of a conversation and left the rest in the inbox — and
+  since notmuch reports a thread's tags as the union over its messages, the row
+  came back looking exactly as before, which reads as the key having done
+  nothing. Auto-marking on read is the deliberate exception and still names the
+  message: what has been read is the one that was on screen.
 - **Held rows.** A refetch is not allowed to take a row out from under the
   reader. When a message is auto-marked read, the store keeps its row — index
   and all, with `unread` stripped unless another message in the thread still

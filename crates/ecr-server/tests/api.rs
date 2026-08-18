@@ -276,10 +276,25 @@ async fn a_text_body_can_be_requested() {
         .unwrap();
 
     assert_eq!(body["format"], "text");
-    assert!(body["content"]
-        .as_str()
-        .unwrap()
-        .contains("Plain text fallback"));
+
+    // The markup read as text, not the `text/plain` alternative beside it.
+    // This fixture's two halves say the same thing, which is the friendly case;
+    // in real mail the plain half is routinely a line saying the message cannot
+    // be displayed, and it was what the text view showed.
+    let content = body["content"].as_str().unwrap();
+    assert!(content.contains("Rich **HTML** body"), "{content}");
+    assert!(
+        content.contains("[link](https://example.com/)"),
+        "a link lost its address: {content}"
+    );
+    assert!(
+        !content.contains("Plain text fallback"),
+        "the plain alternative won over the markup: {content}"
+    );
+    assert!(
+        !content.contains("alert("),
+        "a script was read out as text: {content}"
+    );
 }
 
 #[tokio::test]
@@ -340,7 +355,7 @@ async fn tagging_updates_the_revision_and_the_message() {
         .post(
             "/api/v1/tags",
             serde_json::json!({
-                "ops": [{"id": "msg1@example.com", "add": ["starred"], "remove": ["unread"]}]
+                "ops": [{"target": {"message": "msg1@example.com"}, "add": ["starred"], "remove": ["unread"]}]
             }),
         )
         .await;
@@ -368,7 +383,7 @@ async fn a_tag_containing_a_newline_is_a_400() {
         .post(
             "/api/v1/tags",
             serde_json::json!({
-                "ops": [{"id": "msg1@example.com", "add": ["evil\n-inbox -- *"], "remove": []}]
+                "ops": [{"target": {"message": "msg1@example.com"}, "add": ["evil\n-inbox -- *"], "remove": []}]
             }),
         )
         .await;

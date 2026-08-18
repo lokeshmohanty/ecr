@@ -12,7 +12,7 @@ use ecr_core::message::{
     ThreadSummary,
 };
 use ecr_core::revision::Revision;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -172,6 +172,31 @@ impl Notmuch {
             })?;
 
         Ok((revision, total))
+    }
+
+    /// Every message id the database holds, excluded or not.
+    ///
+    /// One process and a few megabytes of JSON on a real inbox, which is why
+    /// this is the *deep* half of the index audit and runs when a server
+    /// starts rather than on a refresh. It is the only question whose answer
+    /// notices a message the index missed and a message it kept after notmuch
+    /// dropped it in the same breath — counts alone cannot, because the two
+    /// cancel out.
+    pub async fn all_message_ids(&self) -> Result<BTreeSet<String>> {
+        let ids: Vec<String> = self
+            .run_json(&[
+                "search",
+                "--format=json",
+                "--output=messages",
+                "--exclude=false",
+                "*",
+            ])
+            .await?;
+
+        Ok(ids
+            .into_iter()
+            .map(|id| id.strip_prefix("id:").unwrap_or(&id).to_string())
+            .collect())
     }
 
     /// Every message whose last modification falls in the range, headers only.

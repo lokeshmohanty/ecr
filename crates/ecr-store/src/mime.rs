@@ -1,6 +1,7 @@
 use crate::error::{Error, Result};
 use ecr_core::message::{Body, BodyFormat, Disposition, Part, PartId, PartMeta};
 use mail_parser::{MessageParser, MessagePart, MimeHeaders, PartType};
+use std::sync::OnceLock;
 
 pub struct ParsedMessage {
     parts: Vec<StoredPart>,
@@ -23,6 +24,15 @@ pub struct ParsedMessage {
     /// already in memory — no process is run and nothing is verified until
     /// something asks.
     protection: Option<crate::pgp::Protection>,
+    /// The HTML read as text, converted once and kept.
+    ///
+    /// A parsed message is cached by file and mtime, so this is computed on the
+    /// first request that asks for the text of a message and never again for as
+    /// long as that entry lives — the foreground path and the warm path are the
+    /// same code, and neither needs a background pass to have run first.
+    /// `None` inside means there was nothing to convert or the conversion came
+    /// back empty, which is what falls back to the `text/plain` part.
+    markdown: OnceLock<Option<String>>,
 }
 
 struct StoredPart {
@@ -73,6 +83,7 @@ pub fn parse(id: &str, raw: &[u8]) -> Result<ParsedMessage> {
         has_html_part,
         has_text_part,
         protection: crate::pgp::detect(raw),
+        markdown: OnceLock::new(),
     })
 }
 
@@ -151,10 +162,31 @@ impl ParsedMessage {
         self.html.as_deref()
     }
 
+    /// The text of a message, which is the markup read as text whenever there
+    /// is markup.
+    ///
+    /// The `text/plain` part is the *fallback*, not the first choice. On a
+    /// message with no text part, `text` is mail-parser's flattening of the
+    /// HTML, which runs block elements together; on one that has a text part,
+    /// it is very often the alternative a bulk sender generated, which says
+    /// the message cannot be displayed and gives a URL. A sender who wrote
+    /// HTML wrote the HTML, so that is what is read — see [`crate::markdown`].
+    fn reading_text(&self) -> &str {
+        let converted = self.markdown.get_or_init(|| {
+            let html = self.html.as_deref().filter(|_| self.has_html_part)?;
+            crate::markdown::from_html(html)
+        });
+
+        match converted {
+            Some(markdown) => markdown,
+            None => self.text.as_deref().unwrap_or_default(),
+        }
+    }
+
     fn as_text(&self) -> Body {
         Body {
             format: BodyFormat::Text,
-            content: self.text.clone().unwrap_or_default(),
+            content: self.reading_text().to_string(),
             remote_resources_blocked: 0,
             has_html: self.has_html_part,
             invite: self.invite(),

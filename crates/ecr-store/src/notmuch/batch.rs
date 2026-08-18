@@ -24,7 +24,7 @@ pub fn build(ops: &[TagOp]) -> Result<String> {
         }
 
         batch.push_str("-- ");
-        batch.push_str(&op.id.query());
+        batch.push_str(&op.target.query());
         batch.push('\n');
     }
 
@@ -71,7 +71,7 @@ fn encode_tag(tag: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ecr_core::message::MessageId;
+    use ecr_core::message::{MessageId, ThreadId};
 
     fn op(id: &str) -> TagOp {
         TagOp::new(MessageId::from(id))
@@ -100,6 +100,19 @@ mod tests {
     #[test]
     fn no_operations_produces_an_empty_batch() {
         assert_eq!(build(&[]).unwrap(), "");
+    }
+
+    /// A list action names the conversation, so the line has to reach every
+    /// message in it. One `id:` line leaves the rest of the thread carrying the
+    /// tag that was just cleared, and notmuch's thread tags are the union.
+    #[test]
+    fn a_thread_target_writes_one_line_for_the_whole_thread() {
+        let batch = build(&[TagOp::thread(ThreadId::from("00000000000000ab"))
+            .adding("deleted")
+            .removing("inbox")])
+        .unwrap();
+
+        assert_eq!(batch, "+deleted -inbox -- thread:\"00000000000000ab\"\n");
     }
 
     #[test]

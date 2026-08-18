@@ -1653,9 +1653,7 @@ export function createAppStore() {
 
 		batch(() => {
 			for (const thread of chosen) {
-				const id = thread.newest_message;
-				if (!id) continue;
-
+				const id = thread.id;
 				const staged = marks[id] ?? emptyStaged();
 				const marked = staged.marks.includes(mark);
 				setMarks(id, {
@@ -1682,9 +1680,7 @@ export function createAppStore() {
 		const chosen = targets();
 		batch(() => {
 			for (const thread of chosen) {
-				const id = thread.newest_message;
-				if (!id) continue;
-
+				const id = thread.id;
 				const staged = marks[id] ?? emptyStaged();
 				setMarks(id, {
 					...staged,
@@ -1725,10 +1721,11 @@ export function createAppStore() {
 	 * nothing, and a refusal has to say so.
 	 */
 	async function applyNow(add: string[], remove: string[]): Promise<number> {
-		const ops = targets()
-			.map((thread) => thread.newest_message)
-			.filter((id): id is string => id !== null)
-			.map((id) => ({ id, add, remove }));
+		const ops = targets().map((thread) => ({
+			target: { thread: thread.id },
+			add,
+			remove,
+		}));
 
 		if (ops.length === 0) return 0;
 		try {
@@ -1937,7 +1934,12 @@ export function createAppStore() {
 		const timer = window.setTimeout(async () => {
 			markReadTimers.delete(id);
 			try {
-				await api.tag([{ id, add: [], remove: ["unread"] }]);
+				// The message, not the thread: what has been on screen is this
+				// one, and the two below it that have not been scrolled to have
+				// not been read by anybody.
+				await api.tag([
+					{ target: { message: id }, add: [], remove: ["unread"] },
+				]);
 				holdCurrentRow(id);
 				bumpForTagChange();
 			} catch {

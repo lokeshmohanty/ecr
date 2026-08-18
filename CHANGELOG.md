@@ -37,6 +37,26 @@ release; both are frozen at v1.0.0.
 
 ### Fixed
 
+- **Mail that was deleted stops coming back, and a conversation can be marked
+  read.** The SQLite mail index could drift out of agreement with notmuch while
+  claiming notmuch's exact revision, and then never notice: `lastmod:` names
+  what *changed*, and it names nothing at all for a message that was deleted or
+  for one a refresh failed to write, so every refresh after that found nothing
+  to do. One index was found 826 messages short and holding 169 notmuch had
+  dropped. Deleted mail went on showing in every list, and a thread carrying one
+  of those stale rows could be neither marked read nor deleted — its `unread`
+  was beyond the reach of any write, and its id, newest in the thread, was the
+  one the client named in the tag operation, which `notmuch tag --batch` matched
+  against nothing and exited 0 on. Every refresh now ends by auditing the index
+  against notmuch and rebuilding when they disagree; `ecr serve` compares them
+  message by message at startup; a read that finds a disagreement stops using
+  the index entirely until it has been rebuilt, and `ecr doctor` says so.
+- **A list action applies to the conversation.** `d`, `a`, `u`, `f` and `t`
+  wrote only the thread's newest message, so deleting a conversation deleted one
+  message of it and left the rest in the inbox. Because notmuch reports a
+  thread's tags as the union over its messages, the row then came back looking
+  untouched, which reads as the key having done nothing. Marking a message read
+  by reading it still names that message.
 - **Signed mail is no longer reported as altered.** mbsync writes maildir files
   with bare newlines, but a detached signature covers the CRLF form that
   crossed the wire — so gpg answered BADSIG and the client said *this message
@@ -60,6 +80,19 @@ release; both are frozen at v1.0.0.
   renewing. It now names the address and what is wrong with its key.
 
 ### Changed
+
+- **The plain-text view is the message, converted to Markdown.** It used to be
+  the `text/plain` part, and neither thing that can be was a reading of the
+  message: on mail with no text part it was the parser's flattening of the
+  markup, which runs block elements together into one word, and on mail with
+  one it was usually the generated alternative that says the message cannot be
+  displayed and gives a URL. Headings, emphasis, lists, quotes and links now
+  survive as punctuation. The `text/plain` part is still what answers for a
+  message that carries no markup at all.
+
+- **`POST /api/v1/tags` takes a `target` rather than an `id`**, either
+  `{"message": id}` or `{"thread": id}`. Pre-v1.0.0, per the note at the top of
+  this file.
 
 - **`r` refreshes the list and replies only in the detail pane.** It is the
   reflex for refresh everywhere a list is on screen, and answering a thread

@@ -480,10 +480,10 @@ async fn index_check(paths: &MailPaths) -> Check {
     // scratch; the next refresh notices and starts over, so it is worth saying
     // and not worth acting on.
     match Notmuch::new(std::sync::Arc::new(paths.clone()))
-        .revision()
+        .revision_and_total()
         .await
     {
-        Ok(current) => match status.revision {
+        Ok((current, total)) => match status.revision {
             Some(held) if held.uuid != current.uuid => {
                 Check::warn(NAME, format!("built against another database; {detail}"))
                     .with_hint("it is rebuilt the next time `ecr serve` starts")
@@ -492,6 +492,17 @@ async fn index_check(paths: &MailPaths) -> Check {
                 NAME,
                 format!("{} behind; {detail}", current.lastmod - held.lastmod),
             ),
+            // Standing where notmuch stands and holding a different number of
+            // messages is the one index failure a reader can see from the
+            // outside, because it is the one that never corrects itself: mail
+            // that was deleted goes on showing, and a thread carrying a stale
+            // row can be neither marked read nor deleted. The server audits for
+            // exactly this and rebuilds, so saying so is the whole fix.
+            Some(_) if status.messages != total => Check::warn(
+                NAME,
+                format!("disagrees with notmuch, which holds {total} messages; {detail}"),
+            )
+            .with_hint("restart `ecr serve` — it verifies the index at startup and rebuilds one that disagrees"),
             _ => Check::ok(NAME, format!("current; {detail}")),
         },
         Err(_) => Check::ok(NAME, detail),

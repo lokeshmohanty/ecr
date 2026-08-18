@@ -59,8 +59,16 @@ async fn an_html_body_is_sanitized_and_its_inline_image_rewritten() {
     assert_eq!(body.remote_resources_blocked, 1);
 }
 
+/// Text means the message read as text, which for a message carrying markup is
+/// the markup converted — not the `text/plain` part sitting beside it.
+///
+/// The plain half of a `multipart/alternative` is written by whatever built the
+/// HTML, and against real mail it is a line saying the message cannot be
+/// displayed followed by a URL. Preferring it meant the text view of most mail
+/// showed none of the message. The fallback is still there and is still what a
+/// message with no markup at all is served from.
 #[tokio::test]
-async fn the_text_alternative_is_served_when_asked_for() {
+async fn text_means_the_markup_read_as_text() {
     let fixture = fixture_or_skip!();
     let store = fixture.store();
 
@@ -71,7 +79,12 @@ async fn the_text_alternative_is_served_when_asked_for() {
 
     assert_eq!(body.format, BodyFormat::Text);
     assert!(
-        body.content.contains("Plain text fallback"),
+        body.content.contains("Rich **HTML** body"),
+        "{}",
+        body.content
+    );
+    assert!(
+        !body.content.contains("Plain text fallback"),
         "{}",
         body.content
     );

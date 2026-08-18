@@ -1,8 +1,17 @@
 /**
- * Staging: what is queued against a message, and how that queue becomes tag
+ * Staging: what is queued against a thread, and how that queue becomes tag
  * operations. Pure — the list stages here and `x` writes it, but nothing in
  * this file knows about either.
+ *
+ * Keyed by thread, and written against the thread. A row in the list is a
+ * conversation: `d` on one means delete the conversation, and staging it
+ * against the thread's newest message meant deleting one message of it. The
+ * rest kept `inbox` and `unread`, notmuch's thread tags are the union over
+ * every message in the thread, and so the row came back looking untouched —
+ * which reads as the key having done nothing at all.
  */
+import type { TagOp } from "../../api/types";
+
 export type Mark = "archive" | "delete" | "read" | "unread" | "flag";
 
 export interface Staged {
@@ -12,7 +21,7 @@ export interface Staged {
 }
 
 export interface MarkQueue {
-	[messageId: string]: Staged;
+	[threadId: string]: Staged;
 }
 
 export function emptyStaged(): Staged {
@@ -58,9 +67,9 @@ export const MARK_TAGS: Record<
 	flag: { add: ["flagged"], remove: [], badge: "F" },
 };
 
-export function markToOps(queue: MarkQueue) {
+export function markToOps(queue: MarkQueue): TagOp[] {
 	return Object.entries(queue)
-		.map(([id, staged]) => {
+		.map(([thread, staged]) => {
 			const add = new Set<string>(staged.add);
 			const remove = new Set<string>(staged.remove);
 			for (const mark of staged.marks) {
@@ -69,7 +78,7 @@ export function markToOps(queue: MarkQueue) {
 			}
 			// Adding a tag wins over removing it, so `u` after `r` reads as unread.
 			for (const tag of add) remove.delete(tag);
-			return { id, add: [...add], remove: [...remove] };
+			return { target: { thread }, add: [...add], remove: [...remove] };
 		})
 		.filter((op) => op.add.length > 0 || op.remove.length > 0);
 }

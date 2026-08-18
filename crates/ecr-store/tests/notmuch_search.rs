@@ -178,6 +178,54 @@ async fn tagging_moves_the_revision_forward() {
     assert!(!message.tags.contains("unread"));
 }
 
+/// A list action names a conversation, and a conversation is every message in
+/// it.
+///
+/// Writing one message and calling the thread done leaves the rest carrying the
+/// tag that was just cleared — and notmuch reports a thread's tags as the union
+/// over its messages, so the row comes back exactly as it was. Marking a four
+/// message thread read cleared `unread` from one of them and the list went on
+/// showing it unread, which reads as the key having done nothing.
+#[tokio::test]
+async fn tagging_a_thread_reaches_every_message_in_it() {
+    let fixture = fixture_or_skip!();
+    let store = fixture.store();
+
+    let thread = store
+        .search_threads(&Query::new("thread:0000000000000001"))
+        .await
+        .expect("search")
+        .into_iter()
+        .next()
+        .expect("the fixture thread");
+    assert!(
+        thread.total > 1,
+        "this asserts nothing against a thread of one message"
+    );
+
+    store
+        .tag(&[TagOp::thread(thread.id.clone())
+            .adding("starred")
+            .removing("unread")])
+        .await
+        .expect("tag");
+
+    let after = store.thread(&thread.id).await.expect("thread");
+    assert_eq!(after.messages.len(), thread.total);
+    for message in &after.messages {
+        assert!(
+            message.tags.contains("starred"),
+            "{} was left behind by a thread-wide tag",
+            message.id
+        );
+        assert!(
+            !message.tags.contains("unread"),
+            "{} stayed unread",
+            message.id
+        );
+    }
+}
+
 /// What the delivery watcher tells a real delivery from its own tag write by.
 /// Dropping `unread` renames the file — notmuch synchronises maildir flags —
 /// and that rename reaches the watcher looking exactly like a delivery. The

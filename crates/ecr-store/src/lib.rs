@@ -11,6 +11,7 @@ pub mod folders;
 pub mod imap;
 pub mod index;
 pub mod managed;
+pub mod markdown;
 pub mod mbsync;
 pub mod mime;
 pub mod msmtp;

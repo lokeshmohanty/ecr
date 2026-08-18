@@ -287,6 +287,24 @@ const STATES = [
     },
   },
   {
+    // The other plain-text state opens a message that carries no markup, so it
+    // shows the `text/plain` part and says nothing about the conversion. This
+    // one is the `multipart/alternative` fixture: what is on screen is its HTML
+    // read as Markdown, and the plain half beside it — "Plain text fallback
+    // with a ☁ cloud" — is what would be there if the fallback had won.
+    name: "15b-plain-text-markdown",
+    description: "a message with markup, read as text",
+    async setup(page) {
+      await press(page, "/");
+      await page.keyboard.type("id:mime1@example.com");
+      await press(page, "Enter");
+      await settle(page);
+      await press(page, "Enter");
+      await settle(page);
+      await press(page, "l", "t");
+    },
+  },
+  {
     name: "16-mobile-list",
     description: "the list at phone width",
     viewport: PHONE,

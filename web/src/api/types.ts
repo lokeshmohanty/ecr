@@ -160,8 +160,17 @@ export interface Page<T> {
   items: T[];
 }
 
+/**
+ * What a tag write is aimed at. A row in the list is a conversation, so the
+ * actions offered on one name `thread` — writing them against a single message
+ * left the rest of it tagged as before, and notmuch's thread tags are the union
+ * over every message, so the row never changed. Reading is the other half and
+ * stays `message`: what has been read is the one on screen.
+ */
+export type TagTarget = { message: string } | { thread: string };
+
 export interface TagOp {
-  id: string;
+  target: TagTarget;
   add: string[];
   remove: string[];
 }

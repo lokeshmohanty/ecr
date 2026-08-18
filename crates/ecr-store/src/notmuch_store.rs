@@ -98,6 +98,23 @@ impl NotmuchStore {
     /// server spawns it at startup and the watcher runs it when the database
     /// moves; reads fall through to notmuch for as long as it takes.
     pub async fn refresh_index(&self) -> Result<Option<index::Refreshed>> {
+        self.build_index(false).await
+    }
+
+    /// The same, plus the message-for-message audit. Run once, when a server
+    /// starts: it is the only check that catches an index whose count agrees
+    /// with notmuch while its contents do not.
+    pub async fn verify_index(&self) -> Result<Option<index::Refreshed>> {
+        self.build_index(true).await
+    }
+
+    /// Whether the index has been found disagreeing with notmuch and is
+    /// therefore answering nothing until something rebuilds it.
+    pub fn index_condemned(&self) -> bool {
+        self.index.is_some() && self.freshness.condemned()
+    }
+
+    async fn build_index(&self, deep: bool) -> Result<Option<index::Refreshed>> {
         let Some(index) = self.index.as_ref() else {
             return Ok(None);
         };
@@ -105,8 +122,18 @@ impl NotmuchStore {
         let generation = self.freshness.generation();
 
         self.freshness.begin_build();
-        let refreshed = index::refresh(index, &self.notmuch).await;
+        let refreshed = if deep {
+            index::verify(index, &self.notmuch).await
+        } else {
+            index::refresh(index, &self.notmuch).await
+        };
         self.freshness.end_build();
+
+        // Only a refresh that ran to the end can say the contents are sound;
+        // one that failed halfway leaves whatever it had written behind.
+        if refreshed.is_ok() {
+            self.freshness.absolve();
+        }
 
         self.freshness.vouch(generation);
         Ok(Some(refreshed?))
@@ -116,10 +143,18 @@ impl NotmuchStore {
     ///
     /// Anything that goes wrong here answers `None`, which is a slower request
     /// and never a wrong one.
+    /// A revalidating read asks whether the index stands where notmuch does,
+    /// and the revision alone is not that question. An index that missed a
+    /// write, or kept a message notmuch dropped, still holds notmuch's exact
+    /// uuid and lastmod — nothing about a deletion or a lost chunk moves a
+    /// watermark — so a revision check vouches for it and every read after
+    /// that is answered out of a cache known to be wrong, permanently. The
+    /// message count comes from the same `notmuch count` process the revision
+    /// already costs, so asking both is one process either way.
     async fn reading_index(&self) -> Option<&MessageIndex> {
         let index = self.index.as_ref()?;
 
-        if self.freshness.building() {
+        if self.freshness.building() || self.freshness.condemned() {
             return None;
         }
 
@@ -128,14 +163,24 @@ impl NotmuchStore {
         }
 
         let generation = self.freshness.generation();
-        let revision = self.notmuch.revision().await.ok()?;
+        let (revision, total) = self.notmuch.revision_and_total().await.ok()?;
         let held = index.revision().ok().flatten()?;
 
-        if held != revision {
-            index::refresh_incremental(index, &self.notmuch)
-                .await
-                .ok()
-                .flatten()?;
+        if held != revision || index.message_count().ok()? != total {
+            match index::refresh_incremental(index, &self.notmuch).await {
+                Ok(Some(_)) => {}
+                // Not behind — wrong. It cannot be rebuilt from here, with a
+                // reader waiting on a request, so it is taken out of service
+                // and left for the task that can.
+                Ok(None) => {
+                    self.freshness.condemn();
+                    return None;
+                }
+                Err(err) => {
+                    tracing::warn!(%err, "could not bring the mail index up to date");
+                    return None;
+                }
+            }
         }
 
         self.freshness.vouch(generation);

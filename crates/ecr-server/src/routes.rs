@@ -9,7 +9,8 @@ use axum::Json;
 use ecr_core::account::{Account, AccountId};
 use ecr_core::doctor::Doctor;
 use ecr_core::message::{
-    Body, BodyFormat, Message, MessageId, PartId, Query, SyncReport, TagOp, Thread, ThreadId,
+    Body, BodyFormat, Message, MessageId, PartId, Query, SyncReport, TagOp, TagTarget, Thread,
+    ThreadId,
 };
 use ecr_core::revision::Revision;
 use ecr_store::store::{BodyOptions, MailStore};
@@ -279,7 +280,14 @@ pub async fn tag(
 ) -> ApiResult<Json<Revision>> {
     reject_if_read_only(&state)?;
 
-    let ids: Vec<String> = request.ops.iter().map(|o| o.id.to_string()).collect();
+    let ids: Vec<String> = request
+        .ops
+        .iter()
+        .map(|o| match &o.target {
+            TagTarget::Message(id) => id.to_string(),
+            TagTarget::Thread(id) => id.to_string(),
+        })
+        .collect();
     let revision = state.store.tag(&request.ops).await?;
     state.note_own_write(&revision).await;
 

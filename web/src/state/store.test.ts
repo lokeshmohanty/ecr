@@ -60,40 +60,43 @@ describe("message folding", () => {
 });
 
 describe("mark queue to tag operations", () => {
-	it("turns an archive mark into removing inbox", () => {
-		expect(markToOps({ "a@x": staged(["archive"]) })).toEqual([
-			{ id: "a@x", add: [], remove: ["inbox"] },
+	it("turns an archive mark into removing inbox, across the whole thread", () => {
+		expect(markToOps({ t1: staged(["archive"]) })).toEqual([
+			{ target: { thread: "t1" }, add: [], remove: ["inbox"] },
 		]);
 	});
 
 	it("turns a delete mark into deleted plus removing inbox", () => {
-		const [op] = markToOps({ "a@x": staged(["delete"]) });
+		const [op] = markToOps({ t1: staged(["delete"]) });
 		expect(op!.add).toEqual(["deleted"]);
 		expect(op!.remove).toEqual(["inbox"]);
 	});
 
-	it("batches several messages into one operation list", () => {
+	it("batches several threads into one operation list", () => {
 		const ops = markToOps({
-			"a@x": staged(["archive"]),
-			"b@x": staged(["flag"]),
+			t1: staged(["archive"]),
+			t2: staged(["flag"]),
 		});
 		expect(ops).toHaveLength(2);
-		expect(ops.map((o) => o.id).sort()).toEqual(["a@x", "b@x"]);
+		expect(ops.map((o) => JSON.stringify(o.target)).sort()).toEqual([
+			'{"thread":"t1"}',
+			'{"thread":"t2"}',
+		]);
 	});
 
-	it("merges several marks on the same message", () => {
-		const [op] = markToOps({ "a@x": staged(["archive", "read"]) });
+	it("merges several marks on the same thread", () => {
+		const [op] = markToOps({ t1: staged(["archive", "read"]) });
 		expect(op!.remove.sort()).toEqual(["inbox", "unread"]);
 	});
 
 	it("never both adds and removes the same tag", () => {
-		const [op] = markToOps({ "a@x": staged(["read", "unread"]) });
+		const [op] = markToOps({ t1: staged(["read", "unread"]) });
 		expect(op!.add).toEqual(["unread"]);
 		expect(op!.remove).not.toContain("unread");
 	});
 
-	it("drops messages whose marks cancel out to nothing", () => {
-		expect(markToOps({ "a@x": staged([]) })).toEqual([]);
+	it("drops threads whose marks cancel out to nothing", () => {
+		expect(markToOps({ t1: staged([]) })).toEqual([]);
 	});
 
 	it("produces nothing for an empty queue", () => {
@@ -154,13 +157,15 @@ describe("staging arbitrary tags", () => {
 		expect(parseTagInput("   ")).toEqual({ add: [], remove: [] });
 	});
 
-	it("turns staged tags into one operation per message", () => {
-		const ops = markToOps({ "a@x": staged([], ["work"], ["inbox"]) });
-		expect(ops).toEqual([{ id: "a@x", add: ["work"], remove: ["inbox"] }]);
+	it("turns staged tags into one operation per thread", () => {
+		const ops = markToOps({ t1: staged([], ["work"], ["inbox"]) });
+		expect(ops).toEqual([
+			{ target: { thread: "t1" }, add: ["work"], remove: ["inbox"] },
+		]);
 	});
 
 	it("merges presets with typed tags", () => {
-		const [op] = markToOps({ "a@x": staged(["delete"], ["spam"]) });
+		const [op] = markToOps({ t1: staged(["delete"], ["spam"]) });
 		expect(op!.add.sort()).toEqual(["deleted", "spam"]);
 		expect(op!.remove).toEqual(["inbox"]);
 	});

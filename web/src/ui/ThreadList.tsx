@@ -267,10 +267,7 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
     return letter ?? "·";
   };
 
-  const badges = () => {
-    const id = props.thread.newest_message;
-    return id ? badgesFor(props.store.marks[id]) : "";
-  };
+  const badges = () => badgesFor(props.store.marks[props.thread.id]);
 
   const picked = () => props.store.isSelected(props.index);
   // `picked` is the whole selection — Space-picked rows *and* the v range.

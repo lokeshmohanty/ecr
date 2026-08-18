@@ -99,6 +99,7 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
         let store = Arc::clone(&store);
         async move {
             build_the_index(&store).await;
+            heal_the_index(Arc::clone(&store));
             // After the index, never beside it: a preview is read from the
             // message file, and doing that while the index is still being
             // built would have both competing for the same disk.
@@ -190,7 +191,7 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
 /// server runs without it and every read asks notmuch, which is what it did
 /// before the index existed.
 async fn build_the_index(store: &NotmuchStore) {
-    match store.refresh_index().await {
+    match store.verify_index().await {
         Ok(Some(built)) => {
             let what = if built.rebuilt { "built" } else { "caught up" };
             tracing::info!(
@@ -234,6 +235,36 @@ fn fill_the_previews(store: std::sync::Arc<NotmuchStore>) {
 
         if filled > 0 {
             tracing::info!(messages = filled, "list previews filled");
+        }
+    });
+}
+
+/// Puts a condemned index back in service.
+///
+/// A read that finds the index holding something other than what notmuch holds
+/// takes it out of service on the spot, and cannot do anything more than that:
+/// a rebuild reads the whole database, and there is a request waiting. This is
+/// where the rebuild happens instead — off the request, where nobody is
+/// waiting on it, and without needing mail to arrive first. Until it runs,
+/// every read is answered by notmuch, so what is at stake is speed and never
+/// correctness.
+fn heal_the_index(store: std::sync::Arc<NotmuchStore>) {
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+            if !store.index_condemned() {
+                continue;
+            }
+
+            match store.refresh_index().await {
+                Ok(Some(built)) => tracing::info!(
+                    messages = built.messages,
+                    took_ms = built.took.as_millis() as u64,
+                    "the mail index was rebuilt after disagreeing with notmuch"
+                ),
+                Ok(None) => break,
+                Err(err) => tracing::warn!(%err, "could not rebuild the mail index"),
+            }
         }
     });
 }

@@ -19,6 +19,8 @@ pub struct Freshness {
     /// When the index was last known to stand where notmuch does.
     verified: Mutex<Option<Instant>>,
     building: AtomicBool,
+    /// Whether the index has been found to disagree with notmuch.
+    condemned: AtomicBool,
     /// Writes this server has made, counted so a refresh can tell whether one
     /// landed while it was working.
     writes: AtomicU64,
@@ -36,8 +38,35 @@ impl Freshness {
             window,
             verified: Mutex::new(None),
             building: AtomicBool::new(false),
+            condemned: AtomicBool::new(false),
             writes: AtomicU64::new(0),
         }
+    }
+
+    /// Whether the index has been found holding something other than what
+    /// notmuch holds.
+    ///
+    /// A condemned index answers nothing at all: every read goes to notmuch,
+    /// which is slower and right. It is not a cache that is merely behind —
+    /// being behind is what `fresh` is about, and catching up fixes it — it is
+    /// a cache whose contents have been shown to be wrong, and only a rebuild
+    /// fixes that. Reads cannot rebuild, so the flag is what carries the
+    /// finding from the read that made it to the task that can act on it, and
+    /// what stops every read in between paying for the same discovery.
+    pub fn condemned(&self) -> bool {
+        self.condemned.load(Ordering::SeqCst)
+    }
+
+    pub fn condemn(&self) {
+        self.condemned.store(true, Ordering::SeqCst);
+        if let Ok(mut at) = self.verified.lock() {
+            *at = None;
+        }
+    }
+
+    /// A rebuild put it back in service.
+    pub fn absolve(&self) {
+        self.condemned.store(false, Ordering::SeqCst);
     }
 
     /// Whether a refresh is writing to the index right now.
@@ -158,6 +187,31 @@ mod tests {
         f.vouch(f.generation());
 
         assert!(!f.fresh());
+    }
+
+    #[test]
+    fn a_condemned_index_is_not_fresh_however_recently_it_was_vouched_for() {
+        let f = freshness();
+        f.vouch(f.generation());
+        f.condemn();
+
+        assert!(f.condemned());
+        assert!(!f.fresh(), "a vouching survived the index being condemned");
+    }
+
+    #[test]
+    fn only_a_rebuild_lifts_a_condemnation() {
+        let f = freshness();
+        f.condemn();
+
+        // Everything a refresh does short of rebuilding leaves it condemned:
+        // the contents are wrong, and catching up does not make them right.
+        f.note_write();
+        f.vouch(f.generation());
+        assert!(f.condemned());
+
+        f.absolve();
+        assert!(!f.condemned());
     }
 
     #[test]

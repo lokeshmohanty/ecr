@@ -78,6 +78,23 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   `<table>`, `<style>` and the inline presentation nearly every real message is
   built from. `ecr-store::mime::sanitizer` widens it; what stays banned is
   anything that can execute or navigate.
+- **`BodyFormat::Text` is the markup read as text, and the `text/plain` part is
+  only the fallback.** `ParsedMessage::reading_text` converts the HTML through
+  `ecr_store::markdown`; `self.text` answers only when there is no markup.
+  Preferring the text part looks obviously right and is not: on a message with
+  no text part, `mail_parser`'s `body_text` is its own flattening of the markup
+  and runs block elements together — `<div>one</div><div>two</div>` arrives as
+  `onetwo` — and on a message that has one, it is usually the alternative
+  whatever built the HTML generated, which says the message cannot be displayed
+  and gives a URL. `img` is on the skip list on purpose: htmd renders an image
+  as `![alt](src)`, and real mail is tracking pixels, spacers and sliced
+  letterheads with empty alt, so keeping them puts a line of URL between every
+  two sentences. The conversion is ~5ms for a 28KB message and rides an
+  `OnceLock` on the parse, which is itself cached by file and mtime — so it is
+  paid once per message and there is nothing to precompute. It is not a
+  security boundary; the result is inserted as text, never as markup. The list
+  preview is *not* this — `index/snippet.rs` keeps its own flattener, because
+  markdown punctuation in a one-line preview is noise.
 - **Message HTML must opt out of forced dark with `only light`.** Plain
   `color-scheme: light` still leaves `prefers-color-scheme` reporting dark, and
   engines with forced-dark (WebKitGTK under a dark GTK theme) then darken the
@@ -744,6 +761,33 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   to save — so `refresh_incremental` declines to rebuild and the read falls
   through to notmuch instead. Only `ecr serve`'s startup and the watcher, which
   nobody is waiting on, call the rebuilding `refresh`.
+- **A watermark says how far the index has got, never whether it is right, and
+  treating the two as one question is how the index silently became wrong for
+  months.** `lastmod:` names what *changed*. It names nothing for a message that
+  was deleted — the message is gone — and nothing for a message a refresh failed
+  to write. In either case the index goes on claiming notmuch's exact uuid and
+  lastmod, so `reading_index` vouched for it, every later `refresh` computed
+  `from = lastmod + 1 > lastmod` and did nothing, and the wrong contents
+  answered every read for as long as the file existed. A real index was found
+  826 messages short and holding 169 notmuch had dropped — one lost `CHUNK`,
+  `lastmod:324000..325999`, and a run of deletions, close enough in size that
+  the old one-sided `message_count() > total` check never fired either. The
+  visible failures were nothing like an index bug: deleted mail kept showing,
+  and a thread carrying a stale row could be neither marked read nor deleted,
+  because a ghost's `unread` is beyond the reach of any write and a ghost that
+  is *newest* in its thread is the id the client names in the tag operation —
+  which `notmuch tag --batch` then matched against nothing and exited 0 on, the
+  trap at the top of this file, one layer down. So `index/sync.rs::audit` is a
+  second and independent question asked after every catch-up, of a database
+  standing still: counts always, id sets at `ecr serve` startup, because
+  counts alone cannot see a missed write and a deletion cancelling out.
+  Anything that disagrees is rebuilt, a read that cannot rebuild **condemns**
+  the index instead — `Freshness::condemn`, every read to notmuch, healed
+  within the minute by `heal_the_index` — and `reading_index` asks
+  `revision_and_total` rather than `revision` so the count arrives in the
+  process the revision already cost. Do not reintroduce a check that runs
+  *before* the catch-up, or one that fires in only one direction: each was the
+  whole of the old check, and each is why this went unnoticed.
 
 ## Testing rules
 
@@ -998,6 +1042,18 @@ marks. `Space` inside a range toggles every row it covers as one, turning the
 range into picks, and leaves visual mode — the picks stay behind, so a second
 key acts on them. `Escape` in a range cancels only the range, leaving the picks
 behind; `Escape` with no range on screen clears the picks and what is staged.
+
+**Every one of those writes the *thread*, and the queue is keyed by thread id.**
+`markToOps` emits `{ target: { thread } }` and the server writes one `--
+thread:"…"` batch line. It used to key on `thread.newest_message` and write a
+single `id:` line, which meant `d` deleted one message of a conversation and
+left the rest in the inbox — and because notmuch reports a thread's tags as the
+union over its messages, the row came straight back looking untouched. There is
+nothing on screen connecting that to a scope: it reads as the key having done
+nothing, and it only shows up on threads of more than one message, which no
+fixture in the visual suite has staged. `markReadWhenSeen` is the deliberate
+exception and still names `{ message }` — what has been read is the message that
+was on screen, not the two below it nobody has scrolled to.
 
 **A row leaves the list when the reader says so, not when they read it.**
 Auto-marking a message read takes it out of `tag:unread`, so the row a message

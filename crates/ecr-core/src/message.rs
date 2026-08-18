@@ -263,17 +263,54 @@ pub struct Body {
     pub encrypted: bool,
 }
 
+/// What a tag operation is written against.
+///
+/// A row in the thread list *is* a conversation, and every action offered on
+/// one is described in those terms — archive, delete, mark read. Writing them
+/// against a single message left the rest of the thread untouched: a four
+/// message thread marked read still carried `unread` on three of them, so
+/// notmuch's thread tags — the union over every message — still said `unread`
+/// and the row never changed. It reads as the key having done nothing.
+///
+/// Reading a message is the other half of the same distinction and is
+/// deliberately still a `Message`: what has been read is the message on
+/// screen, not the two below it that have not been scrolled to.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TagTarget {
+    Message(MessageId),
+    Thread(ThreadId),
+}
+
+impl TagTarget {
+    pub fn query(&self) -> String {
+        match self {
+            Self::Message(id) => id.query(),
+            Self::Thread(id) => id.query(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TagOp {
-    pub id: MessageId,
+    pub target: TagTarget,
     pub add: Vec<String>,
     pub remove: Vec<String>,
 }
 
 impl TagOp {
     pub fn new(id: MessageId) -> Self {
+        Self::against(TagTarget::Message(id))
+    }
+
+    /// Every message in the thread, which is what a list action means.
+    pub fn thread(id: ThreadId) -> Self {
+        Self::against(TagTarget::Thread(id))
+    }
+
+    pub fn against(target: TagTarget) -> Self {
         Self {
-            id,
+            target,
             add: Vec::new(),
             remove: Vec::new(),
         }
