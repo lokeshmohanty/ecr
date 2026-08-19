@@ -256,7 +256,14 @@ export interface ThemeListing {
 
 export type ServerEvent =
   | { type: "mail_changed"; revision: Revision }
-  | { type: "tags_changed"; revision: Revision; ids: string[] }
+  /**
+   * `origin` is the client that asked for the write, when one said so. This
+   * client names itself on every tag request, so an event carrying its own
+   * name is the echo of something it has already applied — and a server too
+   * old to know the field simply never sends one, which is the previous
+   * behaviour.
+   */
+  | { type: "tags_changed"; revision: Revision; ids: string[]; origin?: string }
   | { type: "sync_started"; accounts: string[] }
   | { type: "sync_progress"; line: string }
   | { type: "sync_finished"; new_messages: number; revision: Revision }

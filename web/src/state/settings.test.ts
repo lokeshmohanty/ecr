@@ -44,8 +44,8 @@ describe("what ecr does out of the box", () => {
     expect(DEFAULT_PREFERENCES.markReadDelay).toBeGreaterThan(500);
   });
 
-  it("does not fetch remote images unasked", () => {
-    expect(DEFAULT_PREFERENCES.loadRemoteImages).toBe(false);
+  it("shows a message the way it was written, images and all", () => {
+    expect(DEFAULT_PREFERENCES.loadRemoteImages).toBe(true);
   });
 
   it("leaves every package to the user to manage", () => {

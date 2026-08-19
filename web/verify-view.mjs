@@ -5,7 +5,7 @@
  * over a plain-text one.
  */
 import { chromium } from "playwright";
-import { executablePath } from "./browser.mjs";
+import { executablePath, keepOffline } from "./browser.mjs";
 
 const [url] = process.argv.slice(2);
 let failures = 0;
@@ -23,6 +23,10 @@ const browser = await chromium.launch({
 });
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const page = await context.newPage();
+
+// A fixture message carries a remote image, and reaching for it is slow,
+// flaky and nobody's assertion. See `keepOffline`.
+await keepOffline(page, url);
 page.on("pageerror", (e) => fail("page error", e.message));
 
 const press = async (...keys) => {

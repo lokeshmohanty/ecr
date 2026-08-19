@@ -269,9 +269,21 @@ fn sanitize_filename(name: &str) -> String {
         .collect()
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
 pub struct TagRequest {
     pub ops: Vec<TagOp>,
+    /// Who asked, so the answer can be told apart from somebody else's.
+    ///
+    /// A tag write is published to every client, the writer included — and the
+    /// writer already knows what it did: it sent the ops and it has applied
+    /// them. Acting on the echo makes it drop its caches and re-fetch the
+    /// thread it is displaying, over the network, to arrive back at what is
+    /// already on screen. It cannot be told apart by the bearer token, because
+    /// a desktop and a phone may share one; the client names itself instead.
+    /// Absent, which is what an older client sends, means nobody claims it and
+    /// every client acts on it as before.
+    pub origin: Option<String>,
 }
 
 pub async fn tag(
@@ -294,6 +306,7 @@ pub async fn tag(
     state.events.publish(ServerEvent::TagsChanged {
         revision: revision.clone(),
         ids,
+        origin: request.origin,
     });
 
     Ok(Json(revision))

@@ -229,12 +229,30 @@ the markup, which runs block elements together — `<div>one</div><div>two</div>
 arrives as `onetwo` — and on one that has a text part it is usually whatever
 generated the HTML saying the message cannot be displayed, with a URL. Headings,
 emphasis, lists, quotes and links survive as the punctuation they were always
-written as; `script`, `style` and `img` are dropped, the last because real mail
-is built out of tracking pixels and spacer gifs with no alt text and every one
-of them would otherwise be a line of URL between the sentences. It is around
-5ms for a 28KB message and is computed once per cached parse, so the reader
-waits for it on the first read of a message and never again. None of it is a
-security boundary — the result is inserted as text and never as markup.
+written as; `script`, `style` and `svg` are dropped. It is around 5ms for a
+28KB message and is computed once per cached parse, so the reader waits for it
+on the first read of a message and never again.
+
+Images and links are the exceptions to reading it as text, and for one reason:
+they are the two pieces of markdown punctuation that stand in for something
+rather than decorating it. `![](https://…)` is not a legible way to read a
+picture, and `[the notes](https://…/a/very/long/path)` is a sentence with a URL
+wedged into the middle of it — while the bare URLs beside them were already
+being turned into anchors, so leaving these was the inconsistency rather than
+the restraint. The client renders both; everything else — headings, emphasis,
+lists, quotes — stays punctuation, because rendering it would make this a
+second HTML view rather than the flat one somebody chose.
+
+Which means the text path asks the same questions the HTML path does, out of
+the same context: `cid:` is resolved to a part URL, one naming no part is
+dropped, and remote images are kept or dropped and counted according to the
+reader's setting. None of the rest is a security boundary — it is inserted as
+text — with the single exception of an image's `src` and a link's `href`,
+which are attributes, and which are checked on both sides.
+
+Remote images load by default. Turning `load_remote_images` off is what stops
+a sender learning that a message was opened; `i` then loads them one message at
+a time.
 
 The client renders the result in an `<iframe sandbox srcdoc>`, so the sanitizer
 has a second layer beneath it. `allow-scripts` is the flag that matters and is

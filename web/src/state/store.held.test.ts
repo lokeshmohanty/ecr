@@ -2,7 +2,7 @@ import { createRoot } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { saveConnection } from "../api/client";
 import type { ThreadSummary } from "../api/types";
-import { createAppStore } from "./store";
+import { createAppStore, MARK_READ_BATCH } from "./store";
 
 vi.mock("../api/platform", () => ({
 	isTauri: vi.fn(),
@@ -123,6 +123,17 @@ describe("rows held after they stop matching the query", () => {
 
 	const flush = () => new Promise((r) => setTimeout(r, 20));
 
+	/**
+	 * Long enough for a mark-read write to have gone out.
+	 *
+	 * A message that comes due waits `MARK_READ_BATCH` for others to join it,
+	 * so a fixed 20ms flush is not a wait for the write — it is a wait for
+	 * something else, which happened to be long enough before the writes were
+	 * batched. Named after the thing being waited on rather than a number.
+	 */
+	const written = () =>
+		new Promise((r) => setTimeout(r, MARK_READ_BATCH + 40));
+
 	function withStore(
 		assert: (store: ReturnType<typeof createAppStore>) => Promise<void>,
 	): Promise<void> {
@@ -152,7 +163,7 @@ describe("rows held after they stop matching the query", () => {
 
 		store.setOpenThread(ROW.id);
 		store.markReadWhenSeen("a@x", ["unread"]);
-		await flush();
+		await written();
 		await flush();
 		// The server no longer matches it: reading dropped `unread`.
 		page = [];
@@ -169,7 +180,7 @@ describe("rows held after they stop matching the query", () => {
 
 			store.setOpenThread(ROW.id);
 			store.markReadWhenSeen("a@x", ["unread"]);
-			await flush();
+			await written();
 			await flush();
 
 			// The list is not refetched, so the page still says unread; the row

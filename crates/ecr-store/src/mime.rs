@@ -183,11 +183,22 @@ impl ParsedMessage {
         }
     }
 
-    fn as_text(&self) -> Body {
+    /// The reading text, with its images made reachable.
+    ///
+    /// The markdown carries an image exactly as the sender wrote it — a
+    /// `cid:` naming a part of this message, or a URL somewhere else — and
+    /// neither is something a client can render on its own: it has no map from
+    /// content id to part, and whether to fetch from a stranger is the
+    /// reader's setting rather than the renderer's. Both questions are already
+    /// answered for the HTML view, so the text view answers them the same way
+    /// and out of the same context.
+    fn as_text(&self, ctx: &SanitizeContext) -> Body {
+        let (content, blocked) = rewrite_markdown_images(self.reading_text(), self, ctx);
+
         Body {
             format: BodyFormat::Text,
-            content: self.reading_text().to_string(),
-            remote_resources_blocked: 0,
+            content,
+            remote_resources_blocked: blocked,
             has_html: self.has_html_part,
             invite: self.invite(),
             signature: None,
@@ -226,12 +237,12 @@ impl ParsedMessage {
 
     pub fn body(&self, format: BodyFormat, ctx: &SanitizeContext) -> Body {
         match format {
-            BodyFormat::Text => self.as_text(),
+            BodyFormat::Text => self.as_text(ctx),
             BodyFormat::Html if self.has_html_part => match &self.html {
                 Some(html) => sanitize(html, self, ctx),
-                None => self.as_text(),
+                None => self.as_text(ctx),
             },
-            BodyFormat::Html => self.as_text(),
+            BodyFormat::Html => self.as_text(ctx),
         }
     }
 }
@@ -439,6 +450,87 @@ fn rewrite_cid_references(html: &str, message: &ParsedMessage, ctx: &SanitizeCon
     out
 }
 
+/// The same two questions [`sanitize`] asks of `<img>`, asked of `![](…)`.
+///
+/// A separate scanner rather than a reuse of the HTML pair above, because the
+/// two syntaxes end a URL differently: `rewrite_cid_references` stops at a
+/// quote, whitespace or `>`, and a markdown target ends at `)` — teaching it
+/// that character would change what it does to HTML, where an unencoded `)`
+/// inside an attribute is legal and does occur.
+///
+/// A target that is neither a resolvable `cid:` nor remote — a part URL, a
+/// `data:` — is left exactly as written. An unresolvable `cid:` is dropped
+/// outright rather than left in place: it names a part of this message that is
+/// not there, so it can only ever render as a broken image.
+fn rewrite_markdown_images(
+    markdown: &str,
+    message: &ParsedMessage,
+    ctx: &SanitizeContext,
+) -> (String, usize) {
+    let mut out = String::with_capacity(markdown.len());
+    let mut blocked = 0;
+    let mut rest = markdown;
+
+    while let Some(pos) = rest.find("![") {
+        let after_alt = match rest[pos..].find("](") {
+            Some(at) => pos + at + 2,
+            None => break,
+        };
+        let close = match rest[after_alt..].find(')') {
+            Some(at) => after_alt + at,
+            None => break,
+        };
+
+        // The alt text may not run past the end of the line, or a stray `![`
+        // in prose swallows everything up to the next link.
+        if rest[pos..after_alt].contains('\n') {
+            out.push_str(&rest[..after_alt]);
+            rest = &rest[after_alt..];
+            continue;
+        }
+
+        let target = rest[after_alt..close].trim();
+        out.push_str(&rest[..pos]);
+
+        match resolve_image(target, message, ctx) {
+            Some(url) => {
+                out.push_str(&rest[pos..after_alt]);
+                out.push_str(&url);
+                out.push(')');
+            }
+            None => {
+                if is_remote(target) {
+                    blocked += 1;
+                }
+            }
+        }
+
+        rest = &rest[close + 1..];
+    }
+
+    out.push_str(rest);
+    (out, blocked)
+}
+
+/// Where an image in the reading text actually lives, or `None` to drop it.
+fn resolve_image(target: &str, message: &ParsedMessage, ctx: &SanitizeContext) -> Option<String> {
+    if let Some(cid) = target.strip_prefix("cid:") {
+        let meta = message.part_by_content_id(cid)?;
+        return Some(format!("{}{}", ctx.part_url_prefix, meta.id));
+    }
+
+    if is_remote(target) && !ctx.allow_remote_resources {
+        return None;
+    }
+
+    Some(target.to_string())
+}
+
+fn is_remote(target: &str) -> bool {
+    let lower = target.to_ascii_lowercase();
+    lower.starts_with("http://") || lower.starts_with("https://") || lower.starts_with("//")
+}
+
 fn strip_remote_resources(html: &str) -> (String, usize) {
     let mut out = String::with_capacity(html.len());
     let mut blocked = 0;
@@ -615,6 +707,74 @@ mod tests {
         let body = message.body(BodyFormat::Html, &ctx(false));
 
         assert!(body.content.contains("Café"), "{}", body.content);
+    }
+
+    /// The text view is markdown the client renders, so an inline image has to
+    /// arrive as something fetchable. A `cid:` is not: it names a part of this
+    /// message, and only the server holds that map.
+    #[test]
+    fn the_text_view_resolves_an_inline_image_to_its_part() {
+        let body = related().body(BodyFormat::Text, &ctx(true));
+
+        assert!(
+            body.content
+                .contains("![logo](/api/v1/messages/mime1@example.com/parts/"),
+            "{}",
+            body.content
+        );
+    }
+
+    #[test]
+    fn the_text_view_blocks_and_counts_a_remote_image_too() {
+        let body = related().body(BodyFormat::Text, &ctx(false));
+
+        assert_eq!(body.remote_resources_blocked, 1);
+        assert!(
+            !body.content.contains("tracker.example.com"),
+            "{}",
+            body.content
+        );
+        // An inline part is local, and is never what "remote" means.
+        assert!(body.content.contains("/parts/"), "{}", body.content);
+    }
+
+    #[test]
+    fn the_text_view_keeps_a_remote_image_when_it_is_allowed() {
+        let body = related().body(BodyFormat::Text, &ctx(true));
+
+        assert_eq!(body.remote_resources_blocked, 0);
+        assert!(
+            body.content.contains("tracker.example.com"),
+            "{}",
+            body.content
+        );
+    }
+
+    /// Left in place it renders as a broken image and nothing else — the part
+    /// it names is not in this message and never will be.
+    #[test]
+    fn a_markdown_image_naming_a_missing_part_is_dropped() {
+        let message = related();
+        let (out, blocked) = rewrite_markdown_images(
+            "before ![x](cid:missing@example.com) after",
+            &message,
+            &ctx(true),
+        );
+
+        assert_eq!(out, "before  after");
+        assert_eq!(blocked, 0);
+    }
+
+    /// The alt text of an image cannot span a blank line, and a `!` ending a
+    /// sentence before a link must not swallow the paragraph between them.
+    #[test]
+    fn an_exclamation_before_a_link_is_not_an_image() {
+        let message = related();
+        let text = "Look at this![\n\nread the notes](https://example.com/x)";
+        let (out, blocked) = rewrite_markdown_images(text, &message, &ctx(false));
+
+        assert_eq!(out, text);
+        assert_eq!(blocked, 0);
     }
 
     #[test]

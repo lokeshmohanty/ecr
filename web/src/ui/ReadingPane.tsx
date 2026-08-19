@@ -1,7 +1,9 @@
 import {
 	For,
+	Index,
 	Show,
 	createEffect,
+	createMemo,
 	createResource,
 	createSignal,
 	onCleanup,
@@ -12,7 +14,7 @@ import type { AppStore } from "../state/store";
 import { absolutizePartUrls } from "./body-urls";
 import { createDelayed } from "./delayed";
 import { toggleLabel } from "../state/format";
-import { linkify } from "./linkify";
+import { renderBodyText } from "./linkify";
 import { followLink } from "./follow-link";
 import { type Hint, hintsFor, matchHint } from "./link-hints";
 import { attachViewCursor, type ViewTarget } from "./view-mode";
@@ -118,17 +120,28 @@ export function ReadingPane(props: { store: AppStore; onBack?: () => void }) {
 							   escaped an open composer has to name it. */
 							data-thread-scroll
 						>
-							<For each={loaded().messages}>
+							{/*
+								`Index`, not `For`. `For` is keyed by object identity, and
+								a thread refetch — which every tag change causes, including
+								the one marking the message you are reading as read —
+								answers with a new array of new objects. Every `MessageView`
+								was therefore torn down and rebuilt, which means every
+								sandboxed document reparsed and relaid out, for a thread
+								whose text had not changed. Positions inside a conversation
+								are stable, so keying by position updates the props in place:
+								the `srcdoc` string is identical and the frame is not touched.
+							*/}
+							<Index each={loaded().messages}>
 								{(message, index) => (
 									<MessageView
-										message={message}
-										index={index()}
+										message={message()}
+										index={index}
 										store={props.store}
 										total={loaded().messages.length}
-										newest={index() === loaded().messages.length - 1}
+										newest={index === loaded().messages.length - 1}
 									/>
 								)}
-							</For>
+							</Index>
 						</div>
 					</>
 				)}
@@ -249,6 +262,30 @@ function MessageView(props: {
 	 * explanation. Below the threshold the message simply appears.
 	 */
 	const fetching = createDelayed(() => body.loading);
+
+	/**
+	 * The body with its part URLs made absolute — once per body, not once per
+	 * render.
+	 *
+	 * Both of these walk the whole document, which for real mail is tens to
+	 * hundreds of kilobytes, and both used to sit in the JSX: they ran again on
+	 * every re-render, and a re-render happens on every tag change, which
+	 * includes the automatic one a second after a message is opened.
+	 */
+	const addressed = createMemo(() => {
+		const loaded = body();
+		if (!loaded) return "";
+		return absolutizePartUrls(
+			loaded.content,
+			props.store.api.baseUrl,
+			props.store.connection().token,
+		);
+	});
+
+	/** The same, rendered — and only when the text view is the one on screen. */
+	const readable = createMemo(() =>
+		body() && body()!.format !== "html" ? renderBodyText(addressed()) : "",
+	);
 
 	// Reading it is what marks it read: the body has to have loaded and stayed
 	// on screen, not merely been scrolled past.
@@ -520,8 +557,16 @@ function MessageView(props: {
 										<pre
 											ref={(el) => setTarget({ root: el, frame: null })}
 											class="mono max-w-full overflow-x-auto rounded border border-rule-soft bg-card p-3 text-[13px] leading-relaxed whitespace-pre-wrap text-ink"
-											// Bare URLs become links so Enter opens them here too.
-											innerHTML={linkify(loaded().content)}
+											/*
+											 * Bare URLs become links so Enter opens them here too,
+											 * and a markdown image becomes the image. The part URLs
+											 * the server resolved `cid:` to are root-relative and
+											 * this pane is in the app's own document, which is not
+											 * necessarily the API's origin — and carries no bearer
+											 * header on an `<img>` either — so they are absolutized
+											 * the same way the frame's are.
+											 */
+											innerHTML={readable()}
 											// These are in the app's own document, so `target=_blank`
 											// is the whole plan — and a Tauri webview has no second
 											// window to honour it with, on Android least of all.
@@ -537,11 +582,7 @@ function MessageView(props: {
 									}
 								>
 									<BodyFrame
-										html={absolutizePartUrls(
-											loaded().content,
-											props.store.api.baseUrl,
-											props.store.connection().token,
-										)}
+										html={addressed()}
 										onReady={(doc, frame) =>
 											setTarget({ root: doc.body, frame })
 										}
@@ -676,12 +717,42 @@ function BodyFrame(props: {
 		doc.addEventListener("click", follow);
 		onCleanup(() => doc.removeEventListener("click", follow));
 
+		/*
+		 * Reading `scrollHeight` forces a layout, so how often this runs is a
+		 * cost the reader pays in the list pane: it used to be five fixed timers
+		 * per message, spread over the two and a half seconds *after* a thread
+		 * opened, which is exactly the window in which someone browsing with `j`
+		 * presses the next key. A thread of eight messages queued forty forced
+		 * layouts against the keystroke that followed it.
+		 *
+		 * Nothing about the ladder was measuring anything: it was guessing when
+		 * images would land. So ask instead — an image that is not `complete`
+		 * says when it is — and keep one late timer for what neither the
+		 * observer nor the images cover.
+		 *
+		 * What is measured is the *body's* box, and that is the load-bearing
+		 * half. `documentElement.scrollHeight` is floored at the frame's own
+		 * viewport, so once the frame had been sized to the content it answered
+		 * the frame's height rather than the content's — and the next measure
+		 * added `GUTTER` to a number that already included it. Every extra run
+		 * grew the frame by another gutter, which is why five timers left a band
+		 * of dead white under every message and why removing them looked like a
+		 * layout change. Body has `height: auto`, so its box is the content and
+		 * nothing else: measuring it converges, and it converges on the first
+		 * run.
+		 */
+		const GUTTER = 24;
+		let last = 0;
 		const measure = () => {
-			const height = Math.max(
-				doc.body.scrollHeight,
-				doc.documentElement?.scrollHeight ?? 0,
-			);
-			if (height > 0) frame.style.height = `${height + 24}px`;
+			const body = doc.body;
+			if (!body) return;
+
+			const content = Math.max(body.scrollHeight, body.offsetHeight);
+			const height = content + GUTTER;
+			if (content > 0 && height !== last) {
+				last = height;
+				frame.style.height = `${height}px`;
+			}
 		};
 
 		measure();
@@ -689,15 +760,24 @@ function BodyFrame(props: {
 		const observer = new ResizeObserver(measure);
 		observer.observe(doc.body);
 		doc.defaultView?.addEventListener("load", measure);
+		void doc.fonts?.ready.then(measure).catch(() => undefined);
 
-		// Late-arriving images reflow the document well after `load`.
-		const timers = [50, 150, 400, 1000, 2500].map((delay) =>
-			window.setTimeout(measure, delay),
-		);
+		// Late-arriving images reflow the document well after `load`, and with
+		// remote images loaded by default there are far more of them.
+		const settled = new AbortController();
+		for (const image of Array.from(doc.images)) {
+			if (image.complete) continue;
+			image.addEventListener("load", measure, { signal: settled.signal });
+			image.addEventListener("error", measure, { signal: settled.signal });
+		}
+
+		// The backstop, for a reflow no signal above accounts for.
+		const timer = window.setTimeout(measure, 1200);
 
 		onCleanup(() => {
 			observer.disconnect();
-			timers.forEach(window.clearTimeout);
+			settled.abort();
+			window.clearTimeout(timer);
 		});
 	};
 

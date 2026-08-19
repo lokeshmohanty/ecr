@@ -86,15 +86,33 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   and runs block elements together — `<div>one</div><div>two</div>` arrives as
   `onetwo` — and on a message that has one, it is usually the alternative
   whatever built the HTML generated, which says the message cannot be displayed
-  and gives a URL. `img` is on the skip list on purpose: htmd renders an image
-  as `![alt](src)`, and real mail is tracking pixels, spacers and sliced
-  letterheads with empty alt, so keeping them puts a line of URL between every
-  two sentences. The conversion is ~5ms for a 28KB message and rides an
+  and gives a URL. The conversion is ~5ms for a 28KB message and rides an
   `OnceLock` on the parse, which is itself cached by file and mtime — so it is
-  paid once per message and there is nothing to precompute. It is not a
-  security boundary; the result is inserted as text, never as markup. The list
-  preview is *not* this — `index/snippet.rs` keeps its own flattener, because
-  markdown punctuation in a one-line preview is noise.
+  paid once per message and there is nothing to precompute. The list preview is
+  *not* this — `index/snippet.rs` keeps its own flattener, because markdown
+  punctuation in a one-line preview is noise.
+- **`img` was on that skip list, and taking it off is only safe because the
+  client renders the markdown's images.** htmd writes an image as
+  `![alt](src)`, and real mail is tracking pixels, spacers and sliced
+  letterheads with empty alt — so shown *as markdown* they are a line of URL
+  between every two sentences, which is why they were dropped. What changed is
+  that `renderBodyText` in `ui/linkify.ts` turns each one back into an `<img>`:
+  a spacer gif is a spacer gif again. Everything else in the reading text is
+  still read as text, deliberately — `# heading` and `- item` are legible
+  without rendering, and rendering them would make this a second HTML view
+  rather than the flat one somebody chose. It follows that the text path now
+  needs the questions the HTML path always asked: `as_text` takes the
+  `SanitizeContext`, and `mime::rewrite_markdown_images` resolves `cid:` to a
+  part URL (dropping one that names no part, since it can only render broken)
+  and applies `allow_remote_resources`, counting what it drops into
+  `remote_resources_blocked` so the *load them* affordance works there too.
+  That is a **separate scanner** from `rewrite_cid_references`, because a
+  markdown target ends at `)` and an HTML attribute does not — teaching the
+  HTML one that character would change what it does to real mail. `svg` stays
+  skipped: it is markup rather than a resource and it is the one image format
+  that can carry script. The result is still not a security boundary in the
+  markup sense — it is inserted as text — with the single exception of an
+  image's `src`, which is an attribute, and which is checked in both languages.
 - **Message HTML must opt out of forced dark with `only light`.** Plain
   `color-scheme: light` still leaves `prefers-color-scheme` reporting dark, and
   engines with forced-dark (WebKitGTK under a dark GTK theme) then darken the
@@ -105,6 +123,21 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   `contentDocument` is null, the resize is a no-op and every message renders
   truncated. `allow-scripts` is the flag that matters and is never granted, so
   same-origin access is inert.
+- **Measure the message's *body*, never `documentElement.scrollHeight`.** That
+  number is floored at the frame's own viewport, so the moment the frame has
+  been sized to fit, it answers the frame's height rather than the content's —
+  and the next measurement adds the 24px gutter to a figure that already
+  carried it. Each redundant run therefore grew the frame by another gutter,
+  and there were five of them: a ladder of `setTimeout`s at 50/150/400/1000/
+  2500ms, guessing when images would land. Every message ended up with a band
+  of dead white under it, which reads as padding somebody chose. `body` has
+  `height: auto`, so its box *is* the content: measuring it converges, and it
+  converges on the first run. The cost of the ladder was paid in another pane
+  entirely — reading `scrollHeight` forces a layout, and a thread of eight
+  messages queued forty of them across the two and a half seconds after it
+  opened, which is exactly when someone browsing with `j` presses the next key.
+  What replaces it is a `ResizeObserver`, `fonts.ready`, a `load` listener on
+  each image that is not yet `complete`, and one 1200ms backstop.
 - **The desktop binary carries its own copy of the web client.**
   `tauri::generate_context!` embeds `web/dist` at compile time, so rebuilding
   the web assets changes nothing until the Rust binary is rebuilt too.
@@ -171,6 +204,62 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   view, and a message has no pitch at all so it takes the store's default. One
   number for all three would be two thirds of a row in one pane and nearly
   three rows in another.
+- **Nothing that opens a thread may run in the task that moved the cursor.**
+  `FOLLOW_DELAY` collapses a burst of `j` into one open, and that is all it
+  does: the open it *does* perform used to run in the timer's own callback —
+  the fetch, the reading pane rebuilt, a sandboxed document per message parsed
+  and laid out — before the browser was given a frame. The next keystroke
+  waited behind it, so the cursor was instant while you kept moving and stalled
+  the moment you paused, which reads as the list being slow rather than as the
+  pane being built. The settle stays a timer; the open is `afterPaint`
+  (`ui/idle.ts`) after it, and both are cancelled by the next movement.
+  `requestIdleCallback` is deliberately not used — WebKitGTK does not implement
+  it, so the desktop would be the one platform where the fix silently did
+  nothing. `followSelection` also declines a stale index (the palette calls it
+  directly) and a thread that is already open. Once the cursor has come to
+  rest it prefetches the rows on either side, **and the body of the one message
+  that would be open there** — the listing is a few kilobytes off an index,
+  while the body is a file read, parsed, sanitized and converted, and it is the
+  half that is actually waited on. Only the message `messageOpen` says would be
+  expanded: fetching a folded one spends the round trip this exists to save on
+  something nobody will look at, twenty times over on a long thread.
+- **The reading pane's messages are an `Index`, not a `For`.** `For` keys by
+  object identity, and every tag change refetches the thread into a fresh array
+  of fresh objects — including the one that marks the message you are reading
+  as read, which happens by itself a second after it opens. So every
+  `MessageView` was torn down and rebuilt, and with it every `srcdoc`
+  reparsed and relaid out, for a conversation whose text had not changed.
+  Positions inside a thread are stable, so keying by position updates the props
+  in place and the frames are not touched.
+- **A tag write is applied to the cache, not thrown at it — and the echo of it
+  is ignored.** Three things used to happen on every tag change, and the reader
+  paid for all of them while browsing, because marking a message read *is* a
+  tag change. The cache went, all two hundred threads of it, so walking back up
+  with `k` refetched every row already read: `Api.invalidate` now takes an id,
+  and that id may be a *message*, since `tags:changed` reports whatever the ops
+  targeted — so it searches the messages too, or a thread goes on showing tags
+  another client removed. The open thread was refetched to arrive at what the
+  client itself had just asked for: `Api.applyTags` writes the ops into the
+  held `Thread` **in place**, keeping its identity, so `createResource`
+  compares the refetch equal and nothing re-renders. And the server's
+  `tags:changed` came back to the writer, who then did the whole lot a second
+  time: every write is signed with `Api.origin` (per page, not per device — two
+  tabs are two readers, and a token may be shared), the server echoes it in the
+  event, and a client skips its own. Every `api.tag` caller already refreshes
+  what its own action meant, so its echo needs nothing at all. An event with no
+  `origin` is a server too old to say, and is treated as a stranger's.
+- **Coming due is not the same as being written.** `MARK_READ_BATCH` gathers
+  messages whose `mark_read_delay` has elapsed and sends them as one request:
+  browsing marked a message read per thread passed through, and each was a
+  POST, a notmuch process behind the Xapian write mutex, a maildir rename, an
+  event to every client and a sidebar count refresh. It is exported because the
+  tests have to wait for it — a fixed flush that happened to be long enough
+  before the batching is a wait on nothing afterwards. `holdRowOf` takes the
+  thread the message was read *in*, captured when the timer was set: by the
+  time a write lands the cursor is routinely two rows on, and holding
+  `openThread()` held the wrong row while letting the right one vanish, which
+  is the whole failure held rows exist to prevent, arriving through the back
+  door.
 - **Reply picks the account from the message tags**, never `accounts()[0]` —
   that answered Gmail threads from the work address because it sorts first.
 - **WebKitGTK lays out at a negative scale if nothing set the screen DPI.** It
@@ -827,6 +916,39 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   no cutout and cannot be given one, so the suite writes the `--safe-*`
   variables the chrome reads. Without that, the one layout that exists only for
   Android is the one nothing can render.
+- **No browser suite may reach the network, and `keepOffline` in
+  `web/browser.mjs` is what enforces it.** `multipart_related.eml` carries a
+  remote image, and remote images load by default — so a suite that opens that
+  message really does try to fetch `tracker.example.com`. What comes back is
+  the machine's resolver and whatever is between it and the run: a cert error
+  on one laptop, a timeout in CI, nothing at all offline. For `just visual`
+  that is the difference between a baseline and a coin flip, and `settle`
+  waits for the client to be quiet, so the state either drifts or fails as
+  *never settled*. Every request to anything but the fixture server is refused,
+  which arrives at once. It is registered before a state's own routes, because
+  Playwright matches the most recently registered handler first — `31-auth-
+  refused` still wins on `**/api/v1/**`.
+- **No state in it may change the mail the next one photographs, so the visual
+  run turns `mark_read_on_open` off.** All 34 states share one server over one
+  demo maildir, in order, and a state whose setup takes longer than
+  `mark_read_delay` writes to that maildir. It is invisible where it happens
+  and surfaces three states later as a row's read mark, or a sidebar count off
+  by one, in a state that opens nothing at all — and whether it happens depends
+  on how fast the machine ran the setup before it, which is the one thing a
+  baseline must never turn on. `scripts/visual.sh` copies
+  `crates/ecr-store/settings/default.toml` and flips that one line, rather than
+  composing a small file, because `13-settings-text` photographs this very file
+  and anything less than the whole generated thing changes the state it is
+  meant to hold still. The flipped line sits below the visible fold.
+- **`MAX_DIFFERING_RATIO` is 0.2%, and a real change can hide under it.** The
+  markdown links added to the text pane rewrote a whole line of
+  `15b-plain-text-markdown` and came to 0.075%, so the suite reported it
+  unchanged and the baseline went stale. This is the same weakness the
+  `neutral_bg`/`proved_bg` selection bug documents one layer up. `--approve`
+  rewrites *every* baseline rather than only the failing ones, which is what
+  caught it — and is also why the diff has to be read afterwards: comparing the
+  approved tree against `HEAD` shows most states differing by exactly zero
+  pixels, and those are PNG encoding noise that should be checked back out.
 - **No state in it waits out a duration, and none may be added that does.** Each
   waits for the client to settle — nothing in flight, no `loading…`, fonts
   loaded, the DOM still for 250ms — and one that never gets there fails as

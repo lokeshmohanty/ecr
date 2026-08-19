@@ -77,6 +77,25 @@ fi
 cargo build -q -p ecr-cli || exit 1
 pnpm --dir web build > /dev/null 2>&1 || exit 1
 
+# No state in this suite may change the mail the next one photographs.
+#
+# `mark_read_on_open` drops `unread` a second after a message is on screen, and
+# a handful of states take longer than that to set up — so those states wrote
+# to the shared maildir, and every state after them was photographed against
+# different mail. The leak is invisible where it happens and shows up three
+# states later as a row's read mark, or as a sidebar count off by one, in a
+# state that opens nothing. Worse, whether it happens at all depends on how
+# fast the machine ran the setup, which is the one thing a baseline must never
+# turn on.
+#
+# The shipped default is copied rather than composed, because state
+# `13-settings-text` photographs this very file: anything less than the whole
+# generated thing changes the state it is meant to keep still. The line being
+# flipped sits below the visible fold.
+mkdir -p "$DEMO/.config/ecr"
+sed 's/^mark_read_on_open = true$/mark_read_on_open = false/' \
+  "$ROOT/crates/ecr-store/settings/default.toml" > "$DEMO/.config/ecr/settings.toml"
+
 # -u, not just HOME: the dev shell exports NOTMUCH_CONFIG, which paths.rs ranks
 # above the XDG location, so without this the suite serves the real maildir and
 # every baseline differs for reasons that have nothing to do with the UI.

@@ -201,18 +201,25 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
   );
 
   /**
-   * Where a thread's row starts, counting the headings above it.
+   * Where each thread's row starts, by its index in `items`.
    *
-   * The cursor is an index into `items`, and the offset it needs is the entry's
-   * — off by one heading per day above it otherwise, which at the bottom of a
-   * long list is several rows of error.
+   * The cursor is an index into `items`, and the offset it needs is the
+   * *entry's* — off by one heading per day above it otherwise, which at the
+   * bottom of a long list is several rows of error. Finding that entry used to
+   * be a scan of the whole list, run on every cursor movement: free at a page
+   * of a hundred and a walk of thousands at the page sizes the setting allows.
+   * The table is built once per page instead, beside the offsets it indexes.
    */
-  const topOf = (index: number): number => {
-    const at = entries().findIndex(
-      (entry) => entry.kind === "thread" && entry.index === index,
-    );
-    return at < 0 ? 0 : offsets()[at]!;
-  };
+  const tops = createMemo(() => {
+    const table = offsets();
+    const found: number[] = [];
+    entries().forEach((entry, at) => {
+      if (entry.kind === "thread") found[entry.index] = table[at]!;
+    });
+    return found;
+  });
+
+  const topOf = (index: number): number => tops()[index] ?? 0;
 
   /**
    * The heading pinned to the top edge: whichever day the topmost visible entry

@@ -1,5 +1,5 @@
 import { chromium } from "playwright";
-import { executablePath } from "./browser.mjs";
+import { executablePath, keepOffline } from "./browser.mjs";
 
 const [url] = process.argv.slice(2);
 const browser = await chromium.launch({
@@ -7,6 +7,10 @@ const browser = await chromium.launch({
   args: ["--no-sandbox"],
 });
 const page = await browser.newPage({ viewport: { width: 1500, height: 940 } });
+
+// A fixture message carries a remote image, and reaching for it is slow,
+// flaky and nobody's assertion. See `keepOffline`.
+await keepOffline(page, url);
 
 await page.addInitScript((base) => {
   try {

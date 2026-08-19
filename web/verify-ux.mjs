@@ -6,7 +6,7 @@
  * whether an action that fails says so.
  */
 import { chromium } from "playwright";
-import { executablePath } from "./browser.mjs";
+import { executablePath, keepOffline } from "./browser.mjs";
 
 const [url] = process.argv.slice(2);
 const failures = [];
@@ -22,6 +22,10 @@ const browser = await chromium.launch({
   args: ["--no-sandbox"],
 });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
+
+// A fixture message carries a remote image, and reaching for it is slow,
+// flaky and nobody's assertion. See `keepOffline`.
+await keepOffline(page, url);
 
 page.on("pageerror", (e) => notes.push(e.message.slice(0, 120)));
 page.on("console", (m) => m.type() === "error" && !m.text().includes("404") && notes.push(m.text().slice(0, 120)));

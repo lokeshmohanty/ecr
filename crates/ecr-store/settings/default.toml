@@ -23,10 +23,11 @@ start_query = "tag:inbox"
 # Reading — How messages are shown, and when they count as read.
 [reading]
 
-# Load images hosted elsewhere without asking. Leaving this off is what
-# stops a sender learning that you opened their mail; i loads them once.
-# default: false
-load_remote_images = false
+# Load images hosted elsewhere without asking, so a message arrives looking
+# the way it was written. Turning it off is what stops a sender learning that
+# you opened their mail, and i then loads them one message at a time.
+# default: true
+load_remote_images = true
 
 # Open a thread with its newest message expanded and the rest folded.
 # default: true

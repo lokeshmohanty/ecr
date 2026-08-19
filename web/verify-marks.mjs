@@ -3,7 +3,7 @@
  * written until x, so the staged state has to be visible first.
  */
 import { chromium } from "playwright";
-import { executablePath } from "./browser.mjs";
+import { executablePath, keepOffline } from "./browser.mjs";
 
 const [url] = process.argv.slice(2);
 let failures = 0;
@@ -22,6 +22,10 @@ const browser = await chromium.launch({
 	args: ["--no-sandbox"],
 });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+
+// A fixture message carries a remote image, and reaching for it is slow,
+// flaky and nobody's assertion. See `keepOffline`.
+await keepOffline(page, url);
 page.on("pageerror", (e) => fail("page error", e.message));
 
 const press = async (...keys) => {

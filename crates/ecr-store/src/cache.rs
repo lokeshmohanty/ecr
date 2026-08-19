@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
 use std::time::SystemTime;
 
@@ -15,7 +15,13 @@ pub struct FileCache<T> {
 struct Inner<T> {
     entries: HashMap<String, Entry<T>>,
     /// Insertion order, oldest first, for eviction.
-    order: Vec<String>,
+    ///
+    /// A deque rather than a `Vec`, because eviction takes from the front and
+    /// `Vec::remove(0)` shifts every remaining key to do it. A full cache
+    /// evicts on every insert, so at the 2048 entries `files` is given that is
+    /// two thousand moves per message indexed — paid on exactly the path the
+    /// cache exists to make cheap.
+    order: VecDeque<String>,
 }
 
 struct Entry<T> {
@@ -28,7 +34,7 @@ impl<T: Clone> FileCache<T> {
         Self {
             inner: Mutex::new(Inner {
                 entries: HashMap::new(),
-                order: Vec::new(),
+                order: VecDeque::new(),
             }),
             capacity: capacity.max(1),
         }
@@ -51,11 +57,13 @@ impl<T: Clone> FileCache<T> {
             .insert(key.clone(), Entry { modified, value })
             .is_none()
         {
-            inner.order.push(key);
+            inner.order.push_back(key);
         }
 
         while inner.order.len() > self.capacity {
-            let oldest = inner.order.remove(0);
+            let Some(oldest) = inner.order.pop_front() else {
+                break;
+            };
             inner.entries.remove(&oldest);
         }
     }

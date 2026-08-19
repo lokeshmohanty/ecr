@@ -15,22 +15,38 @@
 //! grounds that a sender who wrote HTML wrote the HTML — and it is still what
 //! answers when there is no markup at all.
 //!
-//! Nothing here is a security boundary. The output is inserted as text and
-//! never as markup, so what `<script>` becomes does not matter; it is dropped
-//! because a reader does not want to read it.
+//! Nothing here is a security boundary. The output is inserted as text, so
+//! what `<script>` becomes does not matter; it is dropped because a reader
+//! does not want to read it.
+//!
+//! The one exception is an image, which the client turns back into an `<img>`
+//! — a `src` is an attribute rather than text, and it is the only thing here
+//! that reaches a DOM as anything but a string. What it is allowed to point at
+//! is decided twice and in both languages: `mime::rewrite_markdown_images`
+//! resolves `cid:` and applies the reader's remote-images setting, and
+//! `ui/linkify.ts` refuses any scheme that is not a way of fetching a picture.
 
 use std::sync::OnceLock;
 
 /// Tags whose *contents* are not the message.
 ///
-/// `img` is the interesting one. htmd renders an image as `![alt](src)`, and
-/// real mail is built out of tracking pixels, spacer gifs and sliced-up
-/// letterheads with no alt text at all — so keeping them turns every message
-/// into a column of `![](https://…)` between the sentences. What is lost is
-/// the alt text of the occasional image that carries meaning; what is kept is
-/// a page that can be read.
+/// `img` used to be on this list, and the reason it no longer is is worth
+/// writing down, because the original reason was sound. htmd renders an image
+/// as `![alt](src)`, and real mail is tracking pixels, spacer gifs and
+/// sliced-up letterheads with no alt text — so a reader who is shown the
+/// *markdown* gets a column of `![](https://…)` between the sentences, which
+/// is why they were dropped.
+///
+/// What changed is that the client no longer shows the markdown. It renders
+/// it: `![alt](src)` becomes an `<img>`, so a spacer gif is a spacer gif and a
+/// letterhead is a letterhead, exactly as in the HTML view. The complaint was
+/// never about images, it was about URLs standing in for them.
+///
+/// `svg` stays out. It is markup rather than a resource, it does not survive
+/// the round trip through markdown as anything a client can render, and it is
+/// the one image format that can carry script.
 const NOT_THE_MESSAGE: &[&str] = &[
-    "script", "style", "head", "title", "meta", "link", "noscript", "iframe", "img", "svg",
+    "script", "style", "head", "title", "meta", "link", "noscript", "iframe", "svg",
 ];
 
 fn converter() -> &'static htmd::HtmlToMarkdown {
@@ -103,14 +119,27 @@ mod tests {
         assert_eq!(out, "Hello.");
     }
 
-    /// Every layout image in a marketing message would otherwise be a line of
-    /// its own between the sentences.
+    /// The client renders these back into `<img>`, so the src has to survive
+    /// the conversion rather than being dropped as noise.
     #[test]
-    fn images_do_not_become_lines_of_urls() {
+    fn an_image_keeps_its_source() {
         let out = from_html(
             r#"<p>Hello.</p><img src="https://t.example.com/pixel.gif" width="1" height="1">"#,
         )
         .expect("markdown");
+
+        assert!(
+            out.contains("![](https://t.example.com/pixel.gif)"),
+            "{out}"
+        );
+    }
+
+    /// The one image format that can carry script, and the one that does not
+    /// survive the round trip as anything renderable.
+    #[test]
+    fn inline_svg_is_still_not_the_message() {
+        let out =
+            from_html(r#"<p>Hello.</p><svg><script>alert(1)</script></svg>"#).expect("markdown");
 
         assert_eq!(out, "Hello.");
     }

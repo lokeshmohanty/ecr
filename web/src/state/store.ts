@@ -63,6 +63,7 @@ import { parseAddress, type AddressEntry } from "./suggest";
 import { signatureFor } from "./signature";
 import { effectiveFormat, toggled, type MessageFormat } from "./format";
 import { layoutFor, viewportWidth } from "../ui/narrow";
+import { afterPaint } from "../ui/idle";
 import { parsePairing } from "./pairing";
 
 import {
@@ -188,6 +189,21 @@ const MESSAGE_LINE = 64;
 
 /** How long the cursor must rest before the thread under it is opened. */
 export const FOLLOW_DELAY = 140;
+
+/**
+ * How long a message that has come due waits for others before being written.
+ *
+ * Browsing marks a message read per thread passed through, and each one used
+ * to be a request of its own: a POST, a notmuch process serialized behind the
+ * Xapian write mutex, a maildir rename, an event to every client, and a
+ * sidebar count refresh. They are the same operation on different ids and the
+ * tag route already takes a list.
+ *
+ * Deliberately much shorter than `mark_read_delay`, which is the deliberation
+ * — this is only the difference between one request and several, on top of a
+ * wait already measured in seconds.
+ */
+export const MARK_READ_BATCH = 120;
 
 export function createAppStore() {
 	const [connection, setConnectionSignal] = createSignal<Connection>(
@@ -1143,16 +1159,23 @@ export function createAppStore() {
 	}
 
 	/**
-	 * A tag change — a `tags_changed` SSE from another client, or the reader
-	 * marking a message read once it has been on screen. The sidebar counts,
-	 * the open thread and the gathered tags/people/lists refresh, but the list
-	 * pane does not: a list being read is not re-fetched and reshuffled because
-	 * a message's tags changed. A message physically removed from the maildir
-	 * fires `mail_changed`, which goes through `bumpRevision` and does refresh
-	 * the list.
+	 * A tag change — the reader marking a message read once it has been on
+	 * screen, or a `tags_changed` SSE. The sidebar counts, the open thread and
+	 * the gathered tags/people/lists refresh, but the list pane does not: a list
+	 * being read is not re-fetched and reshuffled because a message's tags
+	 * changed. A message physically removed from the maildir fires
+	 * `mail_changed`, which goes through `bumpRevision` and does refresh the
+	 * list.
+	 *
+	 * What is *not* here is the cache. This used to clear all two hundred held
+	 * threads on any tag change, so walking back up the list with `k` refetched
+	 * every row that had already been read — and the one thread it was certain
+	 * to be wrong about, the open one, is the one `Api.tag` has already brought
+	 * up to date in place. Dropping a thread is now the caller's decision,
+	 * because only the caller knows whether it wrote the change or merely heard
+	 * about it.
 	 */
-	function bumpForTagChange() {
-		api.invalidate();
+	function noteTagChange() {
 		counts.invalidate();
 		setRevision((r) => r + 1);
 	}
@@ -1170,10 +1193,18 @@ export function createAppStore() {
 	/**
 	 * Keeps the row a message was read from where it was, tagged as it now is.
 	 * The thread stays unread if another of its messages still is.
+	 *
+	 * Named by the thread the message was read *in*, not by whatever is open
+	 * now. Reading one is asynchronous — the delay before a message counts as
+	 * read is measured in seconds, and several can come due at once — so by the
+	 * time this runs the cursor is routinely two rows further down, and holding
+	 * `openThread()` held the wrong row while leaving the right one to vanish.
+	 * Which is the whole failure this function exists to prevent, arriving
+	 * through the back door.
 	 */
-	function holdCurrentRow(readMessage: string) {
+	function holdRowOf(readMessage: string, threadId: string) {
 		const list = items();
-		const index = list.findIndex((thread) => thread.id === openThread());
+		const index = list.findIndex((thread) => thread.id === threadId);
 		const row = list[index];
 		if (!row) return;
 
@@ -1181,7 +1212,10 @@ export function createAppStore() {
 		const rows = kept.query === query() ? kept.rows : [];
 		if (rows.some((entry) => entry.row.id === row.id)) return;
 
-		const unread = (thread()?.messages ?? []).some(
+		// The cache, rather than the open thread: this may not be it any more.
+		// A thread that is not cached is one nothing has read, so nothing of it
+		// can be unread on account of this.
+		const unread = (api.cachedThread(threadId)?.messages ?? []).some(
 			(message) =>
 				message.id !== readMessage && message.tags.includes("unread"),
 		);
@@ -1228,6 +1262,39 @@ export function createAppStore() {
 	}
 
 	let followTimer: number | undefined;
+	let followPaint: (() => void) | undefined;
+
+	/**
+	 * Nothing that opens a thread may run in the task that moved the cursor.
+	 *
+	 * The debounce alone was not enough. It collapses a burst of `j` into one
+	 * open, but the open it does perform still landed in a timer callback that
+	 * ran the fetch, rebuilt the reading pane and laid out a sandboxed document
+	 * per message — all before the browser was given a chance to paint. A
+	 * keystroke arriving in that window waited behind it, which is the lag: the
+	 * cursor is instant while you keep moving and stalls the moment you pause,
+	 * so it reads as the list being slow rather than as the pane being built.
+	 *
+	 * So the settle is a timer and the open is a frame plus a task after it,
+	 * and both are cancelled by the next movement.
+	 */
+	function scheduleFollow() {
+		cancelFollow();
+		followTimer = window.setTimeout(() => {
+			followTimer = undefined;
+			followPaint = afterPaint(() => {
+				followPaint = undefined;
+				followSelection(selected());
+			});
+		}, FOLLOW_DELAY);
+	}
+
+	function cancelFollow() {
+		if (followTimer !== undefined) clearTimeout(followTimer);
+		followTimer = undefined;
+		followPaint?.();
+		followPaint = undefined;
+	}
 
 	function move(delta: number) {
 		const total = items().length;
@@ -1238,25 +1305,70 @@ export function createAppStore() {
 
 		// Holding j would otherwise open every row it passes over. Waiting for the
 		// cursor to settle turns a burst of requests into one.
-		if (followTimer !== undefined) clearTimeout(followTimer);
-		followTimer = window.setTimeout(
-			() => followSelection(selected()),
-			FOLLOW_DELAY,
-		);
+		scheduleFollow();
 	}
 
 	/**
 	 * Opens whatever the cursor lands on, so moving through the list reads as
 	 * browsing rather than a two-step select-then-open.
+	 *
+	 * Called with the index it is about, and it declines if the cursor has since
+	 * moved: the palette calls this directly after setting the cursor itself,
+	 * and a stale one would open the row the reader has just left.
+	 *
+	 * A row that is already open is left alone rather than reopened — the reset
+	 * of the conversation cursor is not free, and neither is the reading pane
+	 * deciding it has a new thread.
 	 */
 	function followSelection(index: number) {
 		if (!settings().preferences.followSelection) return;
 		if (right().kind !== "reading") return;
+		if (index !== selected()) return;
 
 		const thread = items()[index];
-		if (thread) {
+		if (thread && thread.id !== openThread()) {
 			setOpenThread(thread.id);
 			setMessageIndex(0);
+		}
+
+		prefetchNeighbours(index);
+	}
+
+	/**
+	 * The rows on either side, fetched while nothing else is happening.
+	 *
+	 * A thread that is already in `Api`'s cache resolves in a microtask, so the
+	 * next `j` swaps the pane rather than waiting on a round trip — which is
+	 * the difference between browsing and stepping. It is two requests for a
+	 * cursor that has come to rest, never one per row passed over, and a
+	 * failure is not reported: nothing asked for these.
+	 *
+	 * The **body** is fetched too, and it is the half that is actually waited
+	 * on: a thread listing is a few kilobytes of headers off an index, while a
+	 * body is a message file read, parsed, sanitized and — for the text view —
+	 * converted to markdown. Only the message that would be *open* is asked
+	 * for. Fetching a folded one would spend the round trip this exists to
+	 * save on something nobody is going to look at, and on a long thread it
+	 * would be twenty of them.
+	 */
+	function prefetchNeighbours(index: number) {
+		const list = items();
+		for (const at of [index + 1, index - 1]) {
+			const row = list[at];
+			if (!row) continue;
+
+			void api
+				.threadCached(row.id)
+				.then((thread) => {
+					const newest = thread.messages[thread.messages.length - 1];
+					if (!newest || !messageOpen(newest.id, true)) return;
+					return api.body(
+						newest.id,
+						messageFormat(newest.id) === "html",
+						allowRemote(),
+					);
+				})
+				.catch(() => undefined);
 		}
 	}
 
@@ -2022,28 +2134,53 @@ export function createAppStore() {
 	 */
 	const markReadTimers = new Map<string, number>();
 
+	/** Messages whose delay has elapsed, waiting to go out as one request. */
+	let markReadPending: { message: string; thread: string }[] = [];
+	let markReadFlush: number | undefined;
+
 	function markReadWhenSeen(id: string, tags: string[]) {
 		const { markReadOnOpen, markReadDelay } = settings().preferences;
 		if (!markReadOnOpen || !tags.includes("unread")) return;
 		if (markReadTimers.has(id)) return;
 
-		const timer = window.setTimeout(async () => {
+		// Which thread it is being read in, taken now. By the time this comes
+		// due the cursor has often moved on, and the row to hold is this one's,
+		// not whatever is open then.
+		const thread = openThread();
+
+		const timer = window.setTimeout(() => {
 			markReadTimers.delete(id);
-			try {
-				// The message, not the thread: what has been on screen is this
-				// one, and the two below it that have not been scrolled to have
-				// not been read by anybody.
-				await api.tag([
-					{ target: { message: id }, add: [], remove: ["unread"] },
-				]);
-				holdCurrentRow(id);
-				bumpForTagChange();
-			} catch {
-				// A read-only server refuses this; it is not worth a message.
-			}
+			if (thread) markReadPending.push({ message: id, thread });
+
+			if (markReadFlush !== undefined) clearTimeout(markReadFlush);
+			markReadFlush = window.setTimeout(() => void flushMarkRead(), MARK_READ_BATCH);
 		}, markReadDelay);
 
 		markReadTimers.set(id, timer);
+	}
+
+	async function flushMarkRead() {
+		markReadFlush = undefined;
+		const due = markReadPending;
+		markReadPending = [];
+		if (due.length === 0) return;
+
+		try {
+			// The message, not the thread: what has been on screen is this one,
+			// and the two below it that have not been scrolled to have not been
+			// read by anybody.
+			await api.tag(
+				due.map(({ message }) => ({
+					target: { message },
+					add: [],
+					remove: ["unread"],
+				})),
+			);
+			for (const { message, thread } of due) holdRowOf(message, thread);
+			noteTagChange();
+		} catch {
+			// A read-only server refuses this; it is not worth a message.
+		}
 	}
 
 	function cancelMarkRead(id: string) {
@@ -2207,7 +2344,26 @@ export function createAppStore() {
 				bumpRevision();
 				break;
 			case "tags_changed":
-				bumpForTagChange();
+				/*
+				 * Not our own. The server tells everybody, this client included,
+				 * and this client has nothing to learn from being told: it sent the
+				 * ops, `Api.tag` has already written them into what it holds, and
+				 * every caller has already refreshed whatever its own action meant
+				 * — `noteTagChange` for a message being read, the whole of
+				 * `bumpRevision` for `x`. Acting on the echo as well dropped the
+				 * cache and fetched the open thread back over the network to arrive
+				 * at what was already on screen, once per message read, since
+				 * marking one read is a tag write.
+				 */
+				if (event.origin === api.origin) break;
+
+				// A stranger's write says only *which* threads, never what changed,
+				// so those are dropped and asked again — and only those. An event
+				// that names nothing is a server too old to say, so nothing of it
+				// can be kept.
+				if (event.ids.length === 0) api.invalidate();
+				else for (const id of event.ids) api.invalidate(id);
+				noteTagChange();
 				break;
 			case "sync_started":
 				setSyncing(true);

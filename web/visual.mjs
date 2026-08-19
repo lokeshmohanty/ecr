@@ -9,7 +9,7 @@
  *   node visual.mjs <url> --approve  accept what is rendered as the new baseline
  */
 import { chromium } from "playwright";
-import { executablePath } from "./browser.mjs";
+import { executablePath, keepOffline } from "./browser.mjs";
 import { PNG } from "pngjs";
 import pixelmatch from "pixelmatch";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -542,6 +542,12 @@ for (const state of STATES) {
   await context.clock.setFixedTime(new Date("2026-08-01T12:30:00Z"));
 
   const page = await context.newPage();
+
+  // Before every other route, and before the client can ask for anything: a
+  // baseline that depends on whether a remote image resolved today is not a
+  // baseline. See `keepOffline`.
+  await keepOffline(page, url);
+
   await page.addInitScript(WATCH_ACTIVITY);
   await page.addInitScript((base) => {
     try {

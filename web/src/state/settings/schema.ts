@@ -61,7 +61,7 @@ export interface Preferences {
 export const DEFAULT_PREFERENCES: Preferences = {
 	pageSize: 100,
 	preferHtml: true,
-	loadRemoteImages: false,
+	loadRemoteImages: true,
 	expandNewest: true,
 	replyAll: false,
 	startQuery: "tag:inbox",
@@ -239,7 +239,7 @@ export const PREFERENCE_DOCS: Record<keyof Preferences, PreferenceDoc> = {
 	loadRemoteImages: {
 		section: "reading",
 		scope: "server",
-		doc: "Load images hosted elsewhere without asking. Leaving this off is what\nstops a sender learning that you opened their mail; i loads them once.",
+		doc: "Load images hosted elsewhere without asking, so a message arrives looking\nthe way it was written. Turning it off is what stops a sender learning that\nyou opened their mail, and i then loads them one message at a time.",
 	},
 	expandNewest: {
 		section: "reading",

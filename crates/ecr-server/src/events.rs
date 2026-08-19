@@ -13,6 +13,16 @@ pub enum ServerEvent {
     TagsChanged {
         revision: Revision,
         ids: Vec<String>,
+        /// The client that asked for the write, when one said.
+        ///
+        /// Every client is told, the writer included, and the writer has
+        /// nothing to learn from being told: it sent the ops and has already
+        /// applied them. Naming itself is what lets it skip its own echo
+        /// rather than dropping its caches and fetching back what is on
+        /// screen. `None` is a write nobody claimed — another client, or
+        /// `ecr tag` in a shell — and every client acts on that.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        origin: Option<String>,
     },
     SyncStarted {
         accounts: Vec<String>,
@@ -130,6 +140,29 @@ mod tests {
 
         assert!(json.contains(r#""type":"mail_changed""#), "{json}");
         assert!(json.contains(r#""lastmod":1"#), "{json}");
+    }
+
+    /// The whole of what makes an echo skippable is that the field is there
+    /// when somebody claimed the write and absent when nobody did — a client
+    /// compares it against its own name, and `null` must not be able to match
+    /// a client that also has no name.
+    #[test]
+    fn a_tag_change_carries_who_wrote_it_only_when_somebody_said() {
+        let claimed = serde_json::to_string(&ServerEvent::TagsChanged {
+            revision: revision(),
+            ids: vec!["thread-1".into()],
+            origin: Some("client-a".into()),
+        })
+        .unwrap();
+        assert!(claimed.contains(r#""origin":"client-a""#), "{claimed}");
+
+        let anonymous = serde_json::to_string(&ServerEvent::TagsChanged {
+            revision: revision(),
+            ids: vec![],
+            origin: None,
+        })
+        .unwrap();
+        assert!(!anonymous.contains("origin"), "{anonymous}");
     }
 
     #[tokio::test]

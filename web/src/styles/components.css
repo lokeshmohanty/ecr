@@ -253,6 +253,24 @@
 }
 
 /*
+ * An image in the plain-text pane.
+ *
+ * `inline-block` rather than `block`, because the pane is `pre-wrap` and the
+ * newline around a standalone image is already in the text — making it a block
+ * would add a second one. An image inside a sentence stays inside it.
+ *
+ * The senders' own `width` attributes did not survive the trip through
+ * markdown, so a letterhead sliced for a 600px template arrives at its natural
+ * size; `max-width` is what keeps it inside a pane that is narrower than that.
+ */
+.body-image {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+  vertical-align: middle;
+}
+
+/*
  * The OpenPGP badge, above the message.
  *
  * Six states share one shape and differ only in colour and wording, because

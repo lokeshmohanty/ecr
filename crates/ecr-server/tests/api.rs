@@ -373,6 +373,27 @@ async fn tagging_updates_the_revision_and_the_message() {
     assert!(!tags.iter().any(|t| t == "unread"));
 }
 
+/// A client that does not name itself is every client before this existed, and
+/// the route has to keep taking their writes rather than 400ing on a field
+/// they have never heard of.
+#[tokio::test]
+async fn a_tag_write_that_names_no_origin_is_still_a_tag_write() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    let response = server
+        .post(
+            "/api/v1/tags",
+            serde_json::json!({
+                "ops": [{"target": {"message": "msg1@example.com"}, "add": ["seen-by-nobody"], "remove": []}]
+            }),
+        )
+        .await;
+
+    assert_eq!(response.status(), 200);
+}
+
 #[tokio::test]
 async fn a_tag_containing_a_newline_is_a_400() {
     let Some(server) = Server::start().await else {

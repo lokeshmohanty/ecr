@@ -72,6 +72,21 @@ export function hasConnection(connection: Connection): boolean {
   return connection.baseUrl.trim() !== "";
 }
 
+/**
+ * How much message body is worth keeping, in characters.
+ *
+ * About sixteen megabytes of markup, which on real mail is several hundred
+ * messages and on a mailbox of newsletters is a few dozen — which is the point
+ * of counting bytes rather than entries.
+ */
+const BODY_CACHE_BYTES = 16 * 1024 * 1024;
+
+/** `crypto.randomUUID` is absent on an insecure origin, which a LAN server is. */
+function newOrigin(): string {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  return uuid ?? `c${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -89,6 +104,22 @@ export class ApiError extends Error {
 
 export class Api {
   constructor(private connection: Connection) {}
+
+  /**
+   * What this client calls itself when it writes tags.
+   *
+   * The server publishes a tag write to everybody, the writer included, and
+   * the writer has nothing to learn from it — it sent the ops and has already
+   * applied them to what it holds. Acting on the echo means dropping the cache
+   * and fetching the open thread back over the network to arrive at what is
+   * already on screen. So writes are signed, and an event bearing this name is
+   * skipped.
+   *
+   * Per page rather than per device: two tabs of the same client are two
+   * readers, and each must still hear about the other. The bearer token cannot
+   * serve — a desktop and a phone may share one.
+   */
+  readonly origin: string = newOrigin();
 
   private refused: (() => void) | null = null;
 
@@ -222,8 +253,16 @@ export class Api {
    * Bodies are cached in memory. A message's content never changes — a new
    * message is a new file — so revisiting one should not cost a round trip.
    * This is what makes walking a list with j/k feel instant on the way back.
+   *
+   * Bounded by **bytes**, not by entries. A count is the wrong unit for
+   * something whose size varies by three orders of magnitude: three hundred
+   * one-line notifications are a rounding error, and three hundred marketing
+   * messages with their stylesheets inline are tens of megabytes held for a
+   * session, on a phone. `held` is the running total so the bound costs no
+   * walk.
    */
   private bodies = new Map<string, Body>();
+  private held = 0;
 
   async config(): Promise<{ path: string; raw: string }> {
     return await this.request("/api/v1/config");
@@ -415,16 +454,28 @@ export class Api {
         new URLSearchParams({ html: String(html), remote: String(remote) }),
     );
 
-    // Bounded so a long session cannot grow without limit.
-    if (this.bodies.size > 300) {
-      const oldest = this.bodies.keys().next().value;
-      if (oldest) this.bodies.delete(oldest);
-    }
     this.bodies.set(key, body);
+    this.held += body.content.length;
+
+    // Oldest first: a `Map` iterates in insertion order, so its first key is
+    // the least recently *fetched*. Bounded so a long session cannot grow
+    // without limit — see `held`.
+    while (this.held > BODY_CACHE_BYTES && this.bodies.size > 1) {
+      const oldest = this.bodies.keys().next().value;
+      if (!oldest) break;
+      this.held -= this.bodies.get(oldest)?.content.length ?? 0;
+      this.bodies.delete(oldest);
+    }
+
     return body;
   }
 
   private threads_ = new Map<string, Thread>();
+
+  /** What is held for a thread, if anything — no request, and no waiting. */
+  cachedThread(id: string): Thread | undefined {
+    return this.threads_.get(id);
+  }
 
   async threadCached(id: string): Promise<Thread> {
     const cached = this.threads_.get(id);
@@ -439,16 +490,88 @@ export class Api {
     return thread;
   }
 
-  /** Tagging changes a thread, so its cached copy has to go. */
-  invalidate(): void {
-    this.threads_.clear();
+  /**
+   * Tagging changes a thread, so its cached copy has to go.
+   *
+   * Named, when the caller knows which one. Dropping all two hundred cached
+   * threads because one was tagged meant walking back up the list with `k`
+   * re-fetched every row that had already been opened — the one motion a cache
+   * this size exists to make free. Without a name nothing here knows what
+   * changed and the whole cache still goes.
+   *
+   * The name may be a *message* id rather than a thread's: `tags:changed`
+   * reports whatever the ops targeted, and an op may name either. A message id
+   * is not a key here, so deleting by key alone would silently keep the stale
+   * thread — the failure being a conversation that goes on showing tags another
+   * client removed. So the messages are searched too.
+   */
+  invalidate(id?: string): void {
+    if (id === undefined) {
+      this.threads_.clear();
+      return;
+    }
+
+    if (this.threads_.delete(id)) return;
+
+    for (const [key, thread] of this.threads_) {
+      if (thread.messages.some((message) => message.id === id)) {
+        this.threads_.delete(key);
+        return;
+      }
+    }
   }
 
-  tag(ops: TagOp[]): Promise<Revision> {
-    return this.request("/api/v1/tags", {
+  async tag(ops: TagOp[]): Promise<Revision> {
+    const revision = await this.request<Revision>("/api/v1/tags", {
       method: "POST",
-      body: JSON.stringify({ ops }),
+      body: JSON.stringify({ ops, origin: this.origin }),
     });
+
+    // What was asked for is what happened, so the cache is brought up to date
+    // rather than thrown away. See `applyTags`.
+    this.applyTags(ops);
+    return revision;
+  }
+
+  /**
+   * Writes a tag change into the threads already held, in place.
+   *
+   * The alternative is to drop them, and dropping them costs a round trip for
+   * the one thread that is certainly on screen — the reader is looking at what
+   * they just tagged. Worse, the copy that comes back is a *new* object, which
+   * used to rebuild every message view and reparse every sandboxed document
+   * for a conversation whose text had not changed.
+   *
+   * Mutating rather than replacing is deliberate and is the whole point: the
+   * `Thread` object keeps its identity, so `createResource` compares the
+   * refetched value equal to the one it holds and nothing re-renders. Nothing
+   * reactive reads `message.tags` — the pane draws the body, and the row's tags
+   * come from the list — so there is no signal to miss.
+   *
+   * Only what was asked for is applied. notmuch may do more than this on its
+   * own (a maildir flag, a `deleted` tag pulling a message out of a query), and
+   * anything beyond the ops is the business of the refetch that a *stranger's*
+   * write still triggers.
+   */
+  private applyTags(ops: TagOp[]): void {
+    for (const op of ops) {
+      const thread = "thread" in op.target ? op.target.thread : null;
+      const message = "message" in op.target ? op.target.message : null;
+
+      for (const [id, held] of this.threads_) {
+        if (thread !== null && id !== thread) continue;
+
+        for (const entry of held.messages) {
+          if (message !== null && entry.id !== message) continue;
+          if (thread === null && message === null) continue;
+
+          const tags = new Set(entry.tags);
+          for (const tag of op.remove) tags.delete(tag);
+          for (const tag of op.add) tags.add(tag);
+          entry.tags = [...tags].sort();
+        }
+      }
+    }
   }
 
   sync(accounts: string[] = []): Promise<SyncReport> {
