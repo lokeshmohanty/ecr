@@ -60,3 +60,15 @@ export function accountKeys(accounts: Account[]): AccountKey[] {
 
 const ALPHABET = "abcdefghijklmnopqrstuvwxyz";
 const DIGITS = "123456789";
+
+/**
+ * Which account a thread belongs to, from the tags it carries.
+ *
+ * An account id *is* a notmuch tag — `Account::tag_query` is `tag:<id>` — so
+ * this is a set intersection rather than anything the server has to be asked
+ * for. Order is the account list's, which is the sidebar's and the switcher's,
+ * so a thread whose messages span two accounts always answers the same one.
+ */
+export function accountOf(tags: string[], rows: AccountKey[]): AccountKey | undefined {
+	return rows.find((row) => row.id !== ALL_ACCOUNTS && tags.includes(row.id));
+}

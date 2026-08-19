@@ -40,6 +40,8 @@ export type Action =
 	| { kind: "togglePreferHtml" }
 	| { kind: "refresh" }
 	| { kind: "switchAccount" }
+	/** A sidebar row reached by its own letter; `to` is that letter. */
+	| { kind: "jump"; to: string }
 	| { kind: "saveQuery" }
 	| { kind: "enterCommand" }
 	| { kind: "enterSearch" }
@@ -149,6 +151,63 @@ export const DEFAULT_BINDINGS: Binding[] = [
 		keys: "Tab",
 		action: { kind: "toggleFold" },
 		description: "expand or collapse",
+		panes: ["sidebar"],
+	},
+
+	// One letter per mailbox, in the pane where a mailbox is what a letter
+	// could mean. Seven of the eight are free — `a`, `d`, `f` and `t` belong to
+	// the list, `i` and `q` to a message, `m` to nothing — and `s` is the
+	// exception: it is sync everywhere else, and here it is Sent, because a
+	// pane-scoped binding beats an unscoped one. That is the same mechanism `r`
+	// uses to mean refresh in a list and reply over a message, and it is why
+	// these are worth having at all: the sidebar is the one pane where none of
+	// these letters had anything to do.
+	{
+		keys: "i",
+		action: { kind: "jump", to: "i" },
+		description: "go to Inbox",
+		panes: ["sidebar"],
+	},
+	{
+		keys: "s",
+		action: { kind: "jump", to: "s" },
+		description: "go to Sent",
+		panes: ["sidebar"],
+	},
+	{
+		keys: "d",
+		action: { kind: "jump", to: "d" },
+		description: "go to Drafts",
+		panes: ["sidebar"],
+	},
+	{
+		keys: "f",
+		action: { kind: "jump", to: "f" },
+		description: "go to Flagged",
+		panes: ["sidebar"],
+	},
+	{
+		keys: "a",
+		action: { kind: "jump", to: "a" },
+		description: "go to Archive",
+		panes: ["sidebar"],
+	},
+	{
+		keys: "t",
+		action: { kind: "jump", to: "t" },
+		description: "open Tags",
+		panes: ["sidebar"],
+	},
+	{
+		keys: "m",
+		action: { kind: "jump", to: "m" },
+		description: "open Mailing Lists",
+		panes: ["sidebar"],
+	},
+	{
+		keys: "q",
+		action: { kind: "jump", to: "q" },
+		description: "open Queries",
 		panes: ["sidebar"],
 	},
 
@@ -560,7 +619,19 @@ export class Keymap {
 		return { type: "ignored", consumed: false };
 	}
 
+	/**
+	 * The bindings in force, for the help overlay.
+	 *
+	 * A pane-scoped binding hides the global one on the same keys — `handle`
+	 * says so — so the shadowed one is dropped here too. Listing both put "s
+	 * sync" and "s go to Sent" side by side in the sidebar's help, one of which
+	 * is a lie, and help is read exactly where the wrong answer would mislead.
+	 */
 	describe(pane?: Pane): Binding[] {
-		return pane ? this.inPane(pane) : [...this.bindings];
+		if (!pane) return [...this.bindings];
+
+		const scoped = this.inPane(pane);
+		const local = new Set(scoped.filter((b) => b.panes).map((b) => b.keys));
+		return scoped.filter((b) => b.panes || !local.has(b.keys));
 	}
 }

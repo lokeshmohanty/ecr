@@ -34,10 +34,34 @@
      code/kbd/pre through it — without this every code block falls back. */
   --default-mono-font-family: var(--font-mono);
   --font-sans: var(--font-body);
+
+  /*
+   * Three shapes, named after what they are rather than how round they are:
+   * Tailwind reads the `--radius-*` namespace, so these are `rounded-chip`,
+   * `rounded-card` and `rounded-icon` wherever a class is wanted, and
+   * `var(--radius-chip)` in components.css where a rule is.
+   *
+   * A chip is a letter in a box — the account badge, a checkbox. A card is a
+   * surface holding content: a row, a panel, the account button. An icon is a
+   * square target whose whole job is to be pressed, and it is the roundest of
+   * the three because at 56px the card radius reads as a plain square.
+   *
+   * Pills are deliberately *not* here. Compose, Settings and the attachment
+   * chips are `rounded-full` because that shape says "button", and a scale
+   * that swallowed them would take that away to gain nothing.
+   */
+  --radius-chip: 0.3rem;
+  --radius-card: 0.5rem;
+  --radius-icon: 1rem;
 }
 
 :root {
-  /* Wide enough for the longest adaptive form, "04 Apr 09:15". */
+  /*
+   * Only what the column is until it has been measured. `ThreadList` sizes the
+   * track to the widest date actually on the page and writes the result over
+   * this on the pane itself; these two values are the first paint, wide enough
+   * for the longest adaptive form, "04 Apr 09:15".
+   */
   --date-column: 8.5rem;
   color-scheme: dark;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { windowRange } from "./window";
+import { entryAt, offsetsOf, windowRange, windowSlice } from "./window";
 
 const ROW = 58;
 
@@ -81,5 +81,86 @@ describe("windowRange", () => {
       const range = windowRange(23000, scrollTop, 800, ROW);
       expect(range.offset).toBe(range.start * ROW);
     }
+  });
+});
+
+/** A separator, then two rows, then a separator, then two rows. */
+const MIXED = [24, ROW, ROW, 24, ROW, ROW];
+
+describe("offsetsOf", () => {
+  it("is a prefix sum with the total on the end", () => {
+    expect(offsetsOf([10, 20, 30])).toEqual([0, 10, 30, 60]);
+  });
+
+  it("answers a single zero for an empty list", () => {
+    expect(offsetsOf([])).toEqual([0]);
+  });
+});
+
+describe("entryAt", () => {
+  const offsets = offsetsOf(MIXED);
+
+  it("finds the entry a position falls inside", () => {
+    expect(entryAt(offsets, 0)).toBe(0);
+    expect(entryAt(offsets, 23)).toBe(0);
+    expect(entryAt(offsets, 24)).toBe(1);
+    expect(entryAt(offsets, 24 + ROW)).toBe(2);
+  });
+
+  /** A scroll position past the end is a list that shrank under the viewport. */
+  it("clamps to the last entry rather than running off the end", () => {
+    expect(entryAt(offsets, 10_000)).toBe(MIXED.length - 1);
+    expect(entryAt(offsets, -50)).toBe(0);
+  });
+});
+
+describe("windowSlice", () => {
+  it("renders everything when it all fits", () => {
+    const slice = windowSlice(offsetsOf(MIXED), 0, 800);
+    expect(slice.start).toBe(0);
+    expect(slice.end).toBe(MIXED.length);
+    expect(slice.total).toBe(24 * 2 + ROW * 4);
+  });
+
+  /**
+   * The whole reason this exists. With a uniform pitch every offset below a
+   * heading is wrong by the height of every heading above it, and the error
+   * compounds — a thousand rows in, the list scrolls to the wrong thread.
+   */
+  it("puts the slab where the first rendered entry actually starts", () => {
+    const heights = Array.from({ length: 400 }, (_, i) => (i % 21 === 0 ? 24 : ROW));
+    const offsets = offsetsOf(heights);
+
+    for (const scrollTop of [0, 500, 5000, 15_000]) {
+      const slice = windowSlice(offsets, scrollTop, 800);
+      expect(slice.offset).toBe(offsets[slice.start]);
+    }
+  });
+
+  it("keeps the rendered slice bounded however far down it is", () => {
+    const heights = Array.from({ length: 23_000 }, () => ROW);
+    const offsets = offsetsOf(heights);
+    const slice = windowSlice(offsets, 22_000 * ROW, 800);
+
+    expect(slice.end - slice.start).toBeLessThan(50);
+    expect(slice.end).toBeLessThanOrEqual(23_000);
+  });
+
+  it("covers the bottom edge of the viewport, not just the top", () => {
+    const heights = Array.from({ length: 200 }, () => ROW);
+    const slice = windowSlice(offsetsOf(heights), 0, 800, 0);
+
+    // Everything the viewport touches is rendered: the last entry that starts
+    // before 800px is index 13, so the slice has to reach past it.
+    expect(slice.end).toBeGreaterThan(Math.floor(800 / ROW));
+  });
+
+  it("answers nothing for an empty list", () => {
+    expect(windowSlice(offsetsOf([]), 0, 800)).toEqual({
+      start: 0,
+      end: 0,
+      offset: 0,
+      total: 0,
+    });
   });
 });

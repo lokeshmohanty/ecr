@@ -124,6 +124,44 @@ release; both are frozen at v1.0.0.
   visible rather than inferred from where the text stops. The row under the
   cursor is ringed in the accent as well as filled.
 
+- **A row is the subject, on one line.** The sender and the preview are gone,
+  and the row is half the height it was — about twice as much mail on a screen.
+  Every message in a mailbox is addressed to you, so the sender was the line
+  that could go, and the `From` display name is not reliably a person anyway:
+  notification senders put the *actor's* name there, which on a mailbox full of
+  CI mail is your own name on every row.
+
+- **Which account a thread arrived in, where more than one is on screen.** A
+  letter in the margin, and it is the same letter that switches to that account
+  in `A` — never a second alphabet to learn. Inside one account it is not drawn:
+  it would be the same letter on every row.
+
+- **The list is grouped by date.** *Today* and *Yesterday*, then a heading per
+  month for the rest of this year and per year before that, with the current one
+  pinned to the top of the pane as you scroll. Each row then says only what its
+  heading does not — the clock under *Today*, the weekday and day under
+  *August*, the day and month under *2025* — so the date stops repeating what is
+  already on screen. Choosing a date format other than the default still prints
+  it in full on every row.
+
+- **The date column is the width of the dates in it.** It was fixed at the
+  widest form the adaptive format can produce, so a page of today's mail held
+  room for seven characters nothing was going to print while the subject beside
+  it truncated. On a real inbox it now settles at about a third of that, and the
+  subject has the rest.
+
+- **The sidebar is one account, with a box above it that says which.** Pressing
+  it opens the same switcher `A` does. The mailboxes below it are that account's
+  and nothing else, so walking the pane with `j` is walking mail rather than
+  stepping over other accounts' names. *All accounts* is one of the entries in
+  the switcher, and picking it is the unified inbox, so the separate *All
+  inboxes* row has gone.
+
+- **Eight letters go straight to a mailbox from the sidebar**: `i` Inbox, `s`
+  Sent, `d` Drafts, `f` Flagged, `a` Archive, and `t`/`m`/`q` to open Tags,
+  Mailing Lists and Queries. They apply in the sidebar only — `s` is still sync
+  in the list and over a message — and each row shows its letter.
+
 ## [0.5.0] — 2026-08-09
 
 ### Added

@@ -393,6 +393,13 @@ export function App() {
 				if (store.activateSidebar() && isNarrow()) store.setPane("list");
 				break;
 
+			// Same rule as `select`, and for the same reason: `i` loaded the inbox,
+			// so on a phone the inbox has to be what is on screen afterwards.
+			// Opening a section is not a mailbox and stays where it is.
+			case "jump":
+				if (store.jumpSidebar(action.to) && isNarrow()) store.setPane("list");
+				break;
+
 			case "open": {
 				const thread = store.current();
 				if (thread) {
@@ -712,6 +719,7 @@ export function App() {
 							store={store}
 							onCompose={() => openCompose(emptyDraft(), "compose")}
 							onSettings={() => void dispatch({ kind: "settings" })}
+							onSwitchAccount={() => setSwitching(true)}
 						/>
 					</div>
 

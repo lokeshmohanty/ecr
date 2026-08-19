@@ -318,12 +318,54 @@ stay empty behind the prompt that just fixed it. See
 ## Client
 
 - **Layout.** Rows are a CSS grid with a fixed date track and a `min-width: 0`
-  author cell that ellipsizes. Nothing computes a width, which is why the
+  subject cell that ellipsizes. Nothing computes a width, which is why the
   author/date collision from the egui client cannot recur.
+- **A row is one line, and the line is the subject.** Every message in a
+  mailbox is addressed to the reader, so the sender was the one line that could
+  go without losing what a row is for — and the `From` display name is not
+  reliably a person: notification senders put the *actor's* name there, which on
+  a CI mailbox is the reader's own name, on every row. What is left is the
+  subject, the thread count, the attachment marker and the date. The pitch
+  follows the card rather than the other way round: 38px beside a pointer, 50px
+  under a thumb, because a row carries `touch-target` and `min-height` would
+  otherwise win over the inline height and leave the scroller counting in a
+  number nothing was drawn at.
+- **The account chip is the switcher's key.** Where a view mixes accounts —
+  All inboxes, a cross-account query — each row carries the letter that switches
+  to its account, from the same `accountKeys` table `]a` uses, so it is never a
+  second alphabet to learn. An account id *is* a notmuch tag, so which account a
+  row belongs to is a set intersection rather than a request. Inside one account
+  the chip is not drawn at all: it would be the same letter on every row, and an
+  empty grid track still costs its gap.
 - **Windowing.** `windowRange()` is pure arithmetic over `(count, scrollTop,
   viewportHeight, rowHeight)`. It is hand-rolled rather than taken from a
   library because the library bound its scroll element at mount, and the
   container only exists after data arrives — so it rendered nothing.
+- **Headings, and why the thread list counts differently.** A uniform pitch
+  cannot survive a separator: `index * pitch` is wrong by one heading's height
+  for every heading above it, compounding until the list scrolls to the wrong
+  thread. So the thread list uses `offsetsOf`/`entryAt`/`windowSlice` — a prefix
+  sum over each entry's height, binary-searched — while the sidebar, which has
+  no headings, keeps `windowRange`. Headings group *contiguous* runs rather than
+  unique periods, because the list is in the order the query answered and
+  gathering a month together would reorder the mail to suit the furniture. The
+  heading pinned to the top edge is drawn over the scroller rather than made
+  sticky: the rendered slab is transformed, and a transform is the containing
+  block for everything inside it.
+- **A heading's granularity, and the row that completes it.** Only *Today* and
+  *Yesterday* get one per day; the rest of the year groups by month and older
+  mail by year, so a heading marks where the mail changes era rather than
+  arriving every third row. Each group carries a `Span`, and its rows print what
+  it does not — the clock under *Today*, the weekday and day under *August*, the
+  day and month under *2025*. That narrows the adaptive format only: the other
+  four are explicit choices and are printed in full.
+- **The date track is measured.** The widest date on the page is picked by
+  character count, which is exact in a monospaced cell, and turned into pixels
+  by rendering one hidden copy of the real date cell and measuring it — again
+  after `document.fonts.ready`, since a width taken before the webfont lands is
+  wrong for the life of the page. A fixed column sized for `01 Apr 14:30` spent
+  seven characters on nothing when the page was all `22:03`; with the headings
+  carrying the date's coarse half it settles at about 56px on a real inbox.
 - **Keymap.** A pure module with an explicit mode state machine. One rule
   prevents the stuck-mode class of bugs: while a text field holds focus, only
   Escape and Ctrl chords are ours — and of the chords, only the ones that move
@@ -408,6 +450,17 @@ stay empty behind the prompt that just fixed it. See
   both requests failed, naming a file that was perfectly fine. Because the two
   complaints share one slot, a theme that loads retracts only the message the
   theme itself wrote.
+- **The sidebar is one account.** A box at the top names whose mail is below and
+  opens the account switcher; the rows under it are that account's mailboxes and
+  sections, and nothing else. Every account being a foldable group meant `j`
+  from the top of the pane landed on another account's name rather than on any
+  mail. The unified inbox is not lost with the *All inboxes* row: `ALL_ACCOUNTS`
+  is a group like any other, so it is what the box shows when the switcher's `0`
+  is picked. Eight letters jump straight to a row — `i`/`s`/`d`/`f`/`a` for the
+  mailboxes, `t`/`m`/`q` for the sections — and they are pane-scoped, which is
+  what lets `s` be Sent here while staying `sync` everywhere else. A view is
+  loaded as well as pointed at; a section only opens, and pressing its letter
+  again does not close it, because that is `Tab`.
 - **The phone.** A narrow screen shows one pane at a time, and which one it
   shows is `store.pane()` — the same three names the desktop moves between with
   `h`/`l`, so there is no second notion of where you are to drift. A `☰` in the

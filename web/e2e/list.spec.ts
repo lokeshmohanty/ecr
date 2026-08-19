@@ -2,26 +2,47 @@ import { configure, expect, open, test, ROW } from "./fixtures";
 
 /** The fixtures are all dated 01 Apr 2026, which is 05:30 later in Kolkata. */
 const dateCell = (page: import("@playwright/test").Page) =>
-  page.locator(`${ROW} .mono`).first();
+  page.locator(`${ROW} [data-date]`).first();
+
+const heading = (page: import("@playwright/test").Page) =>
+  page.locator("[data-heading]").first();
 
 test.describe("the list's date column", () => {
-  test("shows day, month and time for mail from earlier this year", async ({
-    page,
-    server,
-  }) => {
+  /**
+   * A row says what the heading above it does not. The fixtures are months old
+   * and inside the pinned clock's year, so they group under a month — and
+   * printing `01 Apr 19:30` under a heading that reads APRIL says the month
+   * twice and spends seven characters of a column the subject wants.
+   */
+  test("says what the heading above it does not", async ({ page, server }) => {
     await open(page, server);
-    await expect(dateCell(page)).toHaveText(/^01 Apr \d{2}:\d{2}/);
+
+    await expect(heading(page)).toHaveText("April");
+    await expect(dateCell(page)).toHaveText(/^Wed 01$/);
   });
 
-  test("renders the time in the configured zone, not the machine's", async ({
+  test("renders in the configured zone, not the machine's", async ({
     page,
     server,
   }) => {
-    await configure(server, '[reading]\ntimezone = "UTC"\n');
+    // 14:00 UTC on 01 April is 04:00 on the *second* at +14, so the weekday and
+    // the day both move — the whole reason boundaries are computed in the
+    // display zone rather than the machine's.
+    await configure(server, '[reading]\ntimezone = "Pacific/Kiritimati"\n');
 
     await open(page, server);
-    // 14:00 UTC is 19:30 in Kolkata; under UTC it must read 14:00.
-    await expect(dateCell(page)).toHaveText(/^01 Apr 14:00/);
+    await expect(dateCell(page)).toHaveText(/^Thu 02$/);
+  });
+
+  /** An explicit format is a choice, and a heading does not get to narrow it. */
+  test("a chosen format is printed in full under a heading", async ({
+    page,
+    server,
+  }) => {
+    await configure(server, '[reading]\ntimezone = "UTC"\nlist_date_format = "datetime"\n');
+
+    await open(page, server);
+    await expect(dateCell(page)).toHaveText(/^01 Apr 14:00$/);
   });
 
   test("the iso format is the same width for every row", async ({ page, server }) => {

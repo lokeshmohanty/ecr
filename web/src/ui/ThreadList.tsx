@@ -11,31 +11,99 @@ import type { ThreadSummary } from "../api/types";
 import { isOffline } from "../state/offline";
 import type { AppStore } from "../state/store";
 import { badgesFor } from "../state/store";
-import { formatListDate } from "../state/datetime";
-import { windowRange } from "./window";
+import { formatListDate, type Span } from "../state/datetime";
+import { entryAt, offsetsOf, windowSlice } from "./window";
+import { entriesOf, listGroups } from "../state/list-groups";
 import { createDelayed } from "./delayed";
-import { isNarrow } from "./narrow";
+import { isNarrow, PHONE_MAX, viewportWidth } from "./narrow";
+import { accountKeys, accountOf, type AccountKey } from "../state/account-keys";
+import { ALL_ACCOUNTS } from "../state/views";
 import { LONG_PRESS, drag, stillPressing, type Swipe } from "./row-gesture";
 import { Outbox } from "./Outbox";
 
 // Every row occupies exactly this much of the column, and the virtual
 // scroller's arithmetic is built on that — the height below is set from these
-// constants, so the two cannot drift. The card leaves room for a third line of
-// preview; a row whose preview the index has not read yet simply has space at
-// the bottom rather than a different height, which is what keeps the scroll
-// position honest.
+// constants, so the two cannot drift. A row is one line: the subject, and the
+// furniture that fits beside it.
 //
 // The gap is part of the pitch rather than a margin on top of it: a margin the
 // scroller does not know about puts every row a little lower than
-// `index * ROW_HEIGHT` says it is, and the error compounds down the list until
+// `index * rowHeight()` says it is, and the error compounds down the list until
 // the wrong thread is scrolled to.
 const ROW_GAP = 6;
-const ROW_HEIGHT = 76 + ROW_GAP;
+
+/** The card beside a pointer: one line of subject and its padding. */
+const CARD = 32;
+
+/**
+ * The card under a thumb.
+ *
+ * A row carries `touch-target`, which is `min-height: 44px` below `md` — and
+ * min-height wins over the inline height, so a 32px card on a phone is drawn
+ * at 44 while the scroller still counts 38. That is twelve pixels of error a
+ * row, compounding down the list until the row under the cursor is not the row
+ * the arithmetic named. The pitch follows the card rather than the card being
+ * clamped behind the pitch's back.
+ */
+const TOUCH_CARD = 44;
+
+const cardHeight = () => (viewportWidth() <= PHONE_MAX ? TOUCH_CARD : CARD);
+const rowHeight = () => cardHeight() + ROW_GAP;
+
+/**
+ * A heading, and the band the pinned copy of one occupies.
+ *
+ * One number for both: the heading that sticks to the top edge is the same
+ * height as the ones in the flow, so a heading sliding under it is exactly
+ * replaced rather than half-covered.
+ */
+const HEADING_HEIGHT = 26;
+
+/**
+ * What the date column of a row says.
+ *
+ * `span` is the granularity of the heading above it, and the row prints what
+ * that heading did not: the clock under *Today*, the weekday and day under
+ * *August*, the day and month under *2025*. Under no heading at all it is the
+ * whole adaptive date.
+ *
+ * Falls back to notmuch's own phrasing when the server sent no timestamp, so
+ * an older server still shows something rather than an empty column. Lifted out
+ * of the row because the pane measures the widest one to size the track, and a
+ * probe formatting dates by a second route would size the column for a string
+ * no row is going to print.
+ */
+function dateOf(thread: ThreadSummary, store: AppStore, span?: Span): string {
+  const preferences = store.settings().preferences;
+  return (
+    formatListDate(
+      thread.timestamp,
+      preferences.listDateFormat,
+      preferences.timezone,
+      undefined,
+      span,
+    ) || thread.date_relative
+  );
+}
+
+/**
+ * Whether the webfonts have arrived, as a signal.
+ *
+ * The date column is measured, and it is measured in a monospaced face that
+ * loads over the network — so a measurement taken before it lands sizes the
+ * track for the fallback and leaves it wrong for the life of the page. One
+ * promise for the module, because there is one list.
+ */
+const [fontsReady, setFontsReady] = createSignal(false);
+if (typeof document !== "undefined" && document.fonts)
+  void document.fonts.ready.then(() => setFontsReady(true));
 
 export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
   const [scroller, setScroller] = createSignal<HTMLDivElement | null>(null);
   const [scrollTop, setScrollTop] = createSignal(0);
   const [viewport, setViewport] = createSignal(0);
+  const [probe, setProbe] = createSignal<HTMLDivElement | null>(null);
+  const [dateWidth, setDateWidth] = createSignal(0);
 
   const items = createMemo(() => props.store.items());
 
@@ -55,7 +123,7 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
     // A line of this pane is a row, and the row's pitch is the same constant
     // the virtual scroller counts in — so a chord and the arithmetic under it
     // cannot disagree about where the next row starts.
-    props.store.setPaneScroller("list", element, () => ROW_HEIGHT);
+    props.store.setPaneScroller("list", element, rowHeight);
     onCleanup(() => props.store.setPaneScroller("list", null));
 
     const observer = new ResizeObserver(() => setViewport(element.clientHeight));
@@ -63,16 +131,133 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
     onCleanup(() => observer.disconnect());
   };
 
-  const range = createMemo(() =>
-    windowRange(items().length, scrollTop(), viewport(), ROW_HEIGHT),
+  /*
+   * The list is threads *and* the day headings between them, so what is drawn
+   * is `entries` rather than `items` — and the two must not be confused: a
+   * thread keeps the index it has in `items`, which is what the cursor, the
+   * selection and every tag operation are counted in.
+   *
+   * `now` is read once per page rather than per row, so a list rendered as
+   * midnight passes cannot put half its rows under *Today* and half under a
+   * date.
+   */
+  const groups = createMemo(() =>
+    listGroups(items(), props.store.settings().preferences.timezone),
+  );
+  const entries = createMemo(() => entriesOf(items(), groups()));
+
+  const heights = createMemo(() =>
+    entries().map((entry) => (entry.kind === "heading" ? HEADING_HEIGHT : rowHeight())),
   );
 
-  const visible = createMemo(() => {
-    const { start, end } = range();
-    return items()
-      .slice(start, end)
-      .map((thread, offset) => ({ thread, index: start + offset }));
+  const offsets = createMemo(() => offsetsOf(heights()));
+
+  /*
+   * The date track is sized to the dates that are actually on screen.
+   *
+   * `--date-column` was a constant wide enough for the longest form the
+   * adaptive format can produce — `01 Apr 14:30` — which is what a page of
+   * mail from last year looks like. A page of mail from today is all `22:03`,
+   * and the column went on holding room for seven characters nothing was going
+   * to print while the subject beside it truncated mid-word.
+   *
+   * The widest is picked by *character count*, which is exact rather than
+   * approximate: the cell is monospaced, so more characters is always wider.
+   * What it is worth in pixels is a question only the browser can answer, and
+   * only once the webfont has loaded, so a hidden copy of the cell is rendered
+   * and measured. That copy is the same component the rows use — a probe built
+   * out of its own markup would size the column for a cell that does not exist.
+   */
+  const widestDate = createMemo(() =>
+    entries().reduce((widest, entry) => {
+      if (entry.kind !== "thread") return widest;
+      const date = dateOf(entry.thread, props.store, entry.span);
+      return date.length > widest.length ? date : widest;
+    }, ""),
+  );
+
+  const anyAttachment = createMemo(() =>
+    items().some((thread) => thread.tags.includes("attachment")),
+  );
+
+  createEffect(() => {
+    // Named rather than inferred: the effect has to re-run when the strings
+    // change *and* when the font they are drawn in arrives.
+    widestDate();
+    anyAttachment();
+    fontsReady();
+
+    const element = probe();
+    if (!element) return;
+
+    // Rounded up, because a fractional track leaves the last character of the
+    // widest date a subpixel short of its own column and Chromium ellipsizes it.
+    const width = Math.ceil(element.getBoundingClientRect().width);
+    if (width > 0) setDateWidth(width);
   });
+
+  const range = createMemo(() =>
+    windowSlice(offsets(), scrollTop(), viewport()),
+  );
+
+  /**
+   * Where a thread's row starts, counting the headings above it.
+   *
+   * The cursor is an index into `items`, and the offset it needs is the entry's
+   * — off by one heading per day above it otherwise, which at the bottom of a
+   * long list is several rows of error.
+   */
+  const topOf = (index: number): number => {
+    const at = entries().findIndex(
+      (entry) => entry.kind === "thread" && entry.index === index,
+    );
+    return at < 0 ? 0 : offsets()[at]!;
+  };
+
+  /**
+   * The heading pinned to the top edge: whichever day the topmost visible entry
+   * belongs to.
+   *
+   * The one below it pushes it out of the way as it arrives, which is what
+   * keeps two headings from ever being legible at once — and is why the in-flow
+   * copy of the pinned day is not drawn at all (see `Day`, below).
+   */
+  const pinned = createMemo(() => {
+    const list = entries();
+    if (list.length === 0) return null;
+
+    const at = entryAt(offsets(), scrollTop());
+    for (let i = at; i >= 0; i -= 1) {
+      const entry = list[i];
+      if (entry?.kind === "heading") return entry;
+    }
+    return null;
+  });
+
+  /** How far the next heading has shoved the pinned one off the top edge. */
+  const push = createMemo(() => {
+    const list = entries();
+    const table = offsets();
+
+    for (let i = entryAt(table, scrollTop()) + 1; i < list.length; i += 1) {
+      if (list[i]?.kind !== "heading") continue;
+      const gap = table[i]! - scrollTop() - HEADING_HEIGHT;
+      return gap < 0 ? gap : 0;
+    }
+    return 0;
+  });
+
+  /*
+   * Which account a row belongs to, and only where that is a question. Inside
+   * one account every row would carry the same letter, which is a column of
+   * furniture saying nothing — so the chip is shown for the views that really
+   * do mix accounts, and the subject starts at the pane edge everywhere else.
+   */
+  const accountRows = createMemo(() => accountKeys(props.store.accounts() ?? []));
+  const showsAccounts = () =>
+    props.store.currentAccount() === ALL_ACCOUNTS && accountRows().length > 2;
+
+  const visible = createMemo(() => entries().slice(range().start, range().end));
 
   /*
    * Bringing the cursor back into view is the answer to the cursor having
@@ -92,11 +277,15 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
         const element = scroller();
         if (!element || items().length === 0) return;
 
-        const top = index * ROW_HEIGHT;
-        const bottom = top + ROW_HEIGHT;
+        const top = topOf(index);
+        const bottom = top + rowHeight();
 
-        if (top < element.scrollTop) {
-          element.scrollTop = top;
+        // A row brought to the very top would sit *under* the pinned heading,
+        // which covers that band — so the top edge, for this purpose, is one
+        // heading lower down. Clamped, because the first row of the list has
+        // nothing above it to make room for.
+        if (top - HEADING_HEIGHT < element.scrollTop) {
+          element.scrollTop = Math.max(0, top - HEADING_HEIGHT);
         } else if (bottom > element.scrollTop + element.clientHeight) {
           element.scrollTop = bottom - element.clientHeight;
         }
@@ -110,9 +299,28 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
     <section
       class="pane relative h-full border-r border-rule"
       classList={{ "pane-focused": focused() }}
+      style={{
+        // Until the probe has been measured the token's own value stands, so
+        // the first paint is a sensible column rather than a collapsed one.
+        ...(dateWidth() > 0 ? { "--date-column": `${dateWidth()}px` } : {}),
+      }}
       /* On capture, so a row opening a thread has the last word. */
       oncapture:click={() => props.store.setPane("list")}
     >
+      {/*
+        The ruler for the date track: one hidden copy of a row's date cell,
+        carrying the widest date on the page. `visibility: hidden` rather than
+        `display: none`, because a box that is not laid out has no width to
+        read.
+      */}
+      <div
+        ref={setProbe}
+        aria-hidden="true"
+        class="pointer-events-none invisible absolute top-0 left-0"
+      >
+        <DateCell when={widestDate()} attachment={anyAttachment()} />
+      </div>
+
       <header class="list-header-grid shrink-0 border-b border-rule bg-paper-2 px-3 py-2 text-xs uppercase tracking-wide text-ink-3">
         <span class="truncate-cell mono">{props.store.query()}</span>
         <span class="mono text-right">
@@ -121,6 +329,37 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
       </header>
 
       <Outbox store={props.store} />
+
+      {/*
+        The wrapper exists so the pinned heading has the scroller's own top edge
+        to sit on, rather than a measured distance from the pane's — the strip
+        above it comes and goes with the outbox, and a number would have to be
+        re-measured every time it did.
+      */}
+      <div class="relative flex min-h-0 flex-1 flex-col">
+      {/*
+        The heading for whatever is at the top edge, drawn over the scroller
+        rather than inside it — a `position: sticky` child cannot be had here,
+        because the rendered slab is `transform`ed and a transform makes the
+        containing block for everything inside it.
+
+        It is pushed out by the next day arriving, so two headings are never
+        both readable, and the in-flow copy of the day it names is not drawn at
+        all — see `Day`.
+      */}
+      <Show when={pinned()}>
+        {(day) => (
+          <div
+            class="pointer-events-none absolute top-0 right-0 left-0 z-10 overflow-hidden"
+            style={{ height: `${HEADING_HEIGHT}px` }}
+            aria-hidden="true"
+          >
+            <div style={{ transform: `translateY(${push()}px)` }}>
+              <Heading label={day().label} />
+            </div>
+          </div>
+        )}
+      </Show>
 
       <div
         ref={attach}
@@ -251,12 +490,42 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
             >
               <For each={visible()}>
                 {(entry) => (
-                  <Row thread={entry.thread} index={entry.index} store={props.store} />
+                  <Show
+                    when={entry.kind === "thread" ? entry : undefined}
+                    fallback={
+                      // The day the pinned heading is already showing is not
+                      // drawn again underneath it — but it still takes up its
+                      // box. `invisible` rather than not rendering: the offset
+                      // table says where every entry below this one starts, and
+                      // a heading that vanishes from the flow moves all of them
+                      // up by its own height while the table still says
+                      // otherwise.
+                      <Heading
+                        label={entry.kind === "heading" ? entry.label : ""}
+                        hidden={entry.kind === "heading" && entry.key === pinned()?.key}
+                      />
+                    }
+                  >
+                    {(row) => (
+                      <Row
+                        thread={row().thread}
+                        index={row().index}
+                        store={props.store}
+                        span={row().span}
+                        account={() =>
+                          showsAccounts()
+                            ? accountOf(row().thread.tags, accountRows())
+                            : undefined
+                        }
+                      />
+                    )}
+                  </Show>
                 )}
               </For>
             </div>
           </div>
         </Show>
+      </div>
       </div>
 
       {/*
@@ -266,7 +535,7 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
       */}
       <button
         type="button"
-        class="absolute right-4 bottom-4 flex size-14 items-center justify-center rounded-full bg-obligation text-xl text-paper shadow-lg md:hidden"
+        class="absolute right-4 bottom-4 flex size-14 items-center justify-center rounded-icon bg-obligation text-xl text-paper shadow-lg md:hidden"
         onClick={(event) => {
           event.stopPropagation();
           props.onCompose();
@@ -279,25 +548,42 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
   );
 }
 
-function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
+/**
+ * A heading, in the flow or pinned to the top edge — the same component
+ * either way, because they are the same height and the pinned one replaces the
+ * one sliding under it exactly.
+ *
+ * The height is written on the box rather than left to the line: it is one of
+ * the numbers in the offset table, and a heading that measured a pixel
+ * differently from what the table says would put every row below it a pixel
+ * out, compounding down the list.
+ */
+function Heading(props: { label: string; hidden?: boolean }) {
+  return (
+    <div
+      data-heading
+      class="flex items-center bg-paper px-3 text-[11px] font-semibold tracking-widest text-ink-3 uppercase"
+      classList={{ invisible: props.hidden }}
+      style={{ height: `${HEADING_HEIGHT}px` }}
+    >
+      {props.label}
+    </div>
+  );
+}
+
+function Row(props: {
+  thread: ThreadSummary;
+  index: number;
+  store: AppStore;
+  /** The granularity of the heading above, so the date says only the rest. */
+  span?: Span;
+  /** The account this row belongs to, where more than one is on screen. */
+  account: () => AccountKey | undefined;
+}) {
   const selected = () => props.store.selected() === props.index;
   const unread = () => props.thread.tags.includes("unread");
   const flagged = () => props.thread.tags.includes("flagged");
   const attachment = () => props.thread.tags.includes("attachment");
-
-  /**
-   * The first letter of the sender worth showing.
-   *
-   * A display name beats an address — `A` for Alice reads, `a` for
-   * `alice@example.com` is the same letter for half the internet — and anything
-   * that is neither is a dot rather than a blank, so the column never has a
-   * hole in it.
-   */
-  const initial = () => {
-    const who = props.thread.authors[0]?.trim() ?? "";
-    const letter = [...who].find((c) => /\p{L}|\p{N}/u.test(c));
-    return letter ?? "·";
-  };
 
   const badges = () => badgesFor(props.store.marks[props.thread.id]);
 
@@ -307,15 +593,7 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
   // reads as a range (the background) rather than as a column of marks.
   const isPicked = () => props.store.picked().includes(props.thread.id);
 
-  // Falls back to notmuch's own phrasing when the server sent no timestamp, so
-  // an older server still shows something rather than an empty column.
-  const when = () => {
-    const preferences = props.store.settings().preferences;
-    return (
-      formatListDate(props.thread.timestamp, preferences.listDateFormat, preferences.timezone) ||
-      props.thread.date_relative
-    );
-  };
+  const when = () => dateOf(props.thread, props.store, props.span);
 
   const open = () => {
     props.store.setSelected(props.index);
@@ -420,9 +698,9 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
 
   return (
     <div
-      class="row-grid row-card touch-target relative mx-1.5 cursor-pointer rounded-lg py-2 pl-2 pr-2.5"
+      class="row-grid row-card touch-target relative mx-1.5 cursor-pointer rounded-card py-1 pl-2 pr-2.5"
       style={{
-        height: `${ROW_HEIGHT - ROW_GAP}px`,
+        height: `${cardHeight()}px`,
         "margin-bottom": `${ROW_GAP}px`,
         transform: offset() === 0 ? undefined : `translateX(${offset()}px)`,
         // Sliding sideways must not also drag the row out of the list.
@@ -504,27 +782,11 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
         }
       />
 
-      {/* What is staged, so it can be read before x writes it. */}
-      <Show when={badges()}>
-        <span class="mono absolute left-6 text-[10px] text-blocking">{badges()}</span>
-      </Show>
-
-      {/*
-        The sender, as one letter. A list is scanned before it is read, and a
-        shape is quicker to recognise than a string — but the shape here is the
-        *initial*, not a colour: the three accents in the palette mean something,
-        and spending them on decoration would make every row look like a status
-        it does not have.
-      */}
-      <span class="sender-chip shrink-0" aria-hidden="true">
-        {initial()}
-      </span>
-
       <div class="flex min-w-0 items-center gap-2">
         <Show when={props.store.selectionMode()}>
           <span
             aria-hidden="true"
-            class="flex size-5 shrink-0 items-center justify-center rounded border text-xs"
+            class="flex size-5 shrink-0 items-center justify-center rounded-chip border text-xs"
             classList={{
               "border-obligation bg-obligation text-paper": isPicked(),
               "border-rule text-transparent": !isPicked(),
@@ -534,71 +796,111 @@ function Row(props: { thread: ThreadSummary; index: number; store: AppStore }) {
           </span>
         </Show>
 
-        <div class="min-w-0 flex-1">
-          <div
-            class="truncate-cell"
-            classList={{
-              "text-ink font-semibold": unread(),
-              "text-ink-2": !unread(),
-            }}
-          >
-            {props.thread.authors.join(", ") || "(no sender)"}
-          </div>
+        {/*
+          What is staged, so it can be read before x writes it. Beside the tape
+          rather than over it: on a one-line row there is no second line for a
+          badge to sit under, and an absolutely positioned one landed on the
+          subject.
+        */}
+        <Show when={badges()}>
           {/*
-            The subject carries `--ink-2`, not `--ink-3`. Three ink weights
-            exist and the third is for labels and furniture — a subject is the
-            thing being read, and dimming it below the sender inverted the
-            hierarchy every other mail client has: you scan a list for what a
-            message is about, not for who sent it.
+            Named, because it is no longer the only monospaced span on a row —
+            the thread count moved in beside it when the row became one line,
+            and `verify-marks` reading "the first `span.mono`" then read `(2)`
+            and reported a queue that would not clear.
           */}
-          <div
-            class="truncate-cell"
-            classList={{
-              "text-ink font-medium": unread(),
-              "text-ink-2": !unread(),
-            }}
-          >
-            {props.thread.subject || "(no subject)"}
-          </div>
-          {/*
-            The preview, once the index has read it. `--ink-3` is right here and
-            wrong for the subject above: this is the one part of a row that
-            really is furniture, there to be skimmed past.
-          */}
-          <Show when={props.thread.snippet}>
-            <div class="truncate-cell text-xs text-ink-3">
-              {props.thread.snippet}
-            </div>
-          </Show>
-        </div>
-      </div>
-
-      <div class="mono flex shrink-0 flex-col items-end gap-0.5 text-right text-xs text-ink-3">
-        <div class="flex items-center gap-1.5 whitespace-nowrap">
-          {/* notmuch tags these itself, so it costs no extra read. */}
-          <Show when={attachment()}>
-            <span
-              class="shrink-0"
-              aria-label="has an attachment"
-              title="has an attachment"
-            >
-              ◆
-            </span>
-          </Show>
-          {/*
-            The date never wraps. The column is sized for it, and a marker
-            beside it on a phone was enough to push `01 Apr 14:30` onto two
-            lines — which makes one row taller than the fixed height the
-            virtual scroller is built on.
-          */}
-          <span class="shrink-0" title={props.thread.date_relative}>
-            {when()}
+          <span data-badge class="mono shrink-0 text-[10px] text-blocking">
+            {badges()}
           </span>
-        </div>
+        </Show>
+
+        {/*
+          Which account this arrived in, as the letter that switches to it —
+          `accountKeys` hands out both, so the badge is never a second alphabet
+          to learn. Deliberately monochrome: the palette's three accents mean
+          proved, owed and blocking, and a colour per account would make every
+          row look like a status it does not have.
+        */}
+        <Show when={props.account()}>
+          {(account) => (
+            <span class="account-chip shrink-0" title={account().label} aria-hidden="true">
+              {account().key}
+            </span>
+          )}
+        </Show>
+
+        {/*
+          The subject, and nothing else. Every message in this mailbox is
+          addressed to the reader, so the sender was the one line of a row that
+          could be dropped without losing what the row is for — and the From
+          display name is not even reliably a person: GitHub and every other
+          notification sender puts the *actor's* name there, which on a CI
+          mailbox is the reader's own, on every row.
+        */}
+        <span
+          class="truncate-cell"
+          classList={{
+            "text-ink font-semibold": unread(),
+            "text-ink-2": !unread(),
+          }}
+        >
+          {props.thread.subject || "(no subject)"}
+        </span>
+
+        {/*
+          How many messages are under it. Beside the subject rather than under
+          the date: the date column is sized to the pixel for a date that must
+          never wrap, and this used to have a line of its own to sit on.
+        */}
         <Show when={props.thread.total > 1}>
-          <div class="text-proved">({props.thread.total})</div>
+          <span class="mono shrink-0 text-xs text-proved">({props.thread.total})</span>
         </Show>
       </div>
+
+      <DateCell
+        when={when()}
+        attachment={attachment()}
+        relative={props.thread.date_relative}
+      />
+    </div>
+  );
+}
+
+/**
+ * The right-hand column of a row: the attachment marker, then the date.
+ *
+ * A component rather than markup inside `Row` because the pane renders a
+ * *second*, hidden one to measure the track from — see `--date-column` above.
+ * Anything the two could differ by is a column sized for something no row
+ * prints, so there is only one of them.
+ *
+ * The date never wraps. The column is sized for it, and a marker beside it on a
+ * phone was once enough to push `01 Apr 14:30` onto two lines, which makes one
+ * row taller than the height the virtual scroller is built on.
+ */
+function DateCell(props: {
+  when: string;
+  attachment: boolean;
+  relative?: string;
+}) {
+  return (
+    <div
+      data-date
+      class="mono flex shrink-0 items-center justify-end gap-1.5 whitespace-nowrap text-right text-xs text-ink-3"
+    >
+      {/* notmuch tags these itself, so it costs no extra read. */}
+      <Show when={props.attachment}>
+        <span
+          class="shrink-0"
+          aria-label="has an attachment"
+          title="has an attachment"
+        >
+          ◆
+        </span>
+      </Show>
+      <span class="shrink-0" title={props.relative}>
+        {props.when}
+      </span>
     </div>
   );
 }

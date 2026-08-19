@@ -161,9 +161,12 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   connects that to a fetch: the list simply refuses to stay where it is put,
   and at a desktop height against the short fixture it does not happen at all,
   so it needs a window short enough for the list to overflow —
-  `web/e2e/scroll.spec.ts` holds one for a second and a half. The step is the
-  pane's own, registered with the scroller through `setPaneScroller`: the list
-  hands over the same `ROW_HEIGHT` its virtual scroller counts in, the sidebar
+  `web/e2e/scroll.spec.ts` holds one for a second and a half, and that window
+  had to *shrink* when rows became one line: six cards are 228px, so the height
+  that used to leave the list twice its pane's depth now fits it, and the tests
+  failed in `overflowing` rather than at the assertion they are about. The step
+  is the pane's own, registered with the scroller through `setPaneScroller`: the
+  list hands over the same pitch its virtual scroller counts in, the sidebar
   measures a rendered row because CSS sizes them and a heading is taller than a
   view, and a message has no pitch at all so it takes the store's default. One
   number for all three would be two thirds of a row in one pane and nearly
@@ -1003,10 +1006,35 @@ frame — the parent reaches into `contentDocument`, which is why the sandbox
 still never grants `allow-scripts`. Keys view mode does not claim fall through,
 so `r` still replies while reading.
 
-The sidebar is one **flat, index-addressable** list — `j`/`k` walk it by index
-and `Enter` acts on whatever `sidebarIndex` lands on, so nesting is expressed by
-each row's `indent`, never by structure. Under the expanded account group come
-the configured sections: `mailboxes` renders the view templates directly, `tags`
+**The sidebar is one account's mailboxes, and the account is a box above
+them.** It used to be every account, each a foldable group with the unified
+inbox pinned over them — so `j` from the top of the pane landed on another
+account's *name* rather than on any mail, and reaching the fourth account's
+Sent meant walking past three headings. The box names the account and opens the
+same switcher `A` opens; `ALL_ACCOUNTS` is a group like any other in `tree()`,
+so the unified inbox did not go anywhere — it is what the box shows when the
+switcher's `0` is picked, and the views below it are the unscoped ones. There
+is no separate *All inboxes* row any more, and no group rows at all:
+`expandedGroup()` stopped being *which fold is open* and became *whose mail this
+pane is showing*.
+
+Eight letters go straight to a row, and only in this pane: `i`/`s`/`d`/`f`/`a`
+for Inbox, Sent, Drafts, Flagged and Archive, `t`/`m`/`q` for the Tags, Mailing
+Lists and Queries sections. Seven were free — `a`, `d`, `f` and `t` belong to
+the list, `i` and `q` to a message, `m` to nothing — and `s` is the interesting
+one: it is `sync` globally, and a **pane-scoped binding beats an unscoped one**,
+which the engine has always done for `r` (refresh in a list, reply over a
+message). `describe()` had to learn the same rule, or the sidebar's help listed
+`s sync` and `s go to Sent` side by side, one of which is false. A view is
+*loaded* as well as pointed at; a section only opens, and pressing its letter
+twice does not close it — that is `Tab`'s job, and a jump that undid itself
+would be a toggle in a jump's clothing. `SIDEBAR_KEYS` is keyed by the letter,
+so a settings file that reorders or hides sections cannot move them.
+
+The rows themselves are one **flat, index-addressable** list — `j`/`k` walk it
+by index and `Enter` acts on whatever `sidebarIndex` lands on, so nesting is
+expressed by each row's `indent`, never by structure. The account's sections
+follow: `mailboxes` renders the view templates directly, `tags`
 and `lists` are foldable and gather their rows from the database, and `queries`
 is whatever the user saved. Only the account tags are kept out of `tags`, and
 which tags those are comes from the configured accounts — nothing in the code
@@ -1027,16 +1055,103 @@ notmuch cannot enumerate the values at all — so the server scans `List-Id`
 headers off recent message files. When the prefix is missing, the sidebar says
 so rather than showing rows that would match nothing, and `ecr doctor` warns.
 
-A row is a card, and the gap between two of them is **inside** `ROW_HEIGHT`.
-That constant is the pitch the virtual scroller counts in, so a margin it does
-not know about puts every row slightly below where `index * ROW_HEIGHT` says it
-is and the error compounds down the list. The rule and the lift are one
-`box-shadow` rather than a `border`: a border eats two pixels out of a box sized
-to the pixel for a third line of preview, and the line clips on exactly the rows
-that have one. The card's *surface* is a utility class on the row, not a
-declaration in `.row-card` — components.css is unlayered and Tailwind's
-utilities live in `@layer utilities`, so a `background` there would outrank
-`bg-obligation-bg` and the cursor would stop being visible.
+**A row is the subject, and nothing else.** Every message in a mailbox is
+addressed to the reader, so the sender was the one line that could go without
+losing what a row is for — and the `From` display name is not reliably a person
+either: GitHub and every other notification sender puts the *actor's* name
+there, which on a CI mailbox is the reader's own name, on every row, which is
+what made this worth changing. What is left is one line: the staged badge, the
+account chip, the subject, the thread count, then the attachment marker and the
+date in the fixed track. The preview is gone with the sender; the snippet is
+still on the wire and still what `announce.ts` puts in a notification.
+
+Where a view mixes accounts — All inboxes, a cross-account query — each row
+carries **the letter that switches to its account**, out of the same
+`accountKeys` table `]a` walks, so the badge is never a second alphabet to
+learn. An account id *is* a notmuch tag, so `accountOf` is a set intersection
+rather than anything to ask the server for. Inside one account the chip is not
+drawn: it would be the same letter on every row, and it lives *inside* the text
+cell rather than in a track of its own because an empty grid track still costs
+its `column-gap` — a chip that is merely absent would leave every subject
+indented behind nothing.
+
+A row is a card, and the gap between two of them is **inside** the pitch the
+virtual scroller counts in, so a margin it does not know about puts every row
+slightly below where `index * rowHeight()` says it is and the error compounds
+down the list. The pitch is a function rather than a constant, and it follows
+the card: 32+6 beside a pointer, 44+6 under a thumb. That second number is not
+a taste — a row carries `touch-target`, which is `min-height: 44px` below `md`,
+and min-height wins over the inline height, so a shorter card on a phone is
+*drawn* at 44 while the arithmetic still counts 38. Twelve pixels a row,
+compounding, until the row under the cursor is not the row the scroller named.
+The rule and the lift are one `box-shadow` rather than a `border`: a border eats
+two pixels out of a box sized to the pixel, and the subject clips. The card's
+*surface* is a utility class on the row, not a declaration in `.row-card` —
+components.css is unlayered and Tailwind's utilities live in `@layer utilities`,
+so a `background` there would outrank `bg-obligation-bg` and the cursor would
+stop being visible.
+
+The staged badge carries `data-badge`, and that is load-bearing:
+`verify-marks` used to read "the first `span.mono`" in a row, which was the
+badge only while the thread count had a line of its own. On a one-line row the
+count moved in beside it, and the suite reported a queue that would not clear.
+
+**The list is threads *and* the headings between them, so the scroller
+counts in an offset table rather than a pitch.** `index * pitch` is the whole of
+`windowRange`, and one 26px heading makes every offset below it wrong by 26px
+per heading above it — the same compounding error the row gap is *inside* the
+pitch to avoid, arriving by another door. `offsetsOf` is a prefix sum over the
+entries' heights, `entryAt` binary-searches it, and `windowSlice` is
+`windowRange`'s contract over that table. Both still exist: the sidebar has no
+headings and no reason to pay for one.
+
+**The granularity is not uniform, and a row prints what its heading does not.**
+Only *Today* and *Yesterday* get a heading per day — they are how a reader
+thinks about the top of a list; the rest of this year is grouped by month and
+everything before it by year, because a heading per day is a rule every third
+row on a quiet mailbox, which the eye has to step over to find mail. Each group
+carries a `Span` (`day`/`month`/`year`) and hands it to its rows, so the row
+says the remainder and only the remainder: the clock under *Today*, the weekday
+and day under *August*, the day and month under *2025*. One value decides both
+halves, so they cannot drift into saying the month twice — which is what
+`18 Aug 23:15` under a heading reading AUGUST was doing, in a column the
+subject wanted. It narrows the **adaptive** format alone: `iso`, `time`,
+`datetime` and `relative` are explicit choices, and quietly dropping half of one
+because a heading mentioned the month answers a question nobody asked.
+
+Two things about headings are easy to get wrong and are pinned by tests. They
+group **contiguous runs**, not unique periods: the list is in whatever order the
+query answered, and gathering every row of a month under one heading would
+reorder the mail to suit the furniture, so a period that appears twice gets two
+headings. And every boundary is computed in the **display timezone**, the same
+rule `datetime.ts` keeps — the year's edge included, where 31 December here is
+1 January there — or a heading disagrees with the clock printed beside it on
+its own rows. The pinned copy at the top edge is not `position: sticky` —
+the rendered slab is `transform`ed, and a transform is the containing block for
+everything inside it — so it is drawn over the scroller and pushed out by the
+next heading arriving. The in-flow copy of the day being pinned is rendered
+`invisible` rather than not rendered: it still owns its box, and a heading that
+left the flow would move every row below it while the offset table went on
+saying otherwise.
+
+**The date track is measured, not chosen.** `--date-column` was a constant wide
+enough for `01 Apr 14:30`, which is what last year's mail looks like; today's
+mail is all `22:03`, and the column held room for seven characters nothing was
+going to print while the subject truncated mid-word. The widest date on the page
+is picked by *character count* — exact, because the cell is monospaced — and
+turned into pixels by rendering one hidden copy of the real `DateCell` and
+measuring it. It is the same component the rows use on purpose: a probe built
+from its own markup sizes the column for a cell that does not exist. The
+measurement re-runs on `document.fonts.ready`, because a width taken before the
+mono webfont lands is wrong for the life of the page, and the token's own value
+is only what the column is until then. The list header stopped sharing the
+track — its right-hand cell is a count, and `100/26265` was being truncated to
+fit a date column it has nothing to do with.
+
+The three radii are tokens in `@theme` — `--radius-chip`, `--radius-card`,
+`--radius-icon`, so `rounded-chip`/`rounded-card`/`rounded-icon` exist as
+utilities. Pills are deliberately not among them: Compose, Settings and the
+attachment chips are `rounded-full` because that shape is what says *button*.
 
 The list formats its own dates. `ThreadSummary.timestamp` drives
 `state/datetime.ts`, not notmuch's `date_relative` — that string is a sentence

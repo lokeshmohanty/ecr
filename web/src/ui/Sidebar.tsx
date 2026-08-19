@@ -1,12 +1,14 @@
-import { For, Show, createEffect, onCleanup } from "solid-js";
+import { For, Show, createEffect, createMemo, onCleanup } from "solid-js";
 import { titleCase, type AppStore, type SidebarRow } from "../state/store";
 import { ALL_ACCOUNTS } from "../state/views";
+import { accountKeys } from "../state/account-keys";
 import { isNarrow } from "./narrow";
 
 export function Sidebar(props: {
 	store: AppStore;
 	onCompose: () => void;
 	onSettings: () => void;
+	onSwitchAccount: () => void;
 }) {
 	let scroller: HTMLDivElement | undefined;
 
@@ -27,6 +29,29 @@ export function Sidebar(props: {
 	const focused = () => props.store.pane() === "sidebar";
 	const rows = () => props.store.sidebarRows();
 	const preferences = () => props.store.settings().preferences;
+
+	/**
+	 * The account whose mailboxes are below, as the switcher's own row.
+	 *
+	 * Taken from `accountKeys` so the letter in the box is the letter that
+	 * picks it in the switcher — the same table the thread list's account chips
+	 * come from, so a row marked `z` and the box that says `z` cannot disagree.
+	 */
+	const current = createMemo(() => {
+		const group = props.store.expandedGroup();
+		const rows = accountKeys(props.store.accounts() ?? []);
+		const found = rows.find((row) => row.id === group);
+
+		if (found && found.id !== ALL_ACCOUNTS)
+			return { ...found, label: titleCase(found.label) };
+
+		return {
+			id: ALL_ACCOUNTS,
+			label: "All accounts",
+			address: undefined,
+			key: rows[0]?.key ?? "0",
+		};
+	});
 
 	createEffect(() => {
 		const index = props.store.sidebarIndex();
@@ -74,7 +99,46 @@ export function Sidebar(props: {
       */
 			oncapture:click={() => props.store.setPane("sidebar")}
 		>
-			<div ref={attach} class="scroll-y flex-1 px-2 py-2" data-sidebar-scroll>
+			{/*
+				Which account these mailboxes belong to, and the way to a different
+				one. It is a button rather than a heading because the question it
+				answers — *whose inbox is this* — and the act it affords — *show me
+				another* — are the same thing, and a heading beside a control that
+				did it would be two rows saying one thing.
+
+				It opens the switcher the `A` key opens, rather than a menu of its
+				own: the switcher already carries every account with the letter that
+				reaches it, and a second list could only drift from it.
+			*/}
+			<div class="shrink-0 p-2">
+				<button
+					type="button"
+					class="touch-target flex w-full items-center gap-2 rounded-card border border-rule bg-paper px-2.5 py-2 text-left hover:bg-neutral-bg"
+					onClick={props.onSwitchAccount}
+					aria-haspopup="dialog"
+					title="Switch account (A)"
+					data-account-box
+				>
+					<span class="account-chip shrink-0" aria-hidden="true">
+						{current().key}
+					</span>
+					<span class="min-w-0 flex-1">
+						<span class="truncate-cell block font-semibold text-ink">
+							{current().label}
+						</span>
+						<Show when={current().address}>
+							<span class="truncate-cell block text-[11px] text-ink-3">
+								{current().address}
+							</span>
+						</Show>
+					</span>
+					<span class="shrink-0 text-ink-3" aria-hidden="true">
+						▾
+					</span>
+				</button>
+			</div>
+
+			<div ref={attach} class="scroll-y flex-1 px-2 pb-2" data-sidebar-scroll>
 				<For each={rows()}>
 					{(row, index) => (
 						<Row
@@ -84,6 +148,7 @@ export function Sidebar(props: {
 							cursor={focused() && props.store.sidebarIndex() === index()}
 							icons={preferences().sidebarIcons}
 							leaders={preferences().sidebarLeaders}
+							shortcut={props.store.sidebarKeyFor(row)}
 							onActivate={() => activate(index())}
 						/>
 					)}
@@ -134,6 +199,8 @@ function Row(props: {
 	cursor: boolean;
 	icons: boolean;
 	leaders: boolean;
+	/** The letter that reaches this row from the sidebar, if it has one. */
+	shortcut: string;
 	onActivate: () => void;
 }) {
 	const row = () => props.row;
@@ -165,9 +232,9 @@ function Row(props: {
 			class="flex w-full items-baseline gap-2 rounded-full py-1.5 pr-3 text-left"
 			classList={{
 				"mt-2 first:mt-0 tracking-widest": row().kind === "group",
-				"mt-1 tracking-wide": row().kind === "section",
+				"mt-2 tracking-wide": row().kind === "section",
 				"text-xs tracking-wide": row().kind === "view",
-				"pl-2.5": row().indent === 0,
+				"pl-1.5": row().indent === 0,
 				"pl-4": row().indent === 1,
 				"pl-7": row().indent === 2,
 				"bg-obligation-bg text-ink": active(),
@@ -179,6 +246,19 @@ function Row(props: {
 			aria-expanded={foldable() ? open() : undefined}
 			onClick={props.onActivate}
 		>
+			{/*
+				The letter that reaches this row, in a fixed slot of its own so the
+				labels still line up on the rows that have none. Hidden below `md`
+				for the reason every other hint is: a phone cannot press it, and a
+				key you cannot use is worse than no key at all.
+			*/}
+			<span
+				class="mono w-3 shrink-0 text-center text-[10px] text-ink-3 max-md:hidden"
+				aria-hidden="true"
+			>
+				{props.shortcut}
+			</span>
+
 			<Show when={foldable()}>
 				<span class="shrink-0 text-ink-3">{open() ? "▾" : "▸"}</span>
 			</Show>

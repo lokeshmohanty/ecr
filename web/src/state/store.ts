@@ -1308,42 +1308,24 @@ export function createAppStore() {
 		const sections = preferences.sidebarSections;
 
 		/*
-		 * One row for everything that has arrived, pinned above the accounts.
+		 * One account, and which one is the account box's business.
 		 *
-		 * The unscoped `tag:inbox` under "All Accounts" has always been a unified
-		 * inbox, but only while that group was the expanded one — so a reader
-		 * looking at their work account had no way back to everything without
-		 * collapsing it first. This is the row every other client opens on.
+		 * The sidebar used to be every account, each a foldable group, with the
+		 * unified inbox pinned above them — five accounts' worth of headings to
+		 * walk past to reach a mailbox, and `j` from the top of it landed on
+		 * another account's name rather than on any mail. What replaced it is a
+		 * box at the top naming the account and a list of *its* mailboxes below,
+		 * so the rows in this pane are always mail and the cursor never leaves
+		 * the account the reader chose.
 		 *
-		 * Only with more than one account: with one, it is the same query as the
-		 * Inbox directly below it, and two rows that do the same thing is worse
-		 * than one.
+		 * `ALL_ACCOUNTS` is a group like any other in `tree()`, so the unified
+		 * inbox did not go anywhere: it is what the box shows when the switcher's
+		 * `0` is picked, and its views are the unscoped ones.
 		 */
-		if ((accounts() ?? []).length > 1) {
-			rows.push({
-				kind: "view",
-				name: "All inboxes",
-				group: ALL_ACCOUNTS,
-				query: "tag:inbox",
-				icon: "▤",
-				indent: 0,
-				counted: true,
-			});
-		}
+		const group = tree().find((g) => g.account === expandedGroup());
+		if (!group) return rows;
 
-		for (const group of tree()) {
-			rows.push({
-				kind: "group",
-				name: group.account,
-				group: group.account,
-				query: group.views[0]?.query ?? "*",
-				icon: "",
-				indent: 0,
-				counted: false,
-			});
-
-			if (expandedGroup() !== group.account) continue;
-
+		{
 			for (const section of sections) {
 				if (section === "mailboxes") {
 					for (const view of group.views) {
@@ -1353,7 +1335,7 @@ export function createAppStore() {
 							group: group.account,
 							query: view.query,
 							icon: view.icon,
-							indent: 1,
+							indent: 0,
 							counted: true,
 						});
 					}
@@ -1368,7 +1350,7 @@ export function createAppStore() {
 					group: group.account,
 					query: "",
 					icon: label.icon,
-					indent: 1,
+					indent: 0,
 					counted: false,
 					section,
 				});
@@ -1390,13 +1372,81 @@ export function createAppStore() {
 						group: group.account,
 						query: entry.query,
 						icon: entry.icon,
-						indent: 2,
+						indent: 1,
 						counted: true,
 					});
 				}
 			}
 		}
 		return rows;
+	}
+
+	/**
+	 * The mailbox each sidebar key goes to, and the section each one opens.
+	 *
+	 * Keyed by the letter rather than by position: a reader presses `s` for Sent
+	 * and it must be Sent whatever else the sidebar is showing, including a
+	 * settings file that has reordered the sections or turned some off.
+	 */
+	const SIDEBAR_KEYS: Record<string, { view?: string; section?: SectionId }> = {
+		i: { view: "Inbox" },
+		s: { view: "Sent" },
+		d: { view: "Drafts" },
+		f: { view: "Flagged" },
+		a: { view: "Archive" },
+		t: { section: "tags" },
+		m: { section: "lists" },
+		q: { section: "queries" },
+	};
+
+	/**
+	 * Goes straight to a mailbox, or opens a section.
+	 *
+	 * A view is loaded as well as pointed at, which is what makes `i` mean *go
+	 * to the inbox* rather than *put the cursor near it*. A section only opens:
+	 * it has no query of its own, and a jump that closed what was already open
+	 * would make the second press of a key undo the first, which is a toggle
+	 * wearing a jump's clothes — `Tab` is the toggle.
+	 *
+	 * Answers whether it landed on a mailbox, so a phone knows to show it.
+	 */
+	function jumpSidebar(key: string): boolean {
+		const target = SIDEBAR_KEYS[key];
+		if (!target) return false;
+
+		const rows = sidebarRows();
+
+		if (target.section) {
+			const at = rows.findIndex(
+				(row) => row.kind === "section" && row.section === target.section,
+			);
+			if (at < 0) return false;
+
+			setSidebarIndex(at);
+			const row = rows[at]!;
+			if (!expandedSections().has(sectionKey(row.group, target.section)))
+				toggleSection(row.group, target.section);
+			return false;
+		}
+
+		const at = rows.findIndex(
+			(row) => row.kind === "view" && row.name === target.view,
+		);
+		if (at < 0) return false;
+
+		setSidebarIndex(at);
+		selectQuery(rows[at]!.query);
+		return true;
+	}
+
+	/** The letter that reaches a sidebar row, for the row to show. */
+	function sidebarKeyFor(row: SidebarRow): string {
+		const found = Object.entries(SIDEBAR_KEYS).find(([, target]) =>
+			row.kind === "section"
+				? target.section === row.section
+				: row.kind === "view" && target.view === row.name,
+		);
+		return found?.[0] ?? "";
 	}
 
 	/** The rows a gathered section contributes, newest data first. */
@@ -2074,10 +2124,11 @@ export function createAppStore() {
 		const group = tree().find((g) => g.account === id);
 		selectQuery(group?.views[0]?.query ?? `tag:${id}`);
 
-		const row = sidebarRows().findIndex(
-			(r) => r.kind === "group" && r.group === id,
-		);
-		if (row >= 0) setSidebarIndex(row);
+		// The inbox, which is both what just loaded and the first row of the
+		// account that just replaced the one under the cursor. Leaving the index
+		// where it was pointed it at whatever row of the *previous* account
+		// happened to share its position — a saved query, or nothing at all.
+		setSidebarIndex(0);
 
 		setStatus(id === ALL_ACCOUNTS ? "all accounts" : `account ${id}`);
 	}
@@ -2262,6 +2313,8 @@ export function createAppStore() {
 		sidebarRows,
 		moveSidebar,
 		activateSidebar,
+		jumpSidebar,
+		sidebarKeyFor,
 		expandedAccount,
 		setExpandedAccount,
 		messageIndex,

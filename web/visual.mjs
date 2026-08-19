@@ -172,14 +172,13 @@ const STATES = [
     },
   },
   {
-    name: "04-account-expanded",
-    description: "an account group expanded to its views",
+    name: "04-account-switcher",
+    description: "the switcher the account box opens",
     async setup(page) {
-      await page.evaluate(() => {
-        [...document.querySelectorAll("nav button")]
-          .find((b) => b.textContent.toLowerCase().includes("main"))
-          ?.click();
-      });
+      // What replaced expanding an account group in the sidebar: the box names
+      // the account whose mailboxes are below it, and opens this to change it.
+      await page.click("[data-account-box]");
+      await page.waitForSelector("[role='dialog']");
     },
   },
   {

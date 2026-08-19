@@ -7,13 +7,18 @@ import { expect, open, test, ROW } from "./fixtures";
  * what makes any of it observable — at a desktop height the fixture's list and
  * sidebar both fit, `scrollTop` never leaves zero, and a test of scrolling
  * passes whatever the client does.
+ *
+ * The window for the list is shorter than the sidebar's, and has to be: six
+ * one-line cards are 228px, so the height that used to leave the list twice its
+ * pane's depth now fits it with room to spare. `overflowing` is what says so —
+ * it fails at its own timeout rather than at the assertion the test is about.
  */
 const listScroll = "[data-list-scroll]";
 const sidebarScroll = "[data-sidebar-scroll]";
 const threadScroll = "[data-thread-scroll]";
 
 /** The row pitch the virtual scroller counts in: the card plus its gap. */
-const ROW_HEIGHT = 82;
+const ROW_HEIGHT = 38;
 
 const scrollTop = (page: Page, selector: string) =>
   page.locator(selector).evaluate((el) => el.scrollTop);
@@ -36,7 +41,7 @@ async function overflowing(page: Page, selector: string): Promise<void> {
 
 test.describe("keyboard scrolling", () => {
   test("ctrl-e and ctrl-y move the list a row at a time", async ({ page, server }) => {
-    await page.setViewportSize({ width: 1400, height: 400 });
+    await page.setViewportSize({ width: 1400, height: 240 });
     await open(page, server);
     await overflowing(page, listScroll);
 
@@ -61,7 +66,7 @@ test.describe("keyboard scrolling", () => {
   });
 
   test("ctrl-d takes half of the pane it is pressed in", async ({ page, server }) => {
-    await page.setViewportSize({ width: 1400, height: 400 });
+    await page.setViewportSize({ width: 1400, height: 240 });
     await open(page, server);
     await overflowing(page, listScroll);
 

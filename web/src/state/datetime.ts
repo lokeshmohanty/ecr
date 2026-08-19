@@ -29,7 +29,25 @@ export function isTimezone(zone: string): boolean {
   }
 }
 
+/**
+ * How much of a date a list heading has already said.
+ *
+ * The list groups its rows under headings, and a row's date is what the
+ * heading above it does not carry: under *Today* the clock is all that is
+ * left to say, under *August* the day, under *2025* the day and the month.
+ * Printing `18 Aug 23:15` under a heading that reads AUGUST says the month
+ * twice and spends seven characters of a column the subject wants.
+ */
+export type Span = "day" | "month" | "year";
+
 const cache = new Map<string, Intl.DateTimeFormat>();
+
+export function zoneFormatter(
+  zone: string,
+  options: Intl.DateTimeFormatOptions,
+): Intl.DateTimeFormat {
+  return formatter(zone, options);
+}
 
 function formatter(zone: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
   const key = `${zone}|${JSON.stringify(options)}`;
@@ -50,23 +68,29 @@ function formatter(zone: string, options: Intl.DateTimeFormatOptions): Intl.Date
  * date parts and comparing the strings is what makes that zone-correct without
  * pulling in a date library.
  */
-function dayKey(date: Date, zone: string): string {
+export function dayKey(date: Date, zone: string): string {
   return formatter(zone, { year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 }
 
-function yearOf(date: Date, zone: string): string {
+export function yearOf(date: Date, zone: string): string {
   return formatter(zone, { year: "numeric" }).format(date);
 }
 
 /**
  * `now` is a parameter rather than `Date.now()` so the boundaries are testable
  * and so a list rendered in one pass cannot straddle midnight.
+ *
+ * `under` is the heading this row is sitting beneath, and it narrows the
+ * *adaptive* format only. The other four are explicit choices — somebody who
+ * asked for ISO wants ISO on every row, and quietly dropping half of it because
+ * a heading mentioned the month would be answering a question they did not ask.
  */
 export function formatListDate(
   timestamp: number,
   format: DateFormat,
   zone: string,
   now: Date = new Date(),
+  under?: Span,
 ): string {
   if (!Number.isFinite(timestamp) || timestamp <= 0) return "";
 
@@ -75,6 +99,8 @@ export function formatListDate(
 
   const time = () => formatter(zone, { hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
   const dayMonth = () => formatter(zone, { day: "2-digit", month: "short" }).format(date);
+  const weekdayDay = () =>
+    formatter(zone, { weekday: "short", day: "2-digit" }).format(date);
   const iso = () =>
     formatter(zone, { year: "numeric", month: "2-digit", day: "2-digit" })
       .format(date)
@@ -93,6 +119,14 @@ export function formatListDate(
       return relative(date, now, zone);
     case "adaptive":
     default:
+      // What the heading above has not already said. The weekday comes in at
+      // month granularity because within a month the day number alone reads as
+      // an index — and which day of the week a message arrived is most of what
+      // anyone remembers about when it did.
+      if (under === "day") return time();
+      if (under === "month") return weekdayDay();
+      if (under === "year") return dayMonth();
+
       if (dayKey(date, zone) === dayKey(now, zone)) return time();
       if (yearOf(date, zone) === yearOf(now, zone)) return `${dayMonth()} ${time()}`;
       return iso();

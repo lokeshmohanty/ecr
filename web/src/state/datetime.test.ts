@@ -80,6 +80,42 @@ describe("formatListDate, bad input", () => {
   });
 });
 
+/**
+ * A row says what the heading above it does not. `18 Aug 23:15` under a
+ * heading that reads AUGUST says the month twice and spends seven characters
+ * of a column the subject wants.
+ */
+describe("formatListDate, under a heading", () => {
+  const april = at("2026-04-04T03:45:00Z");
+
+  it("leaves only the clock under a day", () => {
+    expect(formatListDate(april, "adaptive", KOLKATA, NOW, "day")).toBe("09:15");
+  });
+
+  it("leaves the weekday and day under a month", () => {
+    expect(formatListDate(april, "adaptive", KOLKATA, NOW, "month")).toBe("Sat 04");
+  });
+
+  it("leaves the day and month under a year", () => {
+    expect(formatListDate(april, "adaptive", KOLKATA, NOW, "year")).toBe("04 Apr");
+  });
+
+  it("says the whole date when nothing above it has", () => {
+    expect(formatListDate(april, "adaptive", KOLKATA, NOW)).toBe("04 Apr 09:15");
+  });
+
+  /**
+   * The other four formats are explicit choices. Somebody who asked for ISO
+   * wants ISO on every row, and dropping half of it because a heading mentioned
+   * the month would be answering a question they did not ask.
+   */
+  it("narrows the adaptive format and no other", () => {
+    expect(formatListDate(april, "iso", KOLKATA, NOW, "month")).toBe("2026-04-04");
+    expect(formatListDate(april, "datetime", KOLKATA, NOW, "day")).toBe("04 Apr 09:15");
+    expect(formatListDate(april, "time", KOLKATA, NOW, "year")).toBe("09:15");
+  });
+});
+
 describe("validation", () => {
   it("knows the formats it supports", () => {
     expect(isDateFormat("adaptive")).toBe(true);

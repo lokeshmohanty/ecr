@@ -5,8 +5,13 @@
  *
  * `.row-grid` is a *thread row*, and stays so: every verify script and the e2e
  * fixtures select rows by this class, so renaming it is renaming a public
- * interface that fourteen files depend on. The tracks are the tape, the sender
- * chip, the text and the date.
+ * interface that fourteen files depend on. The tracks are the tape, the text
+ * and the date.
+ *
+ * The account chip is inside the text cell rather than a track of its own,
+ * because it is shown only where more than one account is on screen — and an
+ * empty track still costs its `column-gap`, so a chip that is merely absent
+ * would leave the subject indented behind nothing.
  *
  * The gap is tight because the tape is a margin on the row and has to read as
  * attached to it — at the wider gap it floated in the gutter between the pane
@@ -15,7 +20,7 @@
  */
 .row-grid {
   display: grid;
-  grid-template-columns: 3px auto 1fr var(--date-column);
+  grid-template-columns: 3px 1fr var(--date-column);
   column-gap: 0.625rem;
   align-items: center;
 }
@@ -66,32 +71,43 @@
     0 1px 3px rgb(0 0 0 / 0.28);
 }
 
-/* The list's own header, which has no tape and no sender. */
+/*
+ * The list's own header, which has no tape and no chip.
+ *
+ * Its right-hand cell is a count rather than a date, so it sizes itself: while
+ * it shared `--date-column` with the rows, a page of mail from today shrank
+ * that track to five characters and truncated `100/26265` to fit a column it
+ * has nothing to do with.
+ */
 .list-header-grid {
   display: grid;
-  grid-template-columns: 1fr var(--date-column);
+  grid-template-columns: 1fr auto;
   column-gap: 0.75rem;
   align-items: baseline;
 }
 
 /*
- * The sender chip. Deliberately monochrome: the palette's three accents mean
- * proved, owed and blocking, and a colour wheel of avatars would be decoration
- * wearing the clothes of a status. One initial, one surface, and the row stays
+ * The account chip. Deliberately monochrome: the palette's three accents mean
+ * proved, owed and blocking, and a colour per account would be decoration
+ * wearing the clothes of a status. One letter, one surface, and the row stays
  * readable as a status board rather than a fruit salad.
+ *
+ * The letter is printed as `accountKeys` hands it over — lowercase, digits
+ * included — rather than upcased into a tidier badge: it is the key that
+ * switches to that account, and a badge showing `Z` for a key you press as `z`
+ * is a mnemonic with a step in it.
  */
-.sender-chip {
+.account-chip {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 9999px;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: var(--radius-chip);
   background: var(--color-neutral-bg);
   color: var(--color-ink-2);
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   font-weight: 600;
-  text-transform: uppercase;
   user-select: none;
 }
 

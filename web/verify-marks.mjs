@@ -38,7 +38,7 @@ const badges = () =>
 			...document.querySelectorAll(
 				"[class*='row-grid'][class*='cursor-pointer']",
 			),
-		].map((row) => row.querySelector("span.mono")?.textContent ?? ""),
+		].map((row) => row.querySelector("[data-badge]")?.textContent ?? ""),
 	);
 
 const tapes = () =>

@@ -99,10 +99,70 @@ test.describe("sidebar", () => {
     await open(page, server);
 
     await page.keyboard.press("h");
+
+    // The first row is the Inbox now that the account is a box above the list
+    // rather than a heading in it, so `j` is the second mailbox and `k` is the
+    // way back to the first.
     await page.keyboard.press("j");
     await page.keyboard.press("Enter");
+    await expect(page.locator("#ecr-query")).toHaveValue(/tag:unread/);
 
+    await page.keyboard.press("k");
+    await page.keyboard.press("Enter");
     await expect(page.locator("#ecr-query")).toHaveValue(/tag:inbox/);
+  });
+
+  /**
+   * The letters exist because the sidebar is the one pane where none of them
+   * had anything to do — `s` is sync everywhere else, and a pane-scoped binding
+   * beating an unscoped one is what lets it be Sent here without taking sync
+   * away from anywhere it already worked.
+   */
+  test("a letter goes straight to its mailbox, and s is Sent rather than sync", async ({
+    page,
+    server,
+  }) => {
+    await open(page, server);
+    await page.keyboard.press("h");
+
+    await page.keyboard.press("s");
+    await expect(page.locator("#ecr-query")).toHaveValue(/from:|tag:sent/);
+
+    await page.keyboard.press("i");
+    await expect(page.locator("#ecr-query")).toHaveValue(/tag:inbox/);
+
+    await page.keyboard.press("f");
+    await expect(page.locator("#ecr-query")).toHaveValue(/tag:flagged/);
+  });
+
+  /** A section has no query of its own, so its letter opens it and stops. */
+  test("a section letter opens the section without loading anything", async ({
+    page,
+    server,
+  }) => {
+    await open(page, server);
+    await page.keyboard.press("h");
+    await page.keyboard.press("i");
+
+    const tags = page.locator("[data-kind='section']").first();
+    await expect(tags).toHaveAttribute("aria-expanded", "false");
+
+    await page.keyboard.press("t");
+    await expect(tags).toHaveAttribute("aria-expanded", "true");
+    // Opening a fold is not choosing a mailbox: the list is where `i` left it.
+    await expect(page.locator("#ecr-query")).toHaveValue(/tag:inbox/);
+
+    // And it is a jump rather than a toggle — pressing it again must not undo
+    // what it just did.
+    await page.keyboard.press("t");
+    await expect(tags).toHaveAttribute("aria-expanded", "true");
+  });
+
+  test("the account box opens the switcher", async ({ page, server }) => {
+    await open(page, server);
+
+    await page.locator("[data-account-box]").click();
+    await expect(page.getByRole("dialog", { name: "Switch account" })).toBeVisible();
   });
   /**
    * Clicking a view left the keys pointed at the sidebar, so the `j` after it
