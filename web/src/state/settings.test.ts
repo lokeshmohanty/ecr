@@ -76,9 +76,18 @@ describe("robustness", () => {
 });
 
 describe("the detail-pane bindings survive the file", () => {
-  it("keeps scrolling bound to the detail pane", () => {
+  it("keeps the scroll chords working in every pane", () => {
     const scroll = roundTrip().bindings.find((b) => b.keys === "C-e");
     expect(scroll?.action).toEqual({ kind: "scrollDown" });
+    // No panes at all: a global binding, which is how the file writes one that
+    // means the same thing wherever it is pressed.
+    expect(scroll?.panes).toBeUndefined();
+  });
+
+  it("keeps j and k scrolling only where there is a message to scroll", () => {
+    const scroll = roundTrip().bindings.find(
+      (b) => b.keys === "j" && b.action.kind === "scrollDown",
+    );
     expect(scroll?.panes).toEqual(["detail"]);
   });
 

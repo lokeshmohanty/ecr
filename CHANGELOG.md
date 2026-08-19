@@ -28,6 +28,11 @@ release; both are frozen at v1.0.0.
   them one at a time, loading a mailbox at each stop.
 - **`T` toggles *prefer html*** for every message, where `t` switches the one
   being read.
+- **The scroll chords work in every pane.** `C-e`, `C-y`, `C-d` and `C-u` moved
+  the message being read and nothing else; they now scroll whichever pane has
+  focus, leaving the cursor where it is, so the list and the sidebar can be
+  looked through without picking a different row. A line is the pane's own: a
+  row in the list and the sidebar, and the same nudge as before in a message.
 - **Counts before a key, as in vim.** `4j`, `10k`, `3J`. They apply to the
   motions and the scrolls, and are ignored by anything where repeating is not
   what was meant — `4d` stages one delete rather than toggling it twice.
@@ -51,6 +56,11 @@ release; both are frozen at v1.0.0.
   against notmuch and rebuilding when they disagree; `ecr serve` compares them
   message by message at startup; a read that finds a disagreement stops using
   the index entirely until it has been rebuilt, and `ecr doctor` says so.
+- **The list stays where it is put.** Keeping the cursor in view ran again on
+  every refetch, not only when the cursor moved, so a list scrolled away from
+  the cursor was pulled back to it by the next autorefresh poll — about half a
+  second after the reader scrolled, with nothing on screen to connect it to a
+  fetch.
 - **A list action applies to the conversation.** `d`, `a`, `u`, `f` and `t`
   wrote only the thread's newest message, so deleting a conversation deleted one
   message of it and left the rest in the inbox. Because notmuch reports a

@@ -1,4 +1,4 @@
-import { For, Show, createEffect } from "solid-js";
+import { For, Show, createEffect, onCleanup } from "solid-js";
 import { titleCase, type AppStore, type SidebarRow } from "../state/store";
 import { ALL_ACCOUNTS } from "../state/views";
 import { isNarrow } from "./narrow";
@@ -9,6 +9,20 @@ export function Sidebar(props: {
 	onSettings: () => void;
 }) {
 	let scroller: HTMLDivElement | undefined;
+
+	// These rows are sized by CSS and a group heading is taller than a view, so
+	// a line of this pane is measured off one that is rendered rather than
+	// written down here where it would drift. No rows is no scrolling, which is
+	// what the zero says.
+	const attach = (element: HTMLDivElement) => {
+		scroller = element;
+		props.store.setPaneScroller(
+			"sidebar",
+			element,
+			() => element.querySelector<HTMLElement>("[data-row]")?.offsetHeight ?? 0,
+		);
+		onCleanup(() => props.store.setPaneScroller("sidebar", null));
+	};
 
 	const focused = () => props.store.pane() === "sidebar";
 	const rows = () => props.store.sidebarRows();
@@ -60,7 +74,7 @@ export function Sidebar(props: {
       */
 			oncapture:click={() => props.store.setPane("sidebar")}
 		>
-			<div ref={scroller} class="scroll-y flex-1 px-2 py-2">
+			<div ref={attach} class="scroll-y flex-1 px-2 py-2" data-sidebar-scroll>
 				<For each={rows()}>
 					{(row, index) => (
 						<Row

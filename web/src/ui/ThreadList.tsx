@@ -1,4 +1,12 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
+import {
+  For,
+  Show,
+  createEffect,
+  createMemo,
+  createSignal,
+  on,
+  onCleanup,
+} from "solid-js";
 import type { ThreadSummary } from "../api/types";
 import { isOffline } from "../state/offline";
 import type { AppStore } from "../state/store";
@@ -44,6 +52,12 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
     setScroller(element);
     setViewport(element.clientHeight);
 
+    // A line of this pane is a row, and the row's pitch is the same constant
+    // the virtual scroller counts in — so a chord and the arithmetic under it
+    // cannot disagree about where the next row starts.
+    props.store.setPaneScroller("list", element, () => ROW_HEIGHT);
+    onCleanup(() => props.store.setPaneScroller("list", null));
+
     const observer = new ResizeObserver(() => setViewport(element.clientHeight));
     observer.observe(element);
     onCleanup(() => observer.disconnect());
@@ -60,20 +74,35 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
       .map((thread, offset) => ({ thread, index: start + offset }));
   });
 
-  createEffect(() => {
-    const index = props.store.selected();
-    const element = scroller();
-    if (!element || items().length === 0) return;
+  /*
+   * Bringing the cursor back into view is the answer to the cursor having
+   * moved, and to nothing else. While this also tracked `items()`, every
+   * refetch ran it again — so a reader who scrolled the list with `C-e` had
+   * their scrolling undone about half a second later by the autorefresh poll,
+   * with the cursor still on the row it had always been on. Nothing on screen
+   * connects that to a fetch; the list simply refuses to stay where it is put,
+   * and at a desktop height with a short fixture it does not happen at all.
+   */
+  createEffect(
+    on(
+      () => props.store.selected(),
+      (index) => {
+        // `on` runs its callback untracked, so reading the list here does not
+        // put the dependency back.
+        const element = scroller();
+        if (!element || items().length === 0) return;
 
-    const top = index * ROW_HEIGHT;
-    const bottom = top + ROW_HEIGHT;
+        const top = index * ROW_HEIGHT;
+        const bottom = top + ROW_HEIGHT;
 
-    if (top < element.scrollTop) {
-      element.scrollTop = top;
-    } else if (bottom > element.scrollTop + element.clientHeight) {
-      element.scrollTop = bottom - element.clientHeight;
-    }
-  });
+        if (top < element.scrollTop) {
+          element.scrollTop = top;
+        } else if (bottom > element.scrollTop + element.clientHeight) {
+          element.scrollTop = bottom - element.clientHeight;
+        }
+      },
+    ),
+  );
 
   const focused = () => props.store.pane() === "list";
 
@@ -100,6 +129,9 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
         // list is never the one hidden under it.
         classList={{ "max-md:pb-20": true }}
         onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+        /* Named for the same reason as the thread's: all three panes carry
+           `scroll-y`, and a test about a chord has to say which one moved. */
+        data-list-scroll
       >
         <Show
           when={items().length > 0}

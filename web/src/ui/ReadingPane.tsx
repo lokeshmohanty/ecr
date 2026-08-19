@@ -110,7 +110,7 @@ export function ReadingPane(props: { store: AppStore; onBack?: () => void }) {
 						<div
 							ref={(el) => {
 								scroller = el;
-								props.store.setDetailScroller(el);
+								props.store.setPaneScroller("detail", el);
 							}}
 							class="scroll-y flex-1"
 							/* Three panes scroll and they all carry `scroll-y`. This is the

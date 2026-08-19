@@ -91,6 +91,31 @@ export const DEFAULT_BINDINGS: Binding[] = [
 		description: "focus the pinned split",
 	},
 
+	// Scrolling. Global, because every pane scrolls and the chord means the same
+	// thing in each: move this view, leave the cursor alone. What a line is comes
+	// from the pane — a row in the list and the sidebar, a nudge through a
+	// message in the detail pane.
+	{
+		keys: "C-e",
+		action: { kind: "scrollDown" },
+		description: "scroll down a line",
+	},
+	{
+		keys: "C-y",
+		action: { kind: "scrollUp" },
+		description: "scroll up a line",
+	},
+	{
+		keys: "C-d",
+		action: { kind: "scrollDown", half: true },
+		description: "scroll down half a screen",
+	},
+	{
+		keys: "C-u",
+		action: { kind: "scrollUp", half: true },
+		description: "scroll up half a screen",
+	},
+
 	// Movement — meaning depends on the focused pane
 	{
 		keys: "j",
@@ -213,30 +238,6 @@ export const DEFAULT_BINDINGS: Binding[] = [
 		keys: "k",
 		action: { kind: "scrollUp" },
 		description: "scroll up",
-		panes: ["detail"],
-	},
-	{
-		keys: "C-e",
-		action: { kind: "scrollDown" },
-		description: "scroll down a line",
-		panes: ["detail"],
-	},
-	{
-		keys: "C-y",
-		action: { kind: "scrollUp" },
-		description: "scroll up a line",
-		panes: ["detail"],
-	},
-	{
-		keys: "C-d",
-		action: { kind: "scrollDown", half: true },
-		description: "scroll down half a screen",
-		panes: ["detail"],
-	},
-	{
-		keys: "C-u",
-		action: { kind: "scrollUp", half: true },
-		description: "scroll up half a screen",
 		panes: ["detail"],
 	},
 	{

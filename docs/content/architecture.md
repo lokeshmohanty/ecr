@@ -329,7 +329,9 @@ stay empty behind the prompt that just fixed it. See
   Escape and Ctrl chords are ours — and of the chords, only the ones that move
   between panes, the pinned split or the conversation. `C-u` and `C-e` are how
   a shell user rubs out a line, and while the app claimed them the message
-  behind an open composer scrolled instead. A count may be typed before a key
+  behind an open composer scrolled instead. Those four chords are otherwise
+  global — they scroll whichever pane has focus, by that pane's own idea of a
+  line, and never move the cursor. A count may be typed before a key
   (`4j`); the engine carries it and `App.tsx` decides which actions repeat,
   because repeating one that toggles stages nothing at all. Transient overlays claim Escape before the
   keymap sees it: help closes, a visual range is abandoned, and with no range

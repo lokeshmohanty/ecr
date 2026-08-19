@@ -151,6 +151,23 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   animate the keyboard path again on any machine with a mouse. Measured speed
   and felt speed are different things, and this one is invisible to every suite:
   a screenshot is taken after the transition settles.
+- **Keeping the cursor in view is the answer to the cursor having moved, and to
+  nothing else.** `C-e`/`C-y`/`C-d`/`C-u` are global: they move whichever pane
+  has focus and leave the cursor alone, so a reader can look further down the
+  list without choosing a different row. While `ThreadList`'s scroll-into-view
+  effect also tracked `items()`, every refetch ran it again — the autorefresh
+  poll undid a reader's own scrolling about half a second after they did it,
+  with the cursor still on the row it had always been on. Nothing on screen
+  connects that to a fetch: the list simply refuses to stay where it is put,
+  and at a desktop height against the short fixture it does not happen at all,
+  so it needs a window short enough for the list to overflow —
+  `web/e2e/scroll.spec.ts` holds one for a second and a half. The step is the
+  pane's own, registered with the scroller through `setPaneScroller`: the list
+  hands over the same `ROW_HEIGHT` its virtual scroller counts in, the sidebar
+  measures a rendered row because CSS sizes them and a heading is taller than a
+  view, and a message has no pitch at all so it takes the store's default. One
+  number for all three would be two thirds of a row in one pane and nearly
+  three rows in another.
 - **Reply picks the account from the message tags**, never `accounts()[0]` —
   that answered Gmail threads from the work address because it sorts first.
 - **WebKitGTK lays out at a negative scale if nothing set the screen DPI.** It

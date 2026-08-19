@@ -405,10 +405,10 @@ export function App() {
 			}
 
 			case "scrollDown":
-				store.scrollDetail(1, action.half);
+				store.scrollPane(1, action.half);
 				break;
 			case "scrollUp":
-				store.scrollDetail(-1, action.half);
+				store.scrollPane(-1, action.half);
 				break;
 
 			case "nextMessage":

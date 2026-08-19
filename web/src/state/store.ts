@@ -173,6 +173,19 @@ export function mergeHeld(
 
 export const PANES: Pane[] = ["sidebar", "list", "detail"];
 
+/**
+ * A pane's scroll container, and how far one keystroke moves it. `line` is
+ * asked at the keystroke rather than at registration because a pane whose rows
+ * are laid out by CSS only knows the answer once they are on screen.
+ */
+type PaneScroller = { element: HTMLElement; line: () => number };
+
+/**
+ * A line of a message. Prose has no pitch to count in the way a list of rows
+ * does, so this is a nudge chosen to be comfortable rather than a measurement.
+ */
+const MESSAGE_LINE = 64;
+
 /** How long the cursor must rest before the thread under it is opened. */
 export const FOLLOW_DELAY = 140;
 
@@ -285,10 +298,34 @@ export function createAppStore() {
 	const [formatOverride, setFormatOverride] = createStore<
 		Record<string, MessageFormat>
 	>({});
-	/** The detail pane's scroll container, so keys can drive it. */
-	const [detailScroller, setDetailScroller] = createSignal<HTMLElement | null>(
-		null,
-	);
+	/**
+	 * Each pane's scroll container and what one line of that pane is, so the
+	 * scroll chords can drive whichever pane has focus.
+	 *
+	 * A line is the pane's own unit rather than one number for all three: the
+	 * list counts in rows and the sidebar's rows are half the height of those, so
+	 * a message's comfortable nudge is two thirds of a row in one and nearly
+	 * three rows in the other. Held in an immutable record replaced whole, the
+	 * way the counts are, because a `createStore` does not wake a reader of a key
+	 * that was not there when it read.
+	 */
+	const [scrollers, setScrollers] = createSignal<
+		Partial<Record<Pane, PaneScroller>>
+	>({});
+
+	function setPaneScroller(
+		target: Pane,
+		element: HTMLElement | null,
+		line: () => number = () => MESSAGE_LINE,
+	) {
+		setScrollers((current) => ({
+			...current,
+			[target]: element ? { element, line } : undefined,
+		}));
+	}
+
+	/** Read directly by view mode, which needs it whatever has focus. */
+	const detailScroller = () => scrollers().detail?.element ?? null;
 	/** Whether the detail pane has a text cursor in the message being read. */
 	const [viewing, setViewing] = createSignal(false);
 	/**
@@ -1911,12 +1948,21 @@ export function createAppStore() {
 		return next;
 	}
 
-	/** One line, or half a screen. Matches vim's C-e and C-d. */
-	function scrollDetail(direction: 1 | -1, half = false) {
-		const element = detailScroller();
-		if (!element) return;
+	/**
+	 * One line, or half a screen, of whichever pane has focus. Matches vim's C-e
+	 * and C-d.
+	 *
+	 * The cursor is left where it is. In the list and the sidebar that means it
+	 * can be scrolled off screen, which is deliberate: a reader looking further
+	 * down the list has not chosen a different row, and the next `j` brings the
+	 * view back to the one they left.
+	 */
+	function scrollPane(direction: 1 | -1, half = false) {
+		const scroller = scrollers()[pane()];
+		if (!scroller) return;
 
-		const step = half ? element.clientHeight / 2 : 64;
+		const { element, line } = scroller;
+		const step = half ? element.clientHeight / 2 : line();
 		element.scrollBy({ top: direction * step, behavior: "auto" });
 	}
 
@@ -2279,8 +2325,8 @@ export function createAppStore() {
 		accountForTags,
 		collapsed,
 		detailScroller,
-		setDetailScroller,
-		scrollDetail,
+		setPaneScroller,
+		scrollPane,
 		markReadWhenSeen,
 		cancelMarkRead,
 		formatOverride,

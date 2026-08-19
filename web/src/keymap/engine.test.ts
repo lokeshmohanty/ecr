@@ -498,6 +498,40 @@ describe("scrolling and conversation movement in the detail pane", () => {
 		});
 	});
 
+	it("the scroll chords reach the list and the sidebar too", () => {
+		const m = map();
+		for (const pane of ["sidebar", "list"] as const) {
+			expect(
+				m.handle({ key: "e", ctrl: true }, "normal", false, pane),
+				pane,
+			).toMatchObject({ action: { kind: "scrollDown" } });
+			expect(
+				m.handle({ key: "y", ctrl: true }, "normal", false, pane),
+				pane,
+			).toMatchObject({ action: { kind: "scrollUp" } });
+			expect(
+				m.handle({ key: "d", ctrl: true }, "normal", false, pane),
+				pane,
+			).toMatchObject({ action: { kind: "scrollDown", half: true } });
+			expect(
+				m.handle({ key: "u", ctrl: true }, "normal", false, pane),
+				pane,
+			).toMatchObject({ action: { kind: "scrollUp", half: true } });
+		}
+	});
+
+	it("keeps the plain keys those chords sit beside doing their own job", () => {
+		const m = map();
+		// `d` and `u` in the list stage a delete and toggle read; the chords must
+		// not have taken the letters with them.
+		expect(press(m, "d", { pane: "list" })).toMatchObject({
+			action: { kind: "delete" },
+		});
+		expect(press(m, "u", { pane: "list" })).toMatchObject({
+			action: { kind: "toggleRead" },
+		});
+	});
+
 	it("ctrl-j and ctrl-k walk the conversation", () => {
 		const m = map();
 		expect(
@@ -551,13 +585,27 @@ describe("scrolling and conversation movement in the detail pane", () => {
 		}
 	});
 
-	it("a chord bound only to the detail pane does not fire elsewhere", () => {
+	// The scroll chords are global now, so the property needs a table of its
+	// own: the chord path has its own lookup and it has to respect panes the way
+	// the plain one does.
+	it("a chord bound to one pane does not fire in another", () => {
+		const scoped = new Keymap([
+			{
+				keys: "C-e",
+				action: { kind: "scrollDown" },
+				description: "scroll down a line",
+				panes: ["detail"],
+			},
+		]);
 		expect(
-			map().handle({ key: "e", ctrl: true }, "normal", false, "list"),
+			scoped.handle({ key: "e", ctrl: true }, "normal", false, "list"),
 		).toEqual({
 			type: "ignored",
 			consumed: false,
 		});
+		expect(
+			scoped.handle({ key: "e", ctrl: true }, "normal", false, "detail"),
+		).toMatchObject({ action: { kind: "scrollDown" } });
 	});
 
 	it("chords still work while an editor holds focus", () => {
