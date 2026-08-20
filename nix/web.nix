@@ -43,8 +43,8 @@ stdenv.mkDerivation (finalAttrs: {
     inherit (finalAttrs) pname src;
     version = "lock";
     sourceRoot = "${finalAttrs.src.name}/web";
-    fetcherVersion = 2;
-    hash = "sha256-nc6cvLEmOuDXizC9Vb6+tYvsvuly37VNI3eRr4jGVdg=";
+    fetcherVersion = 3;
+    hash = "sha256-WAbl655hja8MRQTF95eoM2Dzr3KNejtkjgOvsnO028s=";
   };
 
   pnpmRoot = "web";
