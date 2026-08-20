@@ -176,6 +176,68 @@ nix.settings = {
 };
 ```
 
+## Installing the client as an app
+
+The browser client carries a web app manifest, so a Chromium-family browser
+will offer to install it: its own window with no browser chrome, an icon and a
+launcher entry, and `mailto:` links handed to it the way the desktop package
+registers for them. It is the same bundle the server already serves, so there
+is nothing extra to build or update — and on Linux it runs on Chromium rather
+than the WebKitGTK the desktop package embeds, which is a different and
+generally faster engine.
+
+Firefox no longer installs web apps on the desktop, so this means a
+Chromium-family browser in practice.
+
+### It needs an origin the browser trusts
+
+Installing, starting without a network, notifications and copying to the system
+clipboard are all withheld on a *plain-HTTP* origin. This is the browser's
+policy about the address, not something ecr can opt out of, and each one fails
+by being absent rather than by refusing — so the effect is a switch that does
+nothing and no install button anywhere. The settings page says so when it
+applies.
+
+`http://localhost` and `http://127.0.0.1` are trusted by definition, so none of
+it applies on the machine running the server. Reaching ecr from anywhere else
+over `http://` is where it bites, and there are two ways out.
+
+**Put it behind HTTPS.** `ecr serve` speaks plain HTTP and terminates no TLS
+itself, so this is a proxy in front of it. On a tailnet it is one command and
+needs no certificate handling at all:
+
+```bash
+ecr serve --bind 127.0.0.1:8383
+tailscale serve --bg https / http://127.0.0.1:8383
+```
+
+That publishes `https://your-host.your-tailnet.ts.net` with a real certificate,
+reachable from every device on the tailnet and from none off it. Any other
+reverse proxy does the same job; `tailscale cert` will issue the certificate if
+you would rather run one yourself.
+
+**Or tell the browser to trust the address.** Appropriate for a machine on a
+LAN you control, and it changes nothing on the server:
+
+```bash
+chromium \
+  --unsafely-treat-insecure-origin-as-secure=http://mail.lan:8383 \
+  --user-data-dir=/tmp/ecr-profile
+```
+
+The origin must be written exactly as you reach it, scheme and port included.
+`chrome://flags/#unsafely-treat-insecure-origin-as-secure` is the same setting
+without the command line, and `OverrideSecurityRestrictionsOnInsecureOrigin` is
+the enterprise policy for machines you manage.
+
+### What it does not replace
+
+The Android app, which carries the QR scanner that pairing uses, the intent
+filters that make it a mail handler, and the F-Droid listing. And on the
+desktop it takes its token the way a browser does — from `?token=` when the
+server opens it for you, or from the pairing code — rather than being handed
+one by the shell.
+
 ## Not Nix
 
 The release artifacts are on the

@@ -1,0 +1,21 @@
+{
+  "id": "/",
+  "name": "ecr",
+  "short_name": "ecr",
+  "description": "A keyboard-first mail client over notmuch.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0c151a",
+  "theme_color": "#0c151a",
+  "orientation": "any",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "protocol_handlers": [
+    { "protocol": "mailto", "url": "/?mailto=%s" }
+  ]
+}

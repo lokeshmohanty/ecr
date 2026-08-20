@@ -1,5 +1,6 @@
 import { handleKey, initialState, selectionSpan, type EditorState } from "../keymap/vim";
 import { openExternal } from "../api/platform";
+import { copyText } from "./clipboard";
 import {
   flatten,
   installCursorStyle,
@@ -159,7 +160,7 @@ export function attachViewCursor(target: ViewTarget, options: ViewOptions): () =
 
     if (state.clipboard !== null) {
       const text = state.clipboard;
-      void navigator.clipboard?.writeText(text).catch(() => {});
+      copyText(text);
       state = { ...state, clipboard: null };
       options.onStatus(`yanked ${text.length} characters`);
     } else if (state.status) {

@@ -31,6 +31,17 @@ render figures/logo.svg 128 shell/icons/128x128.png
 render figures/logo.svg 256 'shell/icons/128x128@2x.png'
 render figures/logo.svg 512 shell/icons/icon.png
 
+# The web app manifest's icons, so the browser client can be installed.
+#
+# Two purposes and they are not interchangeable. `any` is drawn as given, so it
+# keeps logo.svg's own rounded corners; `maskable` is drawn inside whatever
+# shape the platform picks, so it comes from the full-bleed variant with the
+# artwork inset to the safe zone. Shipping only one means either a squircle
+# inside a circle or a logo with its corners cut off.
+render figures/logo.svg 192 web/public/icons/icon-192.png
+render figures/logo.svg 512 web/public/icons/icon-512.png
+render figures/logo-maskable.svg 512 web/public/icons/maskable-512.png
+
 # The README's header mark, at 2x for HiDPI.
 render figures/logo.svg 160 figures/logo.png
 

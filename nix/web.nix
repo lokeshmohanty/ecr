@@ -16,6 +16,11 @@ stdenv.mkDerivation (finalAttrs: {
     # part of the source this derivation needs.
     fileset = lib.fileset.unions [
       ../web/src
+      # The service worker, the manifest and its icons. Vite copies this
+      # directory into `dist` verbatim, so a fileset that leaves it out builds
+      # cleanly and ships a bundle whose `/sw.js` is a 404 — the offline boot
+      # simply never worked in a released artifact, and nothing said so.
+      ../web/public
       ../web/index.html
       ../web/package.json
       ../web/pnpm-lock.yaml

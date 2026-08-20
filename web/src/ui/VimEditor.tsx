@@ -24,6 +24,7 @@ import {
 	type AddressEntry,
 } from "../state/suggest";
 import { overlayRuns } from "./overlay";
+import { copyText } from "./clipboard";
 
 export interface VimEditorProps {
 	initial: string;
@@ -164,7 +165,7 @@ export function VimEditor(props: VimEditorProps) {
 
 		if (current.clipboard !== null) {
 			const text = current.clipboard;
-			void navigator.clipboard?.writeText(text).catch(() => {});
+			copyText(text);
 			setState((s) => ({ ...s, clipboard: null }));
 		}
 		if (current.command !== null) {

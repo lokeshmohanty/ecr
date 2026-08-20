@@ -4,6 +4,14 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>ecr</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/icon-192.png" sizes="192x192" type="image/png" />
+    <!--
+      The shipped default, and only the starting value: `applyTheme` rewrites
+      this from the palette in use, so an installed window's chrome follows the
+      theme instead of being frozen at whatever the build was made with.
+    -->
+    <meta name="theme-color" content="#0c151a" />
   </head>
   <body>
     <div id="root"></div>

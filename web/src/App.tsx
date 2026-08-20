@@ -159,7 +159,33 @@ export function App() {
 		if (draft) store.composeDraft(draft, "compose");
 	}
 
+	/**
+	 * The same thing, arriving the way an installed browser app is given it.
+	 *
+	 * The manifest registers `mailto:` with `url: "/?mailto=%s"`, so the
+	 * platform does not hand the URL to a shell command — it *navigates* to the
+	 * app with the link in the query. There is no yielding here and no second
+	 * chance: the parameter is on the address for as long as the page is, so it
+	 * is stripped once it has been read, or a reload would reopen a draft the
+	 * reader had already dismissed. Which is the same guarantee the shell gives
+	 * by handing each URL over exactly once, arrived at differently.
+	 */
+	function collectMailtoParam() {
+		const here = new URL(window.location.href);
+		const raw = here.searchParams.get("mailto");
+		if (!raw) return;
+
+		here.searchParams.delete("mailto");
+		window.history.replaceState(null, "", here.toString());
+
+		// `%s` is substituted with the whole `mailto:…` URL, but a handler is
+		// also reachable by hand, so a bare address is taken to mean one.
+		const draft = parseMailto(raw.startsWith("mailto:") ? raw : `mailto:${raw}`);
+		if (draft) store.composeDraft(draft, "compose");
+	}
+
 	onMount(() => {
+		collectMailtoParam();
 		void collectMailto();
 		const onFocus = () => void collectMailto();
 		window.addEventListener("focus", onFocus);

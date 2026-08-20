@@ -752,6 +752,16 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   as the `ecr-web` derivation instead, copied into `web/dist` and touched.
   Neither failure can be reproduced with cargo alone; `just nix-build` is the
   only thing that catches them.
+- **The worst version of that failure is the one that builds.** `nix/web.nix`
+  did not list `../web/public`, and vite copies that directory into `dist`
+  verbatim — so the derivation built cleanly, passed everything, and shipped a
+  bundle whose `/sw.js` was a 404. The service worker had never once run in a
+  released artifact, and could not: `state/offline.ts` registers it, the
+  registration fails, and nothing anywhere says so. A missing *source* file
+  fails loudly at compile time; a missing *asset* fails as a feature that
+  quietly does not exist, months later, on somebody else's machine. Anything
+  added under `web/public` — the manifest, the icons — is in the released
+  client only because that line is there.
 - **A new file Nix cannot see fails as a missing import, not as a missing
   file.** A flake's source is the *git* tree, so an untracked file is simply
   absent from the sandbox. `lib.fileset` naming a directory does not complain
@@ -836,6 +846,28 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   touches it, and `just android` needs a multi-gigabyte SDK. So a change to the
   mobile shell is unverified until the `android` job runs — push before tagging,
   because a tag that fails there has already been made public.
+- **An installed browser client is navigated to, not handed a URL.** The
+  manifest registers `mailto:` as `/?mailto=%s`, so a link opened from another
+  application arrives as a *query parameter on a page load* rather than through
+  the shell's `take_launch_mailto`. The two need different guarantees for the
+  same reason: the shell yields each URL exactly once, and a query parameter
+  sits on the address for as long as the page does — so `collectMailtoParam`
+  strips it with `replaceState` the moment it has been read, or a reload
+  reopens a draft the reader already dismissed.
+- **Four things are missing on a plain-HTTP origin, and every one of them is
+  missing *silently*.** Installing the app, the service worker, notifications
+  and `navigator.clipboard` are all secure-context APIs, so on
+  `http://mail.lan:8383` they are simply not there — a switch that does
+  nothing, a `y` that copies nothing, and no install button, with nothing
+  connecting any of it to the scheme in the address bar. `state/secure.ts` is
+  the one place that knows, and the settings page says so. Only the clipboard
+  needed a mechanism rather than an explanation: `ui/clipboard.ts` falls back
+  to `document.execCommand("copy")`, which is gated on a user gesture rather
+  than on the origin, and every caller is a key the reader pressed. `?.` on
+  `navigator.clipboard` was the old guard and it was the wrong shape — it turned
+  a missing feature into a yank that reported success and copied nothing.
+  Loopback is a secure context by definition, so none of this is visible on the
+  machine running the server, which is where it would be found.
 - **A `mailto:` in a message is handled here, not by the system.**
   `openExternal` still passes `mailto:` to the shell's opener — it is a valid
   thing to hand over — but no message link reaches it any more:

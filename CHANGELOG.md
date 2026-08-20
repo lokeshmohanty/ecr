@@ -36,6 +36,19 @@ release; both are frozen at v1.0.0.
 - **Counts before a key, as in vim.** `4j`, `10k`, `3J`. They apply to the
   motions and the scrolls, and are ignored by anything where repeating is not
   what was meant — `4d` stages one delete rather than toggling it twice.
+- **The browser client can be installed as an app.** It carries a web app
+  manifest, so a Chromium-family browser will give it its own window with no
+  browser chrome, an icon and a launcher entry, and hand it `mailto:` links the
+  way the desktop package is registered for them. It is the same bundle the
+  server already serves — nothing extra to build, and on Linux it runs on
+  Chromium rather than the WebKitGTK the desktop package embeds.
+
+  Installing, starting without a network, notifications and copying to the
+  clipboard are all withheld by the browser on a plain-HTTP address, and each
+  fails by being absent rather than by refusing — so the settings page now says
+  when that applies and what to do about it. `http://localhost` is unaffected.
+  See [Installing](@/installing.md).
+
 - **`ecr doctor` warns about a key that can no longer encrypt or sign.** An
   expired encryption subkey looks like a working account until the moment a
   message is sent, and gpg's own account of it names no address and no reason.
@@ -67,6 +80,16 @@ release; both are frozen at v1.0.0.
   thread's tags as the union over its messages, the row then came back looking
   untouched, which reads as the key having done nothing. Marking a message read
   by reading it still names that message.
+- **Yanking with `y` copies on a plain-HTTP address.** The async clipboard is
+  a secure-context API, so on anything but `localhost` it is not there at all —
+  and the guard around it turned that into a yank that reported success and
+  copied nothing. There is a fallback now, and it works either way.
+
+- **The offline boot works in a released build.** The service worker was never
+  copied into the Nix-built bundle, so `/sw.js` was a 404 in every published
+  artifact and the client could not start without a network. It built cleanly
+  and said nothing, which is why it went unnoticed.
+
 - **The cursor stays on the mail it was on.** Archiving or deleting a
   selection takes those rows out of the list, and the cursor is an index — so
   it stayed at the same position while the mail moved out from under it, and

@@ -97,6 +97,29 @@ export function applyTheme(theme: Theme, root: HTMLElement): void {
   }
 
   root.style.setProperty("color-scheme", theme.colorScheme);
+  paintBrowserChrome(theme.colors.paper);
+}
+
+/**
+ * The window's own chrome, for an installed app.
+ *
+ * `theme_color` in the manifest is read once, when the app is installed, so it
+ * freezes whatever palette shipped that day — and the title bar then disagrees
+ * with the canvas under it for every theme but one. The meta tag is live and
+ * overrides it, so the frame follows the theme the way everything else does.
+ *
+ * Harmless in a tab, where nothing reads it, and harmless under Tauri, whose
+ * window has no chrome to paint.
+ */
+function paintBrowserChrome(paper: string | undefined): void {
+  if (typeof document === "undefined" || !paper) return;
+
+  const tag =
+    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]') ??
+    document.head.appendChild(
+      Object.assign(document.createElement("meta"), { name: "theme-color" }),
+    );
+  tag.content = paper;
 }
 
 /**

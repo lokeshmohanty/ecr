@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="ecr">
+  <title>ecr</title>
+  <!--
+    The launcher icon, for platforms that apply their own mask.
+
+    Two things differ from logo.svg and both are the mask's doing. The
+    background is full-bleed and square rather than a rounded rectangle,
+    because the shape is the platform's to choose and a corner radius baked in
+    here shows as a dark seam inside whatever it picks. And the artwork is
+    inset to 78%, because a maskable icon is only guaranteed the inner 80% —
+    anything outside that circle is what the platform is allowed to cut off.
+  -->
+  <rect width="512" height="512" fill="#0c151a"/>
+  <g transform="translate(256 256) scale(0.78) translate(-256 -256)">
+    <g fill="none" stroke="#a99bf5" stroke-width="32" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="88" y="144" width="336" height="224" rx="28"/>
+      <path d="M120 180 L256 288 L392 180"/>
+    </g>
+    <circle cx="400" cy="152" r="46" fill="#0c151a"/>
+    <circle cx="400" cy="152" r="30" fill="#5fc9b6"/>
+  </g>
+</svg>

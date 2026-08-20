@@ -21,6 +21,7 @@ import { SECTION_IDS, type CustomView } from "../../state/views";
 import { checkForUpdate, type UpdateState } from "../../state/updates";
 import { apkVersion, canScanQr, openExternal } from "../../api/platform";
 import type { AppStore } from "../../state/store";
+import { insecureOriginNotice } from "../../state/secure";
 
 export function DeviceSettings(props: { store: AppStore }) {
   const preferences = () => props.store.settings().preferences;
@@ -49,6 +50,24 @@ export function DeviceSettings(props: { store: AppStore }) {
         messages are read — is shared, and lives in the file under{" "}
         <span class="mono text-ink-2">Preferences</span>.
       </p>
+
+      {/*
+        Said here because this is the page carrying the switches it disables.
+        A reader who turns *announce new mail* on and sees nothing happen has
+        no way to connect that to the scheme in the address bar, and the
+        browser will not tell them: each of these features is withheld by being
+        absent rather than by refusing.
+      */}
+      <Show when={insecureOriginNotice()}>
+        {(notice) => (
+          <p
+            class="mb-4 max-w-2xl rounded border border-rule bg-card px-3 py-2 text-xs leading-relaxed text-ink-2"
+            role="status"
+          >
+            {notice()}
+          </p>
+        )}
+      </Show>
 
       <For each={sections()}>
         {({ section, keys }) => (
