@@ -762,6 +762,29 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   quietly does not exist, months later, on somebody else's machine. Anything
   added under `web/public` — the manifest, the icons — is in the released
   client only because that line is there.
+- **A Nix store path dates every file to the epoch, and that is a caching bug
+  in the one client that fetches its assets over HTTP.** `ServeDir` sets
+  `last-modified` and an `etag` and no `cache-control`, which is a response the
+  browser is invited to guess a lifetime for: RFC 9111's heuristic is a tenth of
+  the age, and a tenth of *1970* is five and a half years. So a browser that had
+  loaded the client once never asked again — the cached `index.html` went on
+  naming the bundle that was current the day it was stored, and that bundle was
+  held under the same rule. The desktop and Android shells read their copy out
+  of the binary and never make the request, so it presents as the browser being
+  the one client that stopped receiving UI changes, and — for a copy cached
+  before `03b66ac` added the manifest link — as an app with no install button.
+  Revalidation was no way out either, which is why `cache_policy` in `web.rs`
+  **strips the validators** rather than only adding `no-cache`: that etag is
+  `mtime.nanos-size`, the mtime is the epoch in every store path, so it is the
+  file's *length* alone — and the only thing that differs in `index.html`
+  between builds is the eight-character asset hash, which is eight characters
+  long in both. Same 845 bytes, same etag, `304`. The request's conditionals are
+  dropped too, or a browser holding an etag from before the fix goes on being
+  answered 304 by a server that has been fixed. `assets/` is the opposite case
+  and is `immutable` for a year, the name being the hash. None of this is
+  reachable from a development tree, where `web/dist` has the mtimes the build
+  gave it — it needs an installed server, which is the one place nobody runs a
+  suite.
 - **A new file Nix cannot see fails as a missing import, not as a missing
   file.** A flake's source is the *git* tree, so an untracked file is simply
   absent from the sandbox. `lib.fileset` naming a directory does not complain

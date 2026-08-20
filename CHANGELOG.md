@@ -9,6 +9,20 @@ release; both are frozen at v1.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The browser client stopped receiving updates.** Nothing it was served
+  carried a `cache-control`, and a Nix store path dates every file to 1970 — so
+  the browser was left to guess a lifetime from the age, guessed about five and
+  a half years, and never asked for the client again. The desktop and Android
+  apps read their copy out of the binary and were unaffected, which made it look
+  like the browser was the one client that had stopped changing; a copy cached
+  before 0.6.0 also predates the web app manifest, so there was no install
+  option either. The content-hashed bundles are now `immutable` for a year and
+  everything else is revalidated on every load. **A browser already holding a
+  stale copy has to be shown the fix once**: load ecr with
+  <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>, or clear the site's data.
+
 ## [0.6.0] — 2026-08-20
 
 ### Added

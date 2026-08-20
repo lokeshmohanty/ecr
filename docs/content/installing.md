@@ -230,6 +230,23 @@ The origin must be written exactly as you reach it, scheme and port included.
 without the command line, and `OverrideSecurityRestrictionsOnInsecureOrigin` is
 the enterprise policy for machines you manage.
 
+### Keeping up with a new build
+
+The browser client is served off disk by `ecr serve`, so upgrading the server
+upgrades it: the next load gets the new bundle, and an installed app is no
+different from a tab. Only the content-hashed files under `assets/` are cached
+for any length of time, and their names change when their contents do.
+
+Before 0.6.1 they were not marked that way, and a browser could get stuck. A
+Nix store path dates every file to 1970, and a response with a validator but no
+`cache-control` invites the browser to guess a lifetime from the age — which
+worked out to about five and a half years. A browser that had loaded the client
+once went on serving that copy from disk, so the desktop and Android apps
+updated and the browser did not, and a copy cached before the manifest existed
+had no install button either. If you are on one of those, load it once with the
+cache bypassed — <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>, or *Clear site
+data* in devtools' Application tab — and it will not happen again.
+
 ### What it does not replace
 
 The Android app, which carries the QR scanner that pairing uses, the intent
