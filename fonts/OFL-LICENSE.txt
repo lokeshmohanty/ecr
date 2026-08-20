@@ -1,0 +1,8 @@
+// Space Grotesk and Nunito: SIL Open Font License, Version 1.1
+// https://scripts.sil.org/OFL
+//
+// Cascadia Code: SIL Open Font License, Version 1.1
+// https://github.com/microsoft/cascadia-code/blob/main/LICENSE
+//
+// All three fonts are licensed under the SIL Open Font License.
+// The full license text is available at each font's respective repository.
