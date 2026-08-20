@@ -253,6 +253,77 @@
 }
 
 /*
+ * The marks in the reading text, rendered.
+ *
+ * Every rule here is inline-level on purpose. The pane is a `pre` whose line
+ * breaks are the source's own, and view mode flattens that same DOM to move a
+ * cursor through it — a block element would insert a line the buffer does not
+ * have, and `j` would stop agreeing with what is on screen. `md-rule` is the
+ * one exception and is inline-block, which occupies its line without starting
+ * another.
+ *
+ * Sizes are relative, so the pane's own 13px still decides how large a heading
+ * is. Nothing here changes the family: a proportional heading over monospaced
+ * prose reads as two documents.
+ */
+.md-body strong {
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.md-body em {
+  font-style: italic;
+}
+
+.md-body code {
+  border-radius: 3px;
+  background: var(--color-neutral-bg);
+  padding: 0 0.25em;
+}
+
+.md-body .md-fence {
+  display: inline-block;
+  width: 100%;
+  border-radius: 4px;
+  background: var(--color-neutral-bg);
+  padding: 0.4em 0.6em;
+}
+
+.md-body .md-h {
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+/*
+ * Only the first two are given a size. Mail nests headings six deep about as
+ * often as it is written by hand, and an `h5` a shade larger than the prose
+ * around it is a difference nobody can see and everybody has to pay for in a
+ * line height that no longer matches the rest of the pane.
+ */
+.md-body .md-h1 {
+  font-size: 1.3em;
+}
+
+.md-body .md-h2 {
+  font-size: 1.15em;
+}
+
+.md-body .md-quote {
+  color: var(--color-ink-2);
+}
+
+.md-body .md-marker {
+  color: var(--color-ink-3);
+}
+
+.md-body .md-rule {
+  display: inline-block;
+  width: 100%;
+  border-top: 1px solid var(--color-rule);
+  vertical-align: middle;
+}
+
+/*
  * An image in the plain-text pane.
  *
  * `inline-block` rather than `block`, because the pane is `pre-wrap` and the

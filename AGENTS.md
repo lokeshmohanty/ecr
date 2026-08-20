@@ -96,11 +96,8 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   `![alt](src)`, and real mail is tracking pixels, spacers and sliced
   letterheads with empty alt — so shown *as markdown* they are a line of URL
   between every two sentences, which is why they were dropped. What changed is
-  that `renderBodyText` in `ui/linkify.ts` turns each one back into an `<img>`:
-  a spacer gif is a spacer gif again. Everything else in the reading text is
-  still read as text, deliberately — `# heading` and `- item` are legible
-  without rendering, and rendering them would make this a second HTML view
-  rather than the flat one somebody chose. It follows that the text path now
+  that `ui/markdown.ts` turns each one back into an `<img>`: a spacer gif is a
+  spacer gif again. It follows that the text path now
   needs the questions the HTML path always asked: `as_text` takes the
   `SanitizeContext`, and `mime::rewrite_markdown_images` resolves `cid:` to a
   part URL (dropping one that names no part, since it can only render broken)
@@ -112,7 +109,31 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   skipped: it is markup rather than a resource and it is the one image format
   that can carry script. The result is still not a security boundary in the
   markup sense — it is inserted as text — with the single exception of an
-  image's `src`, which is an attribute, and which is checked in both languages.
+  image's `src` and a link's `href`, which are attributes, and which are
+  checked in both languages.
+- **The reading text is rendered, and `ui/markdown.ts` renders exactly what the
+  converter emits and nothing else.** That list is short and worth knowing,
+  because guessing at it is how a renderer ends up handling syntax no message
+  ever contains while missing the one that every message does: `**strong**`,
+  `*em*` (a single asterisk — not an underscore), `` `code` ``, `#` headings,
+  `>` quotes, `- `/`1. ` markers, `* * *` for `<hr>` and ``` fences. There is
+  no strikethrough, because htmd drops `<s>` outright, and no tables, because
+  it writes each cell as its own paragraph. Read it back out of htmd rather
+  than assumed if it ever changes.
+  Emphasis was left as punctuation at first, on the grounds that Markdown is
+  legible unrendered. It is, up to the point where the punctuation stands in
+  for something rather than decorating it — `Rich **HTML** body` is not a
+  sentence anyone wants to read — which is the same line images and links fell
+  on. Every rule is **inline-level**, and that is load-bearing: the pane is a
+  `pre` whose newlines are the source's own, `doc-cursor` flattens that same
+  DOM to move view mode's cursor through it, and a block element would insert a
+  line the buffer does not have. `.md-rule` is inline-block for the same
+  reason. Both emphasis patterns require `(?=\S)` after the opening delimiter,
+  which is what keeps `2 * 3 * 4` arithmetic; a fenced block is taken
+  literally, marks and all; and one alternation finds every construct in a
+  single pass, because scanning per construct means whichever runs second finds
+  the first one's output — `![alt](url)` seen again as a bare `!` beside a
+  link.
 - **Message HTML must opt out of forced dark with `only light`.** Plain
   `color-scheme: light` still leaves `prefers-color-scheme` reporting dark, and
   engines with forced-dark (WebKitGTK under a dark GTK theme) then darken the
@@ -204,6 +225,34 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   view, and a message has no pitch at all so it takes the store's default. One
   number for all three would be two thirds of a row in one pane and nearly
   three rows in another.
+- **Nothing that asks a question about a row may answer it once per row.** This
+  is where holding a key actually went, and it was measured rather than
+  reasoned about — `just bench`, which is the only suite that can see it, every
+  other one waiting for the client to settle before it looks. `isSelected` was
+  a plain function that rebuilt a set over the **whole page** and sorted it,
+  and every rendered row called it; `isPicked` scanned the picks array, per
+  row. In visual mode the first of those also reads `selected()`, so all of it
+  ran again on every `j` of a range being drawn, and `Space` changes the picks
+  on every repeat. Measured in Chromium at a page of 500 over 2000 threads,
+  holding `Space` cost **10.1ms p50 / 16.4ms p90** in the keydown handler
+  alone; both are memos now and it is 1.8 / 2.7. Drawing a range went 5.2 / 9.5
+  to 1.2 / 1.7, and plain `j` 2.3 / 3.3 to 1.2 / 1.7. Chromium never dropped a
+  frame at either figure, which is exactly why this hid: the engine the client
+  actually ships on is WebKitGTK, where the same work is several times dearer
+  and 16ms of it per repeat is every repeat missed. `selectionSet` reads
+  `selected()` *inside* the `anchor !== null` branch on purpose — with no range
+  on screen the memo does not depend on the cursor, so walking with `j` leaves
+  every row's binding untouched.
+- **The cursor follows the thread, not the index.** A list that loses rows keeps
+  its indices, so archiving four threads left the cursor four rows below the
+  mail it was on, with the next keystroke acting on something nobody chose.
+  `state/cursor.ts` is the whole rule and it is pure: the row it was on if that
+  survived, else the first one after it that did — reading down a mailbox and
+  clearing it as you go leaves the cursor on the next thing to read. It needs
+  the order the list was in, not just the index, because an index alone cannot
+  tell a row removed *above* the cursor from one removed below. `cursorOrder`
+  is cleared on a change of query, or a thread that happens to appear in both
+  mailboxes would pull the cursor to it for a reason nobody could see.
 - **Nothing that opens a thread may run in the task that moved the cursor.**
   `FOLLOW_DELAY` collapses a burst of `j` into one open, and that is all it
   does: the open it *does* perform used to run in the timer's own callback —
@@ -940,15 +989,27 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   composing a small file, because `13-settings-text` photographs this very file
   and anything less than the whole generated thing changes the state it is
   meant to hold still. The flipped line sits below the visible fold.
-- **`MAX_DIFFERING_RATIO` is 0.2%, and a real change can hide under it.** The
-  markdown links added to the text pane rewrote a whole line of
-  `15b-plain-text-markdown` and came to 0.075%, so the suite reported it
-  unchanged and the baseline went stale. This is the same weakness the
-  `neutral_bg`/`proved_bg` selection bug documents one layer up. `--approve`
-  rewrites *every* baseline rather than only the failing ones, which is what
-  caught it — and is also why the diff has to be read afterwards: comparing the
-  approved tree against `HEAD` shows most states differing by exactly zero
-  pixels, and those are PNG encoding noise that should be checked back out.
+- **The tolerance is `MAX_DIFFERING_PIXELS = 32`, a count and not a ratio, and
+  it is that tight on purpose.** It was 0.2% of the frame, chosen when the
+  render was not reproducible, and it hid a real change twice in one afternoon:
+  rendering the markdown rewrote a whole line of `15b-plain-text-markdown` at
+  0.075%, and the settings default rewrote three lines of `13-settings-text` at
+  0.25% — one either side of the line. A regression net with a hole the size of
+  a sentence in it is not one, and this is the same weakness the
+  `neutral_bg`/`proved_bg` selection bug documents one layer up. A ratio is
+  also the wrong unit: the phone viewport is a fifth of the desktop's area, so
+  the same eight pixels are five times the ratio there, and the suite was
+  strictest exactly where the screen is smallest. It can be this tight because
+  nothing is left to the machine any more — pinned browser, pinned fonts,
+  refused network, and no state writing to the maildir — so **two consecutive
+  runs differ by zero pixels**, measured. If that stops being true, find out
+  why rather than widening this.
+- **`--approve` rewrites every baseline, so the result has to be diffed against
+  `HEAD` afterwards.** Not only the failing ones: states that differ by exactly
+  zero pixels get a fresh PNG too, and committing those is committing encoding
+  noise as though it were an intended change. Compare, and check the zeroes back
+  out. It is also what catches a change the tolerance hid — which is how the
+  0.2% hole above was found in the first place.
 - **No state in it waits out a duration, and none may be added that does.** Each
   waits for the client to settle — nothing in flight, no `loading…`, fonts
   loaded, the DOM still for 250ms — and one that never gets there fails as
@@ -981,6 +1042,26 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   through the API rather than the composer because what is under test is the
   client's account of a queue. A send request carries the draft *flattened*
   into it, not nested under `draft`.
+  **One maildir per worker means a spec that writes tags must put them back.**
+  Every spec in a worker shares it, in whatever order they run, so
+  `cursor.spec.ts` — which archives mail on purpose, that being the thing under
+  test — restores the inbox in an `afterEach`. Without that the failure lands
+  somewhere else entirely and looks like nothing to do with it: `list.spec.ts`
+  reported the wrong *time* in a date column, because the first row was no
+  longer the thread that test was written for. Archiving is only `-inbox`, so
+  putting it back is exact rather than a guess.
+- **`just bench` is the only thing here that can see what a keystroke costs.**
+  Every suite above waits for the client to settle before it looks, so all of
+  them are blind to it by construction. It holds `j`, then `j` drawing a range,
+  then `Space`, over a generated mailbox of two thousand
+  (`scripts/bench-env.sh`, built once and kept), and reports keystroke-to-paint
+  *and* the keydown handler's own synchronous time. The second number is the
+  one to read: on a machine that keeps up, keystroke-to-paint is "the next
+  frame" whatever the work was, so a change that halves the work moves it not
+  at all. It is deliberately not part of `check` — a stopwatch has no pass or
+  fail — and it does not prove anything about WebKitGTK, which is what the
+  desktop actually runs and what a number measured in Chromium can only be a
+  lower bound for.
 - Integration tests build a throwaway notmuch database from `fixtures/` in a
   tempdir. They must never touch the real maildir.
 - **Pointing `HOME` at the demo directory is not enough to isolate a suite.**

@@ -14,7 +14,7 @@ import type { AppStore } from "../state/store";
 import { absolutizePartUrls } from "./body-urls";
 import { createDelayed } from "./delayed";
 import { toggleLabel } from "../state/format";
-import { renderBodyText } from "./linkify";
+import { renderMarkdown } from "./markdown";
 import { followLink } from "./follow-link";
 import { type Hint, hintsFor, matchHint } from "./link-hints";
 import { attachViewCursor, type ViewTarget } from "./view-mode";
@@ -284,7 +284,7 @@ function MessageView(props: {
 
 	/** The same, rendered — and only when the text view is the one on screen. */
 	const readable = createMemo(() =>
-		body() && body()!.format !== "html" ? renderBodyText(addressed()) : "",
+		body() && body()!.format !== "html" ? renderMarkdown(addressed()) : "",
 	);
 
 	// Reading it is what marks it read: the body has to have loaded and stayed
@@ -556,7 +556,7 @@ function MessageView(props: {
 									fallback={
 										<pre
 											ref={(el) => setTarget({ root: el, frame: null })}
-											class="mono max-w-full overflow-x-auto rounded border border-rule-soft bg-card p-3 text-[13px] leading-relaxed whitespace-pre-wrap text-ink"
+											class="md-body mono max-w-full overflow-x-auto rounded border border-rule-soft bg-card p-3 text-[13px] leading-relaxed whitespace-pre-wrap text-ink"
 											/*
 											 * Bare URLs become links so Enter opens them here too,
 											 * and a markdown image becomes the image. The part URLs

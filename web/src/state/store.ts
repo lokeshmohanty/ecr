@@ -5,6 +5,7 @@ import {
 	createResource,
 	createSignal,
 	onCleanup,
+	untrack,
 } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import {
@@ -64,6 +65,7 @@ import { signatureFor } from "./signature";
 import { effectiveFormat, toggled, type MessageFormat } from "./format";
 import { layoutFor, viewportWidth } from "../ui/narrow";
 import { afterPaint } from "../ui/idle";
+import { followCursor } from "./cursor";
 import { parsePairing } from "./pairing";
 
 import {
@@ -1255,6 +1257,32 @@ export function createAppStore() {
 	createEffect(() => {
 		query();
 		releaseHeld();
+		// And nothing to follow the cursor to: see `cursorOrder`.
+		cursorOrder = [];
+	});
+
+	/**
+	 * The order the list was in when the cursor was last placed.
+	 *
+	 * The cursor is an index, and a list that loses rows keeps its indices — so
+	 * archiving four threads left it four rows below the mail it was on, with
+	 * the next keystroke acting on a thread nobody chose. Following the *thread*
+	 * needs to know what was where, and an index alone cannot tell a row removed
+	 * above the cursor from one removed below. Cleared on a change of query,
+	 * because two mailboxes can hold the same thread and jumping to it would
+	 * move the cursor for a reason nobody could see.
+	 *
+	 * Not a signal. It is read and written by the effect below and by nothing
+	 * else, and making it reactive would only give that effect a dependency on
+	 * its own output.
+	 */
+	let cursorOrder: string[] = [];
+
+	createEffect(() => {
+		const list = displayed();
+		const next = followCursor(cursorOrder, untrack(selected), list);
+		cursorOrder = list.map((row) => row.id);
+		if (next !== untrack(selected)) setSelected(next);
 	});
 
 	function current(): ThreadSummary | undefined {
@@ -1720,11 +1748,41 @@ export function createAppStore() {
 	 * a v/V range currently covers. With nothing selected it is the row under the
 	 * cursor, so every key still works one message at a time.
 	 */
-	function selectionIndices(): number[] {
+	/**
+	 * The same, as a set, and computed once per change rather than once per row.
+	 *
+	 * Every rendered row asks whether it is selected. While this was a plain
+	 * function, each of the thirty-odd rows on screen rebuilt a set over the
+	 * *whole page* and sorted it — three thousand inserts a render at the
+	 * default page size, thirty thousand at the largest one the setting allows.
+	 * And in visual mode it reads `selected()`, so all of that happened again on
+	 * every `j` of a range being drawn, which is precisely when the key is being
+	 * held down.
+	 *
+	 * `selected()` is read inside the branch on purpose. With no range on screen
+	 * this memo does not depend on the cursor at all, so walking the list with
+	 * `j` leaves every row's binding untouched.
+	 */
+	/**
+	 * The rows `Space` picked, by id.
+	 *
+	 * Built once rather than per row, for the same reason as `selectionSet`:
+	 * `picked()` is an array, so asking each rendered row whether it is in it
+	 * is a scan per row. On a hundred rows picked with a held `Space` that is
+	 * three thousand comparisons a keystroke, and every one of them lands in
+	 * the keystroke's own task.
+	 */
+	const pickedSet = createMemo(() => new Set(picked()));
+
+	function isPickedThread(id: string): boolean {
+		return pickedSet().has(id);
+	}
+
+	const selectionSet = createMemo(() => {
 		const list = items();
 		const chosen = new Set<number>();
 
-		const ids = new Set(picked());
+		const ids = pickedSet();
 		list.forEach((thread, index) => {
 			if (ids.has(thread.id)) chosen.add(index);
 		});
@@ -1736,7 +1794,15 @@ export function createAppStore() {
 			for (let i = from; i <= to && i < list.length; i++) chosen.add(i);
 		}
 
-		return [...chosen].sort((a, b) => a - b);
+		return chosen;
+	});
+
+	const orderedSelection = createMemo(() =>
+		[...selectionSet()].sort((a, b) => a - b),
+	);
+
+	function selectionIndices(): number[] {
+		return orderedSelection();
 	}
 
 	function targets(): ThreadSummary[] {
@@ -1750,8 +1816,9 @@ export function createAppStore() {
 			.filter((t): t is ThreadSummary => t !== undefined);
 	}
 
+	/** One lookup, rather than a scan of the sorted copy. */
 	function isSelected(index: number): boolean {
-		return selectionIndices().includes(index);
+		return selectionSet().has(index);
 	}
 
 	/** Leaving the mode drops the selection, so nothing acts on rows you cannot see. */
@@ -2509,6 +2576,7 @@ export function createAppStore() {
 		visualAnchor,
 		selectionIndices,
 		isSelected,
+		isPickedThread,
 		toggleSelect,
 		toggleSelectNext,
 		startVisual,

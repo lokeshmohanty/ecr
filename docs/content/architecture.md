@@ -233,15 +233,20 @@ written as; `script`, `style` and `svg` are dropped. It is around 5ms for a
 28KB message and is computed once per cached parse, so the reader waits for it
 on the first read of a message and never again.
 
-Images and links are the exceptions to reading it as text, and for one reason:
-they are the two pieces of markdown punctuation that stand in for something
-rather than decorating it. `![](https://…)` is not a legible way to read a
-picture, and `[the notes](https://…/a/very/long/path)` is a sentence with a URL
-wedged into the middle of it — while the bare URLs beside them were already
-being turned into anchors, so leaving these was the inconsistency rather than
-the restraint. The client renders both; everything else — headings, emphasis,
-lists, quotes — stays punctuation, because rendering it would make this a
-second HTML view rather than the flat one somebody chose.
+The client renders those marks rather than printing them. Markdown is legible
+unrendered, up to the point where the punctuation stands in for something
+rather than decorating it — `Rich **HTML** body` is not a sentence anyone wants
+to read, `![](https://…)` is not a way to read a picture, and
+`[the notes](https://…/a/very/long/path)` is a sentence with a URL wedged into
+the middle of it. So `web/src/ui/markdown.ts` renders emphasis, code spans,
+headings, list markers, quotes, rules, fenced blocks, images and links.
+
+It stays a flat text view all the same. Every rule it emits is inline-level and
+the pane keeps the source's own newlines, so a line is still a line — which is
+what lets view mode's cursor move through it by one — and nothing changes the
+monospaced family. What it handles is exactly what the converter emits and
+nothing more: there is no strikethrough, because htmd drops `<s>`, and no
+tables, because it writes each cell as its own paragraph.
 
 Which means the text path asks the same questions the HTML path does, out of
 the same context: `cid:` is resolved to a part URL, one naming no part is

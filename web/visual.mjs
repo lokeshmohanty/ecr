@@ -26,9 +26,33 @@ const DIFF = join(ROOT, "screenshots/visual/diff");
 
 for (const dir of [BASELINE, CURRENT, DIFF]) mkdirSync(dir, { recursive: true });
 
-/** How much drift is tolerated before a state is considered changed. */
+/** How different two pixels must be before they count as different at all. */
 const THRESHOLD = 0.1;
-const MAX_DIFFERING_RATIO = 0.002;
+
+/**
+ * How many of them may differ before the state has changed.
+ *
+ * A *count*, not a ratio, and a small one. It used to be 0.2% of the frame,
+ * which was chosen when the render was not reproducible — and it hid real
+ * changes twice in one afternoon: rendering the markdown rewrote a whole line
+ * of `15b-plain-text-markdown` and came to 0.075%, and the settings default
+ * rewrote three lines of `13-settings-text` and came to 0.25%, one either side
+ * of the line. A regression net with a hole the size of a sentence in it is
+ * not one.
+ *
+ * A ratio is also the wrong unit. The phone viewport is a fifth of the
+ * desktop's area, so the same eight pixels are five times the ratio there —
+ * the suite was strictest exactly where the screen is smallest and a change is
+ * hardest to see.
+ *
+ * The tolerance can be this tight because nothing about the render is left to
+ * the machine any more: the browser and the fonts are pinned, the network is
+ * refused, and no state writes to the maildir the next one photographs. Two
+ * consecutive runs now differ by *zero* pixels. Thirty-two is room for a stray
+ * one without leaving space for a word — the smallest real change measured
+ * here was a single digit in a sidebar count, at fourteen.
+ */
+const MAX_DIFFERING_PIXELS = 32;
 
 const ROW = "[class*='row-grid'][class*='cursor-pointer']";
 
@@ -627,12 +651,13 @@ for (const state of STATES) {
   const differing = pixelmatch(before.data, after.data, diff.data, before.width, before.height, {
     threshold: THRESHOLD,
   });
-  const ratio = differing / (before.width * before.height);
-
-  if (ratio > MAX_DIFFERING_RATIO) {
+  if (differing > MAX_DIFFERING_PIXELS) {
+    const ratio = differing / (before.width * before.height);
     writeFileSync(join(DIFF, file), PNG.sync.write(diff));
-    failures.push(`${state.name}: ${(ratio * 100).toFixed(2)}% of pixels changed`);
-    console.log(`  FAIL ${state.name} — ${(ratio * 100).toFixed(2)}% changed, diff written`);
+    failures.push(
+      `${state.name}: ${differing} pixels changed (${(ratio * 100).toFixed(3)}%)`,
+    );
+    console.log(`  FAIL ${state.name} — ${differing} pixels changed, diff written`);
   } else {
     passed.push(state.name);
     console.log(`  ok   ${state.name} — ${state.description}`);

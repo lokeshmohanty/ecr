@@ -510,6 +510,13 @@ nix-build:
 visual *args:
     ./scripts/visual.sh {{args}}
 
+# How long a keystroke takes, over a mailbox of two thousand. Not part of
+# `check`: it is a stopwatch, and a stopwatch has no pass or fail. It is the
+# only thing here that can see what holding a key costs, because every other
+# suite waits for the client to settle before it looks.
+bench *args:
+    ./scripts/bench.sh {{args}}
+
 # Contrast, accessible names, touch targets, feedback and empty states.
 verify-ux:
     #!/usr/bin/env bash

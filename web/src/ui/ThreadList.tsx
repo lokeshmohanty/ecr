@@ -287,15 +287,38 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
         const top = topOf(index);
         const bottom = top + rowHeight();
 
+        /*
+         * Where the scroller *is* is taken from the signals, not from the
+         * element. This runs inside the keystroke that moved the cursor, one
+         * effect after the row classes changed — so styles are dirty, and
+         * `element.scrollTop` is a read that forces the engine to lay the whole
+         * list out again before it can answer. Then the write dirties it a
+         * second time, and the `scroll` event that follows recomputes the
+         * window in a *third* pass. Three layouts per keystroke, on the input
+         * path, for two numbers we are already holding.
+         *
+         * `scrollTop` and `viewport` are those two numbers, kept by the scroll
+         * and resize handlers, and they are exact: nothing else moves this
+         * scroller between frames.
+         */
+        const from = scrollTop();
+        const height = viewport();
+
         // A row brought to the very top would sit *under* the pinned heading,
         // which covers that band — so the top edge, for this purpose, is one
         // heading lower down. Clamped, because the first row of the list has
         // nothing above it to make room for.
-        if (top - HEADING_HEIGHT < element.scrollTop) {
-          element.scrollTop = Math.max(0, top - HEADING_HEIGHT);
-        } else if (bottom > element.scrollTop + element.clientHeight) {
-          element.scrollTop = bottom - element.clientHeight;
-        }
+        let next = from;
+        if (top - HEADING_HEIGHT < from) next = Math.max(0, top - HEADING_HEIGHT);
+        else if (bottom > from + height) next = bottom - height;
+
+        if (next === from) return;
+
+        // Written and left alone. The `scroll` event carries the same number
+        // back a moment later and recomputes the window then — doing it here
+        // as well only moves that work into the keystroke, which is the one
+        // place it must not be.
+        element.scrollTop = next;
       },
     ),
   );
@@ -598,7 +621,7 @@ function Row(props: {
   // `picked` is the whole selection — Space-picked rows *and* the v range.
   // The tape belongs to what Space actually marked, so a range being drawn
   // reads as a range (the background) rather than as a column of marks.
-  const isPicked = () => props.store.picked().includes(props.thread.id);
+  const isPicked = () => props.store.isPickedThread(props.thread.id);
 
   const when = () => dateOf(props.thread, props.store, props.span);
 
@@ -844,7 +867,13 @@ function Row(props: {
           notification sender puts the *actor's* name there, which on a CI
           mailbox is the reader's own, on every row.
         */}
+        {/*
+          Named, so a test can ask which thread a row is without matching on
+          the row's whole text — which is the subject *and* the staged badge,
+          the account letter, the thread count and the date.
+        */}
         <span
+          data-subject
           class="truncate-cell"
           classList={{
             "text-ink font-semibold": unread(),
