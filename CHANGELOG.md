@@ -67,6 +67,34 @@ release; both are frozen at v1.0.0.
   thread's tags as the union over its messages, the row then came back looking
   untouched, which reads as the key having done nothing. Marking a message read
   by reading it still names that message.
+- **The cursor stays on the mail it was on.** Archiving or deleting a
+  selection takes those rows out of the list, and the cursor is an index — so
+  it stayed at the same position while the mail moved out from under it, and
+  the next key acted on a thread nobody had chosen. It follows the thread now:
+  the row it was on if that is still there, and otherwise the next one that
+  survived, so clearing a mailbox as you read it leaves the cursor on the next
+  thing to read.
+
+- **Holding `j`, `k` or `Space` keeps up.** Every row on screen asked whether it
+  was selected, and answering that rebuilt a table of the whole page — per row,
+  on every keystroke while a range was being drawn or rows were being picked.
+  Over two thousand threads at a page of five hundred, a repeat of `Space` cost
+  10.1ms in the key handler and now costs 1.8ms; drawing a range with `j` went
+  from 5.2ms to 1.2ms. It never dropped a frame in Chromium, which is why it
+  went unnoticed there, and the desktop's engine is several times slower.
+
+- **A message no longer sits above a band of empty white.** The reading pane
+  measured each message five times on a timer, and the number it measured
+  included the padding it had just added — so every extra measurement grew the
+  frame by another gutter. It measures the message once, and again only when
+  something in it actually moves.
+
+- **Reading a thread stops re-fetching the ones you have already read.** Marking
+  a message read is a tag change, and any tag change dropped every cached
+  thread and rebuilt the whole reading pane — including the sandboxed document
+  for each message, whose text had not changed. Walking back up a list with `k`
+  re-fetched every row on the way.
+
 - **Signed mail is no longer reported as altered.** mbsync writes maildir files
   with bare newlines, but a detached signature covers the CRLF form that
   crossed the wire — so gpg answered BADSIG and the client said *this message
@@ -91,14 +119,24 @@ release; both are frozen at v1.0.0.
 
 ### Changed
 
-- **The plain-text view is the message, converted to Markdown.** It used to be
-  the `text/plain` part, and neither thing that can be was a reading of the
+- **The plain-text view is the message, rendered.** It used to be the
+  `text/plain` part, and neither thing that can be was a reading of the
   message: on mail with no text part it was the parser's flattening of the
   markup, which runs block elements together into one word, and on mail with
   one it was usually the generated alternative that says the message cannot be
-  displayed and gives a URL. Headings, emphasis, lists, quotes and links now
-  survive as punctuation. The `text/plain` part is still what answers for a
-  message that carries no markup at all.
+  displayed and gives a URL. The markup is converted to Markdown instead, and
+  the marks are drawn rather than printed — bold is bold, a heading is a
+  heading, a link is its own words, and an image is the image. It stays a flat
+  monospaced view all the same: a line is still a line, so the reading cursor
+  moves through it the way it always did. The `text/plain` part is still what
+  answers for a message that carries no markup at all.
+
+- **Images in a message load without being asked for.** Remote images were
+  blocked until you pressed `i`, which is what stops a sender learning that you
+  opened their mail — and meant most mail arrived as a grey skeleton of itself.
+  It is now on by default and `load_remote_images = false` turns it back off,
+  one message at a time with `i` as before. Inline images that travel *with* a
+  message were never remote and were never the question.
 
 - **`POST /api/v1/tags` takes a `target` rather than an `id`**, either
   `{"message": id}` or `{"thread": id}`. Pre-v1.0.0, per the note at the top of
@@ -116,8 +154,6 @@ release; both are frozen at v1.0.0.
   changes is stored now, and the defaults are re-derived from the running
   version each session. Editing `[keybindings]` in settings.toml had stopped
   reaching such a device for the same reason, and works again.
-
-### Changed
 
 - **The thread list reads as cards.** Each row carries a hairline and a soft
   shadow with a gap between, so where one thread ends and the next begins is
