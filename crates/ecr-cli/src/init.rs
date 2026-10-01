@@ -43,6 +43,11 @@ pub async fn run(force: bool) -> anyhow::Result<()> {
     // Offered before anything is written, because the two paths write different
     // files in different places, and the answer is not one to discover halfway.
     if !force && offer_managed(&env, &settings)? {
+        // Managed mode writes its notmuch config through `ecr account apply`,
+        // but init is where a reader looks to find out whether the setup is
+        // finished — so it creates the database here too rather than leaving
+        // the server to refuse a moment later.
+        ensure_database(&env, &settings)?;
         return Ok(());
     }
 
@@ -50,6 +55,9 @@ pub async fn run(force: bool) -> anyhow::Result<()> {
     if let Some(existing) = &resolved.path {
         if !force {
             println!("  notmuch config  {} (adopted)", existing.display());
+            // An adopted config predates ecr and may never have been indexed,
+            // which is a failure doctor reports and the server refuses on.
+            ensure_database(&env, &settings)?;
             return finish(&env, &settings).await;
         }
         println!(
@@ -288,7 +296,32 @@ fn notmuch_config_text(plan: &Plan) -> String {
     out
 }
 
-fn run_notmuch_new(config: &Path) -> anyhow::Result<()> {
+/// Creates the Xapian database for a configuration that resolves but has none.
+///
+/// A machine with no mail configuration at all is not an error here: init has
+/// already printed what the next step is, and there is nothing to create a
+/// database from. The callers are the places that hand a *written* config to
+/// the reader — init on a setup ecr already manages or adopts, and
+/// `ecr account apply` when it generates one — and both used to stop one step
+/// short of a server that could start.
+pub(crate) fn ensure_database(env: &Env, settings: &ServerSettings) -> anyhow::Result<()> {
+    let packages = ecr_store::packages::Packages::load(env);
+    let Ok(paths) = MailPaths::with_packages(env, settings, &packages) else {
+        return Ok(());
+    };
+    if paths.xapian_dir().is_dir() {
+        return Ok(());
+    }
+
+    let Some(config) = paths.notmuch.path.as_ref() else {
+        return Ok(());
+    };
+
+    println!("\nNo notmuch database yet; creating it now.");
+    run_notmuch_new(config)
+}
+
+pub(crate) fn run_notmuch_new(config: &Path) -> anyhow::Result<()> {
     let notmuch = ecr_store::tools::find(ecr_store::tools::NOTMUCH).ok_or_else(|| {
         anyhow::anyhow!("`notmuch` is not on PATH, so the database cannot be created")
     })?;
@@ -580,5 +613,45 @@ mod tests {
         assert_eq!(expand_tilde("~/mail", home), home.join("mail"));
         assert_eq!(expand_tilde("~", home), home);
         assert_eq!(expand_tilde("/srv/mail", home), PathBuf::from("/srv/mail"));
+    }
+
+    /// A machine with nothing configured has nothing to create a database from.
+    /// `ensure_database` has to say so by doing nothing, not by failing — it is
+    /// reached on the managed handoff before any account has been added.
+    #[test]
+    fn ensuring_a_database_without_a_configuration_is_a_no_op() {
+        let home = tempfile::tempdir().unwrap();
+        let env = Env::rooted_at(home.path());
+
+        ensure_database(&env, &ServerSettings::default()).unwrap();
+
+        assert!(!home
+            .path()
+            .join(".local/share/mail/.notmuch/xapian")
+            .exists());
+    }
+
+    /// The database is what doctor fails on and the server refuses to start on,
+    /// so a config that resolves without one is indexed here rather than left
+    /// for the reader to run `notmuch new` over.
+    #[test]
+    fn ensuring_a_database_indexes_a_configuration_that_has_none() {
+        if ecr_store::tools::find(ecr_store::tools::NOTMUCH).is_none() {
+            eprintln!("skipping: notmuch is not on PATH");
+            return;
+        }
+
+        let home = tempfile::tempdir().unwrap();
+        let maildir = home.path().join(".local/share/mail");
+        std::fs::create_dir_all(maildir.join("main/Inbox/cur")).unwrap();
+
+        let config = home.path().join(".config/notmuch/default/config");
+        std::fs::create_dir_all(config.parent().unwrap()).unwrap();
+        std::fs::write(&config, format!("[database]\npath={}\n", maildir.display())).unwrap();
+
+        let env = Env::rooted_at(home.path());
+        ensure_database(&env, &ServerSettings::default()).unwrap();
+
+        assert!(maildir.join(".notmuch/xapian").is_dir());
     }
 }

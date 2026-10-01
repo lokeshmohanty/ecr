@@ -14,6 +14,7 @@ use ecr_store::managed::accounts::{self, Accounts, State};
 use ecr_store::managed::Outcome;
 use ecr_store::packages::{Management, Packages};
 use ecr_store::paths::Env;
+use ecr_store::settings::ServerSettings;
 use std::path::PathBuf;
 
 const MANAGED: [ConfigKind; 3] = [ConfigKind::Notmuch, ConfigKind::Mbsync, ConfigKind::Msmtp];
@@ -297,6 +298,14 @@ pub fn apply() -> anyhow::Result<()> {
             }
         }
     }
+
+    // Writing the managed notmuch config is one step short of a setup the server
+    // can start on: without the Xapian database doctor fails and serve refuses.
+    // Init has always created it for a self-managed setup, and this is the
+    // managed equivalent of that same handover — so `ecr account add` leaves a
+    // machine that can actually serve, not one that needs `notmuch new` by hand.
+    crate::init::ensure_database(&env, &ServerSettings::load_from_env(&env))?;
+
     Ok(())
 }
 
