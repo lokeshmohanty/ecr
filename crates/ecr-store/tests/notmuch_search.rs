@@ -192,14 +192,14 @@ async fn tagging_a_thread_reaches_every_message_in_it() {
     let store = fixture.store();
 
     let thread = store
-        .search_threads(&Query::new("thread:0000000000000001"))
+        .search_threads(&Query::new("subject:\"Thread 1\""))
         .await
         .expect("search")
         .into_iter()
         .next()
         .expect("the fixture thread");
-    assert!(
-        thread.total > 1,
+    assert_eq!(
+        thread.total, 2,
         "this asserts nothing against a thread of one message"
     );
 
