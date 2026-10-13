@@ -33,6 +33,14 @@ release; both are frozen at v1.0.0.
 
 ### Fixed
 
+- **Three advisories in the dependencies, caught by the release gate.** The
+  message-HTML sanitizer now runs on `ammonia` 4.2.3, which fixes two XSS
+  advisories in it — the escaping of `url("")` inside style attributes, and SVG
+  animation tags that could smuggle a `javascript:` link (ecr allows neither
+  SVG nor filtered style properties, so neither was reachable through it).
+  `rustls` 0.23.45 stops accepting TLS 1.3 handshake messages sent at the
+  wrong encryption level, which ecr's OAuth and CardDAV/CalDAV clients talk
+  through, and `chacha20` is moved off a yanked version.
 - **The browser client stopped receiving updates.** Nothing it was served
   carried a `cache-control`, and a Nix store path dates every file to 1970 — so
   the browser was left to guess a lifetime from the age, guessed about five and
