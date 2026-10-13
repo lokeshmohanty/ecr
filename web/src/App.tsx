@@ -779,7 +779,10 @@ export function App() {
 					>
 						<section
 							class="pane h-full"
-							classList={{ "pane-focused": store.pane() === "detail" }}
+							classList={{
+								"pane-focused": store.pane() === "detail",
+								"pane-flash": store.paneFlash() === "detail",
+							}}
 							/* On capture, for the same reason as the other two panes. */
 							oncapture:click={() => store.setPane("detail")}
 						>

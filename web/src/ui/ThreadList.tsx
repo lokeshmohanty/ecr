@@ -328,7 +328,10 @@ export function ThreadList(props: { store: AppStore; onCompose: () => void }) {
   return (
     <section
       class="pane relative h-full border-r border-rule"
-      classList={{ "pane-focused": focused() }}
+      classList={{
+        "pane-focused": focused(),
+        "pane-flash": props.store.paneFlash() === "list",
+      }}
       style={{
         // Until the probe has been measured the token's own value stands, so
         // the first paint is a sensible column rather than a collapsed one.

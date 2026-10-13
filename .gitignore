@@ -57,3 +57,6 @@ keystore.properties
 # XDG_DATA_HOME here so the webview's localStorage — and so the server address
 # and token it is paired with — cannot collide with an installed ecr's.
 /.dev/
+
+# Local agent settings (Claude Code writes settings.local.json here).
+/.claude/

@@ -90,7 +90,10 @@ export function Sidebar(props: {
 	return (
 		<nav
 			class="pane h-full border-r border-rule bg-paper-2"
-			classList={{ "pane-focused": focused() }}
+			classList={{
+				"pane-focused": focused(),
+				"pane-flash": props.store.paneFlash() === "sidebar",
+			}}
 			/*
         On the way *down*, so that a control inside — a view row handing over
         to the list, compose, settings — has the last word. Bubbling up, this

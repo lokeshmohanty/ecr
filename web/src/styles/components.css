@@ -197,6 +197,7 @@
 .pane {
   min-height: 0;
   min-width: 0;
+  position: relative;
   display: flex;
   flex-direction: column;
   border-left: 2px solid transparent;
@@ -204,6 +205,42 @@
 
 .pane-focused {
   border-left-color: var(--color-obligation);
+}
+
+/*
+ * A pane that receives focus blinks, because the shift itself is a border
+ * colour changing and nothing else moves. The blink is an overlay fading from
+ * a wash of the obligation colour to nothing, so it covers the pane's own
+ * background instead of replacing it, and opacity is the only thing animated —
+ * the compositor owns it and no keystroke waits behind it. It is deliberately
+ * shorter than the 250ms the visual suite's settle waits for the DOM to be
+ * still, or a screenshot could catch the tail of the fade; and the class stays
+ * on the focused pane rather than being timed off, which is what lets the next
+ * shift retrigger it by first taking it off the pane it is leaving.
+ */
+.pane-flash::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--color-obligation);
+  opacity: 0;
+  animation: pane-blink 220ms ease-out;
+}
+
+@keyframes pane-blink {
+  from {
+    opacity: 0.13;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pane-flash::after {
+    animation: none;
+  }
 }
 
 @media (max-width: 768px) {

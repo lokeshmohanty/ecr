@@ -242,6 +242,15 @@ export function createAppStore() {
 	const [mode, setMode] = createSignal<Mode>("normal");
 	const [pane, setPaneSignal] = createSignal<Pane>("list");
 	/**
+	 * The pane focus last *shifted* to — the one that should blink. The shift
+	 * itself is instantaneous and a two-pixel border is easy to miss, so the
+	 * pane that receives focus flashes briefly. Only a change writes it and it
+	 * is never cleared: staying in a pane must not retrigger, and the class
+	 * leaving when another pane is flashed is exactly what makes a later return
+	 * fire again — no timer, nothing to settle.
+	 */
+	const [paneFlash, setPaneFlash] = createSignal<Pane | null>(null);
+	/**
 	 * Fullscreen zooms the detail pane to the whole window, hiding the sidebar
 	 * and the list. It is cleared the moment focus leaves the detail pane, so
 	 * `h`/`l` back out of it rather than landing on a pane you cannot see.
@@ -1746,6 +1755,7 @@ export function createAppStore() {
 	}
 
 	function setPane(next: Pane) {
+		if (next !== pane()) setPaneFlash(next);
 		if (next !== "detail") setFullscreen(false);
 		setPaneSignal(next);
 	}
@@ -2517,6 +2527,7 @@ export function createAppStore() {
 		setMode,
 		pane,
 		setPane,
+		paneFlash,
 		focusPane,
 		layout,
 		fullscreen,

@@ -11,6 +11,16 @@ release; both are frozen at v1.0.0.
 
 ### Added
 
+- **A pane blinks when focus shifts to it.** `h`/`l` between the sidebar, the
+  list and the reading pane is instantaneous and used to change nothing but a
+  two-pixel border — easy to miss, and in the two-pane layout the pane that
+  received focus is the only signal that the other one lost it. The pane focus
+  lands on now fades a brief wash of the obligation colour over itself. The
+  wash is an overlay whose `opacity` is the only thing animated, so it runs on
+  the compositor and no keystroke waits behind it; it is 220ms so it is over
+  before anything photographs the client, it never plays under
+  `prefers-reduced-motion`, and it fires on every route a shift arrives
+  through — `h`/`l`, a click, `Enter`, and the phone's one-pane switches.
 - **Reply all reaches everyone, not just the Cc.** `R` — and the phone's
   *Reply all* — now includes the original `To` as well as the `Cc`, and never
   Ccs one of the sending account's own addresses. It used to answer only the
