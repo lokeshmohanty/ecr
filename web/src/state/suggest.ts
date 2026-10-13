@@ -9,6 +9,8 @@ export interface Suggestion {
 export interface AddressEntry {
 	name: string | null;
 	email: string;
+	/** Present in the mail of the account being written from. */
+	local?: boolean;
 }
 
 const MAX_QUERY_SUGGESTIONS = 12;
@@ -127,7 +129,13 @@ export function rankAddresses(
 	}
 
 	scored.sort(
-		(a, b) => a.score - b.score || a.entry.email.localeCompare(b.entry.email),
+		// Addresses from the account being written from outrank the rest, whatever
+		// they matched on: somebody in the mail in front of the reader is a better
+		// guess than a stronger prefix on somebody met under another account.
+		(a, b) =>
+			Number(b.entry.local ?? false) - Number(a.entry.local ?? false) ||
+			a.score - b.score ||
+			a.entry.email.localeCompare(b.entry.email),
 	);
 	return scored.slice(0, MAX_ADDRESS_SUGGESTIONS).map((s) => s.entry);
 }

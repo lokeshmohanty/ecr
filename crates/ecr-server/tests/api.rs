@@ -127,6 +127,55 @@ async fn accounts_lists_the_discovered_account_and_its_folders() {
 }
 
 #[tokio::test]
+async fn addresses_marks_those_met_in_the_named_account() {
+    let Some(server) = Server::start().await else {
+        return;
+    };
+
+    // The fixture is one account's mail, but it is tagged the way mail is when
+    // it is indexed rather than the way a sync files it, so the account tag has
+    // to be put on before the address book can tell the two apart.
+    let response = server
+        .post(
+            "/api/v1/tags",
+            serde_json::json!({
+                "ops": [{"target": {"message": "msg1@example.com"}, "add": ["main"], "remove": []}]
+            }),
+        )
+        .await;
+    assert_eq!(response.status(), 200);
+
+    let scoped: Value = server
+        .get("/api/v1/addresses?account=main")
+        .await
+        .json()
+        .await
+        .unwrap();
+    assert!(
+        scoped
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry["local"] == true),
+        "the sender of the tagged message was met in this account"
+    );
+
+    // A name the server does not know is dropped rather than reaching the
+    // query, so nothing is marked local.
+    let unknown: Value = server
+        .get("/api/v1/addresses?account=nope")
+        .await
+        .json()
+        .await
+        .unwrap();
+    assert!(unknown
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|entry| entry["local"] == false));
+}
+
+#[tokio::test]
 async fn threads_returns_summaries_with_an_etag() {
     let Some(server) = Server::start().await else {
         return;

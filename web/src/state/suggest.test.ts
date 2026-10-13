@@ -176,3 +176,31 @@ describe("replacing the fragment with a chosen address", () => {
 		expect(result.text).toBe("alice@example.com, ");
 	});
 });
+
+describe("ranking addresses from the account being written from", () => {
+	const MIXED = [
+		{ name: null, email: "smith@global.test" },
+		{ name: "Alice Smith", email: "alicesmith@home.test", local: true },
+	];
+
+	it("puts an address from the account above a stronger global match", () => {
+		// Without the flag the global entry wins on the address prefix.
+		expect(rankAddresses(MIXED.map(({ local: _, ...a }) => a), "smith")[0]!.email).toBe(
+			"smith@global.test",
+		);
+		expect(rankAddresses(MIXED, "smith")[0]!.email).toBe(
+			"alicesmith@home.test",
+		);
+	});
+
+	it("still ranks local addresses among themselves", () => {
+		const ranked = rankAddresses(
+			[
+				{ name: null, email: "zzz@home.test", local: true },
+				{ name: null, email: "example@home.test", local: true },
+			],
+			"example",
+		);
+		expect(ranked[0]!.email).toBe("example@home.test");
+	});
+});

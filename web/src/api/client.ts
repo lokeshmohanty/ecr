@@ -224,8 +224,19 @@ export class Api {
     return this.request("/api/v1/accounts");
   }
 
-  addresses(): Promise<{ name: string | null; email: string; source: string; count: number }[]> {
-    return this.request("/api/v1/addresses");
+  addresses(
+    account?: string,
+  ): Promise<
+    {
+      name: string | null;
+      email: string;
+      source: string;
+      count: number;
+      local: boolean;
+    }[]
+  > {
+    const query = account ? `?account=${encodeURIComponent(account)}` : "";
+    return this.request(`/api/v1/addresses${query}`);
   }
 
   tags(): Promise<string[]> {

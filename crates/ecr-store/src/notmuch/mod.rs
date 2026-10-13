@@ -514,8 +514,20 @@ impl Notmuch {
 
     /// The address book, built from who you have written to and who has
     /// written to you. Recipients are collected first so they outrank senders.
-    pub async fn address_book(&self, limit: usize) -> Result<crate::address::AddressBook> {
+    ///
+    /// With a `scope`, the same two passes run against that account's mail
+    /// first, so an address met in the mail being written from can be told
+    /// apart from one met anywhere in an inbox holding several accounts.
+    pub async fn address_book(&self, scope: Option<&str>) -> Result<crate::address::AddressBook> {
         use crate::address::{AddressBook, Source};
+
+        let (sent, all) = match scope {
+            Some(tag) => (
+                format!("tag:{tag} and (tag:sent or tag:draft)"),
+                format!("tag:{tag}"),
+            ),
+            None => ("tag:sent or tag:draft".to_string(), "*".to_string()),
+        };
 
         let mut book = AddressBook::new();
 
@@ -524,19 +536,23 @@ impl Notmuch {
                 "address",
                 "--output=recipients",
                 "--deduplicate=address",
-                "tag:sent or tag:draft",
+                sent.as_str(),
             ])
             .await
             .unwrap_or_default();
         book.add_lines(&recipients, Source::Recipient);
 
         let senders = self
-            .run(&["address", "--output=sender", "--deduplicate=address", "*"])
+            .run(&[
+                "address",
+                "--output=sender",
+                "--deduplicate=address",
+                all.as_str(),
+            ])
             .await
             .unwrap_or_default();
         book.add_lines(&senders, Source::Sender);
 
-        let _ = limit;
         Ok(book)
     }
 

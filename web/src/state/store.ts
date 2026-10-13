@@ -571,15 +571,32 @@ export function createAppStore() {
 		},
 	);
 
-	const [addressBook] = createResource(endpoint, async (server) => {
-		if (!server) return [] as AddressEntry[];
-		const raw = await api.addresses().catch(() => []);
-		return raw
-			.map((a) =>
-				a.name ? parseAddress(`${a.name} <${a.email}>`) : parseAddress(a.email),
-			)
-			.filter((a): a is AddressEntry => a !== null);
-	});
+	// The account whose mail the composer is writing from, when it can be told:
+	// the reply's own account, or the mailbox being browsed. The server drops a
+	// name it does not know, so the unified view simply asks for the whole book.
+	const addressScope = () => {
+		const label =
+			right().kind === "compose"
+				? sendingAccount()?.id ?? currentAccount()
+				: currentAccount();
+		return accounts()?.some((account) => account.id === label) ? label : "";
+	};
+
+	const [addressBook] = createResource(
+		() => [endpoint(), addressScope()] as const,
+		async ([server, account]) => {
+			if (!server) return [] as AddressEntry[];
+			const raw = await api.addresses(account).catch(() => []);
+			return raw
+				.map((a): AddressEntry | null => {
+					const entry = a.name
+						? parseAddress(`${a.name} <${a.email}>`)
+						: parseAddress(a.email);
+					return entry ? { ...entry, local: a.local } : null;
+				})
+				.filter((a): a is AddressEntry => a !== null);
+		},
+	);
 
 	const [allTags] = createResource(
 		() => [endpoint(), revision()] as const,

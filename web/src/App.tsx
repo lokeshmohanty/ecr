@@ -26,7 +26,7 @@ import {
 	TopBar,
 } from "./ui/Chrome";
 import type { Draft, Message } from "./api/types";
-import { quoteBody, replyAttribution } from "./state/quote";
+import { forwardDraft, replyDraft } from "./state/reply";
 import { parseMailto } from "./state/mailto";
 import { takeLaunchMailto } from "./api/platform";
 import { isNarrow } from "./ui/narrow";
@@ -630,10 +630,21 @@ export function App() {
 					.then((b) => b.content)
 					.catch(() => "");
 
+				// Reply-all must not Cc the reader. Their own addresses are the
+				// sending account's identities, and the account's own address is
+				// added when the managed list has not loaded an owner for it.
+				const account = store.sendingAccount();
+				const self = store
+					.identitiesFor(account?.address ?? undefined)
+					.map((identity) => identity.address);
+				if (account?.address && !self.includes(account.address)) {
+					self.push(account.address);
+				}
+
 				openCompose(
 					action.kind === "forward"
 						? forwardDraft(message, original)
-						: replyDraft(message, all, original),
+						: replyDraft(message, all, original, self),
 					action.kind === "forward" ? "forward" : all ? "reply all" : "reply",
 				);
 				break;
@@ -899,49 +910,4 @@ export function App() {
 			</div>
 		</Show>
 	);
-}
-
-function replyDraft(message: Message, all: boolean, original: string): Draft {
-	const to = (message.reply_to.length ? message.reply_to : message.from).map(
-		(a) => a.email,
-	);
-	const quoted = quoteBody(original);
-
-	return {
-		to,
-		cc: all
-			? message.cc.map((a) => a.email).filter((e) => !to.includes(e))
-			: [],
-		bcc: [],
-		subject: prefixed(message.subject, "Re:"),
-		body: `\n\n${replyAttribution(message.date, message.from[0]?.email ?? null)}\n${quoted}\n`,
-		in_reply_to: message.id,
-		references: [...message.references, message.id],
-		attachments: [],
-	};
-}
-
-function forwardDraft(message: Message, original: string): Draft {
-	return {
-		to: [],
-		cc: [],
-		bcc: [],
-		subject: prefixed(message.subject, "Fwd:"),
-		body:
-			`\n\n---------- Forwarded message ----------\n` +
-			`From: ${message.from.map((a) => a.email).join(", ")}\n` +
-			`Date: ${message.date}\n` +
-			`Subject: ${message.subject}\n` +
-			`To: ${message.to.map((a) => a.email).join(", ")}\n\n${original.trim()}\n`,
-		in_reply_to: null,
-		references: [],
-		attachments: [],
-	};
-}
-
-function prefixed(subject: string, prefix: string): string {
-	const trimmed = subject.trim();
-	return trimmed.toLowerCase().startsWith(prefix.toLowerCase())
-		? trimmed
-		: `${prefix} ${trimmed}`;
 }

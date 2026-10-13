@@ -58,53 +58,91 @@ pub struct AddressEntry {
     pub email: String,
     pub source: &'static str,
     pub count: usize,
+    /// Seen in the mail of the account the composer is writing from.
+    pub local: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddressQuery {
+    #[serde(default)]
+    pub account: Option<String>,
 }
 
 /// The address book, for recipient completion in the composer.
 ///
-/// Two sources, and the order matters. Addresses gathered from mail come first
-/// and are ranked by how often they were written to, which is the best guess at
-/// who is meant. Synced contacts follow: they are the people the reader keeps
-/// rather than the ones who happen to have written, so they are the only way to
-/// complete somebody who has never sent anything — but ranking them above
-/// somebody written to yesterday would be ranking an address book above a
-/// habit.
-pub async fn addresses(State(state): State<AppState>) -> ApiResult<Json<Vec<AddressEntry>>> {
-    let book = state.store.notmuch().address_book(0).await?;
+/// Three sources, and the order matters. Addresses gathered from the account
+/// being written from come first: the answer to "who is this" is usually
+/// somebody in the mail in front of the reader, not somebody met years ago
+/// under another account. The rest of the database follows, recipients ahead
+/// of senders and ranked by how often they were written to, which is the best
+/// guess at who is meant. Synced contacts come last: they are the people the
+/// reader keeps rather than the ones who happen to have written, so they are
+/// the only way to complete somebody who has never sent anything — but ranking
+/// them above somebody written to yesterday would be ranking an address book
+/// above a habit.
+pub async fn addresses(
+    State(state): State<AppState>,
+    AxumQuery(params): AxumQuery<AddressQuery>,
+) -> ApiResult<Json<Vec<AddressEntry>>> {
+    let notmuch = state.store.notmuch();
 
-    let mut entries: Vec<AddressEntry> = book
-        .ranked()
-        .into_iter()
-        .map(|entry| AddressEntry {
-            name: entry.address.name,
-            email: entry.address.email,
-            source: match entry.source {
-                ecr_store::address::Source::Recipient => "recipient",
-                ecr_store::address::Source::Sender => "sender",
-            },
-            count: entry.count,
-        })
-        .collect();
+    // Validated against the accounts rather than trusted: the id becomes a
+    // notmuch tag, so an unknown one is dropped instead of reaching the query.
+    let scope = match params.account.as_deref() {
+        Some(id) => state
+            .store
+            .accounts()
+            .await?
+            .into_iter()
+            .find(|account| account.id.as_str() == id)
+            .map(|account| account.id.0),
+        None => None,
+    };
 
-    let known: std::collections::HashSet<String> = entries
-        .iter()
-        .map(|e| e.email.to_ascii_lowercase())
-        .collect();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut entries: Vec<AddressEntry> = Vec::new();
+
+    if let Some(tag) = scope.as_deref() {
+        for entry in notmuch.address_book(Some(tag)).await?.ranked() {
+            seen.insert(entry.address.email.to_ascii_lowercase());
+            entries.push(address_entry(entry, true));
+        }
+    }
+
+    for entry in notmuch.address_book(None).await?.ranked() {
+        if seen.insert(entry.address.email.to_ascii_lowercase()) {
+            entries.push(address_entry(entry, false));
+        }
+    }
 
     let vdir = ecr_store::dav::vdir_root(&state.store.paths().ecr_state_dir);
     entries.extend(
         ecr_store::contacts::read(&vdir)
             .into_iter()
-            .filter(|contact| !known.contains(&contact.email.to_ascii_lowercase()))
+            .filter(|contact| !seen.contains(&contact.email.to_ascii_lowercase()))
             .map(|contact| AddressEntry {
                 name: contact.name,
                 email: contact.email,
                 source: "contact",
                 count: 0,
+                local: false,
             }),
     );
 
     Ok(Json(entries))
+}
+
+fn address_entry(entry: ecr_store::address::BookEntry, local: bool) -> AddressEntry {
+    AddressEntry {
+        name: entry.address.name,
+        email: entry.address.email,
+        source: match entry.source {
+            ecr_store::address::Source::Recipient => "recipient",
+            ecr_store::address::Source::Sender => "sender",
+        },
+        count: entry.count,
+        local,
+    }
 }
 
 /// Every tag in the database, for query completion.

@@ -9,6 +9,18 @@ release; both are frozen at v1.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- **Reply all reaches everyone, not just the Cc.** `R` — and the phone's
+  *Reply all* — now includes the original `To` as well as the `Cc`, and never
+  Ccs one of the sending account's own addresses. It used to answer only the
+  people in the Cc: a message to two recipients with none of them Cc'd came back
+  as a reply to the sender alone, and a message that did name one of the
+  reader's aliases could Cc the reader. Recipient completion also ranks
+  addresses met in the account being written from above the rest of the
+  database, so a correspondent in the mail in front of the reader is suggested
+  before somebody met years ago under another account.
+
 ### Fixed
 
 - **The browser client stopped receiving updates.** Nothing it was served
