@@ -1226,7 +1226,7 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
 name = "ecr-cli"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1246,14 +1246,14 @@ dependencies = [
 
 [[package]]
 name = "ecr-core"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "ecr-desktop"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "gtk",
  "serde",
@@ -1269,7 +1269,7 @@ dependencies = [
 
 [[package]]
 name = "ecr-server"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1297,7 +1297,7 @@ dependencies = [
 
 [[package]]
 name = "ecr-store"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "ammonia",
  "anyhow",
