@@ -25,6 +25,13 @@ release; both are frozen at v1.0.0.
   navigates the frame with no request and no network, and the *load* it
   raises is the signal, with the real URL read back out of the fragment.
 
+- **rustls past four advisories the release gate caught.** `rustls` 0.23.46
+  fixes RUSTSEC-2026-0346 through -0349: `Debug` impls that exposed TLS
+  session secrets, application data buffered after an ECH rejection,
+  certificate decompression that could allocate a gigabyte before
+  authentication, and an unauthenticated `ServerHello` that could downgrade
+  later connections to classical key exchange.
+
 ### Added
 
 - **A recipient line that is cut off can be opened.** `From`, `To` and `Cc`
