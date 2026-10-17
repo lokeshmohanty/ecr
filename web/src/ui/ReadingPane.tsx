@@ -425,9 +425,9 @@ function MessageView(props: {
 			<Show when={open()}>
 				<div class="px-4 pb-4">
 					<dl class="mb-3 grid grid-cols-[3rem_minmax(0,1fr)] gap-x-2 text-xs text-ink-3">
-						<Recipients label="from" list={props.message.from} />
-						<Recipients label="to" list={props.message.to} />
-						<Recipients label="cc" list={props.message.cc} />
+						<Recipients id={props.message.id} label="from" list={props.message.from} />
+						<Recipients id={props.message.id} label="to" list={props.message.to} />
+						<Recipients id={props.message.id} label="cc" list={props.message.cc} />
 					</dl>
 
 					<Show when={attachments().length > 0}>
@@ -603,16 +603,115 @@ function sender(address: { name: string | null; email: string }): string {
 	return address.name ? `${address.name} <${address.email}>` : address.email;
 }
 
+/**
+ * A recipient line — from, to, cc — that can be opened when it is cut off.
+ *
+ * The line is one row of a definitions grid, so it is truncated rather than
+ * wrapped: a `To:` carrying thirty addresses would otherwise push the message
+ * body, and the reader's place in it, off the pane. Truncation is the right
+ * default and a dead end only for the reader who needs one of the addresses the
+ * ellipsis kept from them, which is exactly the reader who reaches for it. So a
+ * clipped line becomes a button that wraps; one that fits stays a line of text,
+ * because a control that does nothing is worse than no control at all.
+ *
+ * Which one it is is *measured*, not counted from characters: the cell is a
+ * share of the pane and the font is the reader's, so only the laid-out width
+ * knows. It is re-measured when the column resizes, and once the webfont has
+ * landed, since a width taken before it is a different width.
+ */
 function Recipients(props: {
 	label: string;
+	id: string;
 	list: { name: string | null; email: string }[];
 }) {
+	const [expanded, setExpanded] = createSignal(false);
+	const [clipped, setClipped] = createSignal(false);
+	let cell: HTMLElement | undefined;
+	let lastId: string | undefined;
+
+	const text = () => props.list.map((a) => a.email).join(", ");
+
+	const measure = () => {
+		// Only the folded line can say whether it is too long: an open one wraps,
+		// and asking it would always be told it fits.
+		if (!cell || expanded()) return;
+		const value = cell.firstElementChild as HTMLElement | null;
+		if (value) setClipped(value.scrollWidth > value.clientWidth + 1);
+	};
+
+	createEffect(() => {
+		// A new message starts folded. The thread is refetched on every tag
+		// change — including the one that marks this message read a second after
+		// it opens — so the check is the message's identity, not the list's,
+		// which is a fresh array each time and would fold an open line back up
+		// while it was being read.
+		if (props.id !== lastId) {
+			lastId = props.id;
+			setExpanded(false);
+		}
+		text();
+		queueMicrotask(measure);
+	});
+
+	createEffect(() => {
+		const el = cell;
+		if (!el) return;
+		const observer = new ResizeObserver(measure);
+		observer.observe(el);
+		onCleanup(() => observer.disconnect());
+	});
+
+	createEffect(() => {
+		document.fonts?.ready.then(measure);
+	});
+
 	return (
 		<Show when={props.list.length > 0}>
 			<dt class="uppercase">{props.label}</dt>
-			<dd class="truncate-cell">{props.list.map((a) => a.email).join(", ")}</dd>
+			<dd ref={cell} class="min-w-0" data-recipients={props.label}>
+				<Show
+					when={clipped()}
+					fallback={<span class="truncate-cell block">{text()}</span>}
+				>
+					<button
+						type="button"
+						class="w-full cursor-pointer text-left break-words"
+						classList={{ "truncate-cell": !expanded() }}
+						aria-expanded={expanded()}
+						title={expanded() ? "Hide the full list" : "Show all recipients"}
+						onClick={() => setExpanded((open) => !open)}
+					>
+						{text()}
+					</button>
+				</Show>
+			</dd>
 		</Show>
 	);
+}
+
+/*
+ * Whether a document will deliver an event to a listener the parent put on it.
+ * WebKitGTK does not, when the frame is sandboxed without `allow-scripts`: the
+ * document is script-disabled and every event goes undelivered, so a click
+ * listener installed from here never runs and the link navigates the frame
+ * instead. Chromium and Gecko deliver them. A custom event is the question
+ * because it has no default action: whether the probe is heard is the whole
+ * answer, and nothing about the document changes whichever it is.
+ */
+function deliversEvents(doc: Document): boolean {
+	let heard = false;
+	const probe = () => {
+		heard = true;
+	};
+	doc.addEventListener("ecr-probe", probe);
+	try {
+		doc.body?.dispatchEvent(new Event("ecr-probe", { bubbles: true }));
+	} catch {
+		// A dispatch the engine refuses across realms is also a document that
+		// would not deliver a click: nothing here would be heard either.
+	}
+	doc.removeEventListener("ecr-probe", probe);
+	return heard;
 }
 
 /**
@@ -621,6 +720,12 @@ function Recipients(props: {
  * nothing in a message can execute. `allow-same-origin` *is* granted, because
  * without it the parent cannot measure the document and every message rendered
  * at a fixed height, truncated. Same-origin access is inert without scripts.
+ *
+ * `allow-popups` used to be here, for `target="_blank"` links. Links are
+ * followed by a listener or rewritten below instead, so a message has no use
+ * for a popup any more and loses the one way it had to leave the sandbox — a
+ * rewritten link strips the target it would have opened with, and a clicked one
+ * has its default cancelled.
  *
  * The canvas is white on purpose. Real mail is authored for a light
  * background, and forcing a dark one produced dark-on-dark text in a large
@@ -633,7 +738,16 @@ function BodyFrame(props: {
 }) {
 	let frame: HTMLIFrameElement | undefined;
 
-	const document = () => `<!doctype html>
+	/*
+	 * Where a link goes when the document will not deliver a click. A fragment
+	 * of `about:blank` navigates the frame with no request and no network, and
+	 * the fragment carries the real URL back out. The prefix is unlikely enough
+	 * that a message cannot be mistaken for one, and the target is always our
+	 * own `encodeURIComponent`, so it always decodes.
+	 */
+	const SENTINEL = "about:blank#ecr-link:";
+
+	const markup = () => `<!doctype html>
 <html><head><meta charset="utf-8">
 <!--
   "only light" is the hard opt-out. Plain "light" still leaves
@@ -685,37 +799,83 @@ function BodyFrame(props: {
 	 * once it has been stable for a moment.
 	 */
 	const fit = () => {
-		const doc = frame?.contentDocument;
-		if (!frame || !doc?.body) return;
-
-		props.onReady?.(doc, frame);
+		const el = frame;
+		if (!el) return;
+		const doc = el.contentDocument;
 
 		/*
 		 * A tapped link had nowhere to go. The frame is sandboxed without
-		 * `allow-top-navigation`, so following one either replaced the message with
-		 * the page or did nothing at all — and in a Tauri webview, nothing at all.
-		 * The parent already reaches into `contentDocument` to measure the
-		 * document, and reaches in here to hand the URL to the system browser.
-		 * Still no script runs inside the frame.
+		 * `allow-top-navigation`, so following one either replaced the message
+		 * with the page or did nothing at all — and in a Tauri webview, nothing
+		 * at all.
+		 *
+		 * The click is normally caught here: the parent puts a listener on the
+		 * frame's own document, which reaches in without granting `allow-scripts`
+		 * (and *that* is not negotiable — beside `allow-same-origin` a script in
+		 * a message could reach into this document). But WebKitGTK, which the
+		 * desktop runs, does not deliver the click to it. A sandbox without
+		 * `allow-scripts` leaves the frame's document script-disabled, and WebKit
+		 * dispatches no DOM events to listeners registered from outside it:
+		 * document, window, body, property handlers, `mousedown`, `pointerdown` —
+		 * all silent, and the click just navigates the frame. Chromium and Gecko
+		 * dispatch them, which is why no browser suite ever saw it.
+		 *
+		 * So there are two ways in, and which one is used is asked of the
+		 * document rather than guessed from its engine. If it delivers events, a
+		 * listener follows the click where it stands — no flash, and a `window`
+		 * opened while the reader's click is still the gesture. If it does not,
+		 * every link is rewritten to a fragment of `about:blank`: that navigates
+		 * the frame with no request and no network, and the *load* it raises is
+		 * the signal, with the real URL read back out of the fragment, since
+		 * `about:blank` inherits this origin. Either way a same-document link is
+		 * left alone so it still scrolls, and a rewritten link loses its
+		 * `target`, or a `_blank` one would open a popup and never navigate the
+		 * frame at all.
 		 */
-		const follow = (event: MouseEvent) => {
-			// `instanceof Element` is a lie across realms: this node belongs to the
-			// frame's window, so it is an instance of *its* Element and not of ours,
-			// and the guard threw every click away. Ask the node what it can do
-			// instead of which constructor it came from.
-			const target = event.target as Element | null;
-			if (typeof target?.closest !== "function") return;
+		if (doc?.location.href.startsWith("about:blank")) {
+			const location = doc.location.href;
+			if (location.startsWith(SENTINEL)) {
+				props.onFollow(decodeURIComponent(location.slice(SENTINEL.length)));
+			}
+			// The message stands in for itself while the action it named opens.
+			el.srcdoc = markup();
+			// Nothing here is the message: no memo may point view mode at a blank
+			// document, and the blank has no height to measure.
+			return;
+		}
 
-			const anchor = target.closest("a");
-			const href = anchor?.getAttribute("href");
-			if (!href) return;
+		if (!doc?.body) return;
 
-			event.preventDefault();
-			props.onFollow(href);
-		};
+		if (deliversEvents(doc)) {
+			/*
+			 * `instanceof Element` is a lie across realms: this node belongs to
+			 * the frame's window, so it is an instance of *its* Element and not of
+			 * ours, and the guard threw every click away. Ask the node what it can
+			 * do instead of which constructor it came from.
+			 */
+			const follow = (event: MouseEvent) => {
+				const target = event.target as Element | null;
+				if (typeof target?.closest !== "function") return;
 
-		doc.addEventListener("click", follow);
-		onCleanup(() => doc.removeEventListener("click", follow));
+				const anchor = target.closest("a");
+				const href = anchor?.getAttribute("href");
+				if (!href) return;
+
+				event.preventDefault();
+				props.onFollow(href);
+			};
+			doc.addEventListener("click", follow);
+			onCleanup(() => doc.removeEventListener("click", follow));
+		} else {
+			for (const anchor of Array.from(doc.querySelectorAll("a[href]"))) {
+				const href = anchor.getAttribute("href");
+				if (!href || href.startsWith("#")) continue;
+				anchor.removeAttribute("target");
+				anchor.setAttribute("href", SENTINEL + encodeURIComponent(href));
+			}
+		}
+
+		props.onReady?.(doc, el);
 
 		/*
 		 * Reading `scrollHeight` forces a layout, so how often this runs is a
@@ -751,7 +911,7 @@ function BodyFrame(props: {
 			const height = content + GUTTER;
 			if (content > 0 && height !== last) {
 				last = height;
-				frame.style.height = `${height}px`;
+				el.style.height = `${height}px`;
 			}
 		};
 
@@ -784,8 +944,8 @@ function BodyFrame(props: {
 	return (
 		<iframe
 			ref={frame}
-			sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-			srcdoc={document()}
+			sandbox="allow-same-origin"
+			srcdoc={markup()}
 			class="w-full rounded border border-rule-soft bg-white"
 			style={{ height: "6rem" }}
 			onLoad={fit}

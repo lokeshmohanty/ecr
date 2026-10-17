@@ -9,6 +9,32 @@ release; both are frozen at v1.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Links in message HTML did nothing in the desktop app.** The message frame
+  is sandboxed without `allow-scripts` — rightly, since beside
+  `allow-same-origin` a script in a message could reach into the app — but
+  WebKitGTK, which the desktop runs, delivers no DOM event at all to a
+  listener the parent registers on the frame's document: the click simply
+  navigated the frame, and a link that looked perfectly clickable did nothing.
+  Chromium and Gecko deliver those events, which is why the browser was never
+  affected and no suite caught it. The frame now asks the document whether it
+  delivers events — a synthetic event with no default action, heard or not —
+  and where it does, a listener follows the click where it stands; where it
+  does not, every link is rewritten to a fragment of `about:blank` that
+  navigates the frame with no request and no network, and the *load* it
+  raises is the signal, with the real URL read back out of the fragment.
+
+### Added
+
+- **A recipient line that is cut off can be opened.** `From`, `To` and `Cc`
+  in a message header are truncated rather than wrapped, so a `To:` carrying
+  thirty addresses does not push the body off the pane — but the reader who
+  needs one of the addresses the ellipsis kept from them had no way to see
+  it. A line that is actually clipped becomes a button that wraps; one that
+  fits stays plain text, because a control that would do nothing is worse
+  than no control at all.
+
 ## [0.7.0] — 2026-10-13
 
 ### Added

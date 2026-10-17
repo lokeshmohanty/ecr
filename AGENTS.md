@@ -144,6 +144,23 @@ just check        # fmt, lint, both suites, and verify — run before claiming d
   `contentDocument` is null, the resize is a no-op and every message renders
   truncated. `allow-scripts` is the flag that matters and is never granted, so
   same-origin access is inert.
+- **A sandbox without `allow-scripts` also swallows every event a parent
+  listener is waiting for, in WebKitGTK, which is what the desktop runs.** The
+  click was caught by a listener the parent put on the frame's own document,
+  and in Chromium and Gecko that works — so it read as a desktop-only link bug
+  and looked like the opener plugin. It was neither: with the frame sandboxed
+  the way it is, WebKit dispatches **no** DOM events to a listener registered
+  from outside the document — `click`, `mousedown`, `pointerdown`, a property
+  handler, all silent — and the click just navigates the frame. `allow-scripts`
+  would fix it and is the one flag that must never be granted (beside
+  `allow-same-origin` it lets a message run code with this origin). So the fix
+  asks the document instead of assuming an engine: a synthetic custom event
+  with no default action, heard or not, is the whole answer. If it is heard, a
+  listener follows the click where it stands. If it is not, every link is
+  rewritten to a fragment of `about:blank`, which navigates the frame with no
+  request and no network, and the *load* it raises is the signal, with the real
+  URL read back out of the fragment. Nothing about this is visible to the
+  browser suites, which is exactly why it shipped broken.
 - **Measure the message's *body*, never `documentElement.scrollHeight`.** That
   number is floored at the frame's own viewport, so the moment the frame has
   been sized to fit, it answers the frame's height rather than the content's —
