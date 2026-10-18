@@ -223,7 +223,6 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
       - uses: pnpm/action-setup@v4
         with:
           version: 10
