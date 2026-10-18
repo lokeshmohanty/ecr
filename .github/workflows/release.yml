@@ -203,6 +203,7 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: android-actions/setup-android@v3
+        continue-on-error: true
       - uses: pnpm/action-setup@v4
         with:
           version: 10
