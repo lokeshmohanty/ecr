@@ -217,7 +217,12 @@ jobs:
 
       - name: Install the NDK
         run: |
-          /usr/local/lib/android/sdk/cmdline-tools/16.0/bin/sdkmanager --install "ndk;27.2.12479018"
+          SDKMANAGER=$(find /usr/local/lib/android/sdk -name "sdkmanager" -type f 2>/dev/null | head -1)
+          if [ -z "$SDKMANAGER" ]; then
+            echo "::error::sdkmanager not found under /usr/local/lib/android/sdk"
+            exit 1
+          fi
+          "$SDKMANAGER" --install "ndk;27.2.12479018"
           echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
 
       - name: Install Tauri dependencies
